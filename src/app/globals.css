@@ -1,0 +1,234 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Brand colors */
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+  --color-brand-950: #022c22;
+
+  /* Neutral scale */
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  --color-neutral-950: #020617;
+
+  /* Semantic tokens — MUST be mapped here to become Tailwind utilities */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --radius: 0.625rem;
+}
+
+/* ── Light theme (default) ── */
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #10b981;
+
+  --primary: #059669;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --accent: #ecfdf5;
+  --accent-foreground: #047857;
+
+  --success: #059669;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --info: #0284c7;
+  --info-foreground: #ffffff;
+
+  --gradient-brand: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
+  --gradient-subtle: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
+
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+  --shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.08), 0 4px 6px -4px rgb(15 23 42 / 0.05);
+}
+
+/* ── Dark theme ── */
+.dark {
+  --background: #0a0f1a;
+  --foreground: #f1f5f9;
+  --card: #131b2c;
+  --card-foreground: #f1f5f9;
+  --muted: #1a2436;
+  --muted-foreground: #94a3b8;
+  --border: #263449;
+  --input: #263449;
+  --ring: #34d399;
+
+  --primary: #34d399;
+  --primary-foreground: #022c22;
+  --secondary: #1a2436;
+  --secondary-foreground: #f1f5f9;
+  --accent: #0d3b2d;
+  --accent-foreground: #a7f3d0;
+
+  --success: #34d399;
+  --success-foreground: #022c22;
+  --warning: #fbbf24;
+  --warning-foreground: #451a03;
+  --destructive: #f87171;
+  --destructive-foreground: #450a0a;
+  --info: #38bdf8;
+  --info-foreground: #082f49;
+
+  --gradient-brand: linear-gradient(135deg, #047857 0%, #10b981 50%, #34d399 100%);
+  --gradient-subtle: linear-gradient(180deg, #0d3b2d 0%, #0a0f1a 100%);
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-geist-sans), var(--font-sans), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+/* Ad slot base styles — prevent CLS */
+.ad-slot {
+  min-height: 90px;
+  display: block;
+  background: transparent;
+}
+.ad-slot-rectangle {
+  min-height: 250px;
+}
+.ad-slot-leaderboard {
+  min-height: 90px;
+}
+
+/* Smooth transitions for theme switch */
+*, *::before, *::after {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/*
+ * Tailwind v4 bakes semantic token utility classes (bg-background, text-foreground etc.)
+ * as static hex values at compile time. These overrides restore dynamic behaviour by
+ * re-pointing them to the CSS variables so .dark can take effect at runtime.
+ */
+.bg-background          { background-color: var(--color-background) !important; }
+.bg-card                { background-color: var(--color-card) !important; }
+.bg-muted               { background-color: var(--color-muted) !important; }
+.bg-accent              { background-color: var(--color-accent) !important; }
+.bg-primary             { background-color: var(--color-primary) !important; }
+.bg-secondary           { background-color: var(--color-secondary) !important; }
+.bg-destructive         { background-color: var(--color-destructive) !important; }
+.bg-border              { background-color: var(--color-border) !important; }
+.bg-input               { background-color: var(--color-input) !important; }
+
+.text-foreground        { color: var(--color-foreground) !important; }
+.text-card-foreground   { color: var(--color-card-foreground) !important; }
+.text-muted-foreground  { color: var(--color-muted-foreground) !important; }
+.text-accent-foreground { color: var(--color-accent-foreground) !important; }
+.text-primary           { color: var(--color-primary) !important; }
+.text-primary-foreground{ color: var(--color-primary-foreground) !important; }
+.text-secondary         { color: var(--color-secondary) !important; }
+.text-secondary-foreground { color: var(--color-secondary-foreground) !important; }
+.text-destructive       { color: var(--color-destructive) !important; }
+.text-destructive-foreground { color: var(--color-destructive-foreground) !important; }
+
+.border-border          { border-color: var(--color-border) !important; }
+.border-input           { border-color: var(--color-input) !important; }
+.border-primary         { border-color: var(--color-primary) !important; }
+.border-destructive     { border-color: var(--color-destructive) !important; }
+
+.ring-ring              { --tw-ring-color: var(--color-ring) !important; }
+.ring-offset-background { --tw-ring-offset-color: var(--color-background) !important; }
+
+.hover\:bg-muted:hover       { background-color: var(--color-muted) !important; }
+.hover\:bg-accent:hover      { background-color: var(--color-accent) !important; }
+.hover\:bg-primary:hover     { background-color: var(--color-primary) !important; }
+.hover\:bg-secondary:hover   { background-color: var(--color-secondary) !important; }
+.hover\:text-foreground:hover{ color: var(--color-foreground) !important; }
+.hover\:text-primary:hover   { color: var(--color-primary) !important; }
+.hover\:text-accent-foreground:hover { color: var(--color-accent-foreground) !important; }
+.hover\:text-muted-foreground:hover  { color: var(--color-muted-foreground) !important; }
+
+.focus\:bg-accent:focus      { background-color: var(--color-accent) !important; }
+.focus\:bg-primary:focus     { background-color: var(--color-primary) !important; }
+.focus\:text-accent-foreground:focus { color: var(--color-accent-foreground) !important; }
+.focus\:text-primary-foreground:focus{ color: var(--color-primary-foreground) !important; }
+
+.data-\[state\=active\]\:bg-background[data-state=active]  { background-color: var(--color-background) !important; }
+.data-\[state\=active\]\:text-foreground[data-state=active]{ color: var(--color-foreground) !important; }
+.data-\[state\=checked\]\:bg-primary[data-state=checked]   { background-color: var(--color-primary) !important; }
+.data-\[state\=checked\]\:text-primary-foreground[data-state=checked] { color: var(--color-primary-foreground) !important; }
+.data-\[state\=on\]\:bg-accent[data-state=on]              { background-color: var(--color-accent) !important; }
+.data-\[state\=on\]\:text-accent-foreground[data-state=on] { color: var(--color-accent-foreground) !important; }
+.data-\[state\=open\]\:bg-accent[data-state=open]          { background-color: var(--color-accent) !important; }
+.data-\[state\=open\]\:text-accent-foreground[data-state=open] { color: var(--color-accent-foreground) !important; }
+.data-\[state\=open\]\:bg-secondary[data-state=open]       { background-color: var(--color-secondary) !important; }
+.data-\[state\=unchecked\]\:bg-input[data-state=unchecked] { background-color: var(--color-input) !important; }
+
+.muted\/50, .bg-muted\/50   { background-color: color-mix(in oklab, var(--color-muted) 50%, transparent) !important; }
+
+.focus-visible\:ring-offset-background:focus-visible { --tw-ring-offset-color: var(--color-background) !important; }
+
+/* Toaster/toast dark-mode fixes */
+.group-\[\.toaster\]\:bg-background { background-color: var(--color-background) !important; }
+.group-\[\.toaster\]\:text-foreground { color: var(--color-foreground) !important; }
+.group-\[\.toaster\]\:border-border { border-color: var(--color-border) !important; }
+.group-\[\.toast\]\:bg-primary { background-color: var(--color-primary) !important; }
+.group-\[\.toast\]\:text-primary-foreground { color: var(--color-primary-foreground) !important; }
+.group-\[\.toast\]\:bg-muted { background-color: var(--color-muted) !important; }
+.group-\[\.toast\]\:text-muted-foreground { color: var(--color-muted-foreground) !important; }
