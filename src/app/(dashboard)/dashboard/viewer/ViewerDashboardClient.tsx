@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import type { PeriodSummary } from "@/lib/profit-engine";
 
 interface ViewerData {
@@ -79,6 +80,7 @@ interface Props {
 
 export function ViewerDashboardClient({ data, userName }: Props) {
   const { current, changes, chartData, topProducts, recentOrders, adSpendByPlatform } = data;
+  const { currency } = useCurrency();
 
   const totalAdSpend = adSpendByPlatform.reduce((s, p) => s + p.spend, 0);
 
@@ -119,7 +121,7 @@ export function ViewerDashboardClient({ data, userName }: Props) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Net Profit (MTD)"
-          value={formatCurrency(current.netProfit)}
+          value={formatCurrency(current.netProfit, currency)}
           change={changes.profit}
           changeLabel="vs last month"
           icon={DollarSign}
@@ -127,7 +129,7 @@ export function ViewerDashboardClient({ data, userName }: Props) {
         />
         <StatCard
           label="Revenue (MTD)"
-          value={formatCurrency(current.totalRevenue)}
+          value={formatCurrency(current.totalRevenue, currency)}
           change={changes.revenue}
           changeLabel="vs last month"
           icon={TrendingUp}
@@ -152,9 +154,9 @@ export function ViewerDashboardClient({ data, userName }: Props) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Gross Margin",     value: formatPercent(current.grossMargin),          danger: false },
-          { label: "Avg Order Value",  value: formatCurrency(current.avgOrderValue),       danger: false },
-          { label: "Total COGS",       value: formatCurrency(current.totalCogs),           danger: false },
-          { label: "Total Refunds",    value: formatCurrency(current.totalRefunds),        danger: current.totalRefunds > 0 },
+          { label: "Avg Order Value",  value: formatCurrency(current.avgOrderValue, currency),       danger: false },
+          { label: "Total COGS",       value: formatCurrency(current.totalCogs, currency),           danger: false },
+          { label: "Total Refunds",    value: formatCurrency(current.totalRefunds, currency),        danger: current.totalRefunds > 0 },
         ].map(({ label, value, danger }) => (
           <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4">
             <p className="text-xs text-[var(--color-muted-foreground)] mb-1">{label}</p>
@@ -201,7 +203,7 @@ export function ViewerDashboardClient({ data, userName }: Props) {
                 tickLine={false} axisLine={false}
               />
               <Tooltip
-                formatter={(v: unknown, name: unknown) => [formatCurrency(v as number), name === "revenue" ? "Revenue" : "Net Profit"]}
+                formatter={(v: unknown, name: unknown) => [formatCurrency(v as number, currency), name === "revenue" ? "Revenue" : "Net Profit"]}
                 labelFormatter={(l: unknown) => new Date(l as string).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
               />
@@ -249,13 +251,13 @@ export function ViewerDashboardClient({ data, userName }: Props) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{p.name}</p>
                       <p className="text-xs text-[var(--color-muted-foreground)]">
-                        {p.totalOrders} orders · {formatCurrency(p.totalRevenue)} revenue
+                        {p.totalOrders} orders · {formatCurrency(p.totalRevenue, currency)} revenue
                       </p>
                     </div>
                     {/* Profit + margin */}
                     <div className="text-right flex-shrink-0">
                       <p className={cn("text-sm font-semibold", p.totalProfit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                        {formatCurrency(p.totalProfit)}
+                        {formatCurrency(p.totalProfit, currency)}
                       </p>
                       <p className={cn(
                         "text-xs",
@@ -295,7 +297,7 @@ export function ViewerDashboardClient({ data, userName }: Props) {
                     <XAxis dataKey="platform" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v}`} tickLine={false} axisLine={false} />
                     <Tooltip
-                      formatter={(v: unknown) => [formatCurrency(v as number)]}
+                      formatter={(v: unknown) => [formatCurrency(v as number, currency)]}
                       contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
                     />
                     <Bar dataKey="spend" name="Spend" fill="var(--color-primary)" radius={[3, 3, 0, 0]} />
@@ -312,7 +314,7 @@ export function ViewerDashboardClient({ data, userName }: Props) {
                         style={{ background: PLATFORM_COLORS[p.platform] ?? "var(--color-primary)" }}
                       />
                       <span className="text-sm capitalize text-[var(--color-foreground)] flex-1">{p.platform}</span>
-                      <span className="text-xs text-[var(--color-muted-foreground)]">{formatCurrency(p.spend)} spend</span>
+                      <span className="text-xs text-[var(--color-muted-foreground)]">{formatCurrency(p.spend, currency)} spend</span>
                       <span className={cn(
                         "text-xs font-semibold",
                         p.roas >= 3 ? "text-green-600 dark:text-green-400"
@@ -325,7 +327,7 @@ export function ViewerDashboardClient({ data, userName }: Props) {
                   ))}
                   <div className="flex items-center justify-between pt-1 border-t border-[var(--color-border)] text-xs font-medium text-[var(--color-foreground)]">
                     <span>Total</span>
-                    <span>{formatCurrency(totalAdSpend)}</span>
+                    <span>{formatCurrency(totalAdSpend, currency)}</span>
                   </div>
                 </div>
               </div>
@@ -386,9 +388,9 @@ export function ViewerDashboardClient({ data, userName }: Props) {
                           {o.status}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-[var(--color-foreground)]">{formatCurrency(o.grossRevenue)}</td>
+                      <td className="px-4 py-3 text-[var(--color-foreground)]">{formatCurrency(o.grossRevenue, currency)}</td>
                       <td className={cn("px-4 py-3 font-semibold", o.netProfit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                        {formatCurrency(o.netProfit)}
+                        {formatCurrency(o.netProfit, currency)}
                       </td>
                       <td className={cn(
                         "px-4 py-3 font-medium",

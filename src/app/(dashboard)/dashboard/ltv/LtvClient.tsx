@@ -8,6 +8,7 @@ import { Users, TrendingUp, RefreshCw, Award } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface CohortRow {
   cohort: string; customers: number; revenue: number; profit: number;
@@ -31,6 +32,7 @@ function formatMonth(m: unknown): string {
 
 export function LtvClient({ data }: { data: LtvData }) {
   const { cohorts, topCustomers, summary } = data;
+  const { currency } = useCurrency();
   const hasCohorts = cohorts.length > 0;
 
   const maxLtv = Math.max(...cohorts.map((c) => c.avgLtv), 1);
@@ -50,7 +52,7 @@ export function LtvClient({ data }: { data: LtvData }) {
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Customers"        value={summary.totalCustomers.toLocaleString()} icon={Users} />
-        <StatCard label="Avg Customer LTV"       value={formatCurrency(summary.avgLtv)}          icon={TrendingUp} highlight />
+        <StatCard label="Avg Customer LTV"       value={formatCurrency(summary.avgLtv, currency)}          icon={TrendingUp} highlight />
         <StatCard label="Repeat Purchase Rate"   value={formatPercent(summary.repeatRate)}        icon={RefreshCw} />
         <StatCard label="Avg Orders / Customer"  value={summary.avgOrdersPerCust.toFixed(2)}      icon={Award} />
       </div>
@@ -77,7 +79,7 @@ export function LtvClient({ data }: { data: LtvData }) {
                     <YAxis tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v.toFixed(0)}`} />
                     <Tooltip
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      formatter={((v: number) => [formatCurrency(v), "Avg LTV"]) as any}
+                      formatter={((v: number) => [formatCurrency(v, currency), "Avg LTV"]) as any}
                       labelFormatter={formatMonth}
                       contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
                     />
@@ -130,19 +132,19 @@ export function LtvClient({ data }: { data: LtvData }) {
                       <tr key={c.cohort} className="hover:bg-[var(--color-muted)]/40">
                         <td className="px-4 py-3 font-medium text-[var(--color-foreground)]">{formatMonth(c.cohort)}</td>
                         <td className="px-4 py-3 text-[var(--color-muted-foreground)]">{c.customers}</td>
-                        <td className="px-4 py-3">{formatCurrency(c.revenue)}</td>
+                        <td className="px-4 py-3">{formatCurrency(c.revenue, currency)}</td>
                         <td className={cn("px-4 py-3 font-semibold", c.profit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                          {formatCurrency(c.profit)}
+                          {formatCurrency(c.profit, currency)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="w-16 h-1.5 bg-[var(--color-muted)] rounded-full overflow-hidden">
                               <div className="h-full bg-[var(--color-primary)] rounded-full" style={{ width: `${(c.avgLtv / maxLtv) * 100}%` }} />
                             </div>
-                            <span>{formatCurrency(c.avgLtv)}</span>
+                            <span>{formatCurrency(c.avgLtv, currency)}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">{formatCurrency(c.avgRevPerCustomer)}</td>
+                        <td className="px-4 py-3">{formatCurrency(c.avgRevPerCustomer, currency)}</td>
                         <td className="px-4 py-3">
                           <span className={cn("font-medium", c.repeatRate >= 30 ? "text-green-600 dark:text-green-400" : c.repeatRate >= 10 ? "text-yellow-600" : "text-[var(--color-muted-foreground)]")}>
                             {formatPercent(c.repeatRate)}
@@ -182,11 +184,11 @@ export function LtvClient({ data }: { data: LtvData }) {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-[var(--color-muted-foreground)]">{c.orderCount}</td>
-                          <td className="px-4 py-3">{formatCurrency(c.totalRevenue)}</td>
+                          <td className="px-4 py-3">{formatCurrency(c.totalRevenue, currency)}</td>
                           <td className={cn("px-4 py-3 font-bold", c.totalProfit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                            {formatCurrency(c.totalProfit)}
+                            {formatCurrency(c.totalProfit, currency)}
                           </td>
-                          <td className="px-4 py-3">{formatCurrency(c.avgOrderValue)}</td>
+                          <td className="px-4 py-3">{formatCurrency(c.avgOrderValue, currency)}</td>
                           <td className="px-4 py-3 text-[var(--color-muted-foreground)]">
                             {new Date(c.firstOrderDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                           </td>

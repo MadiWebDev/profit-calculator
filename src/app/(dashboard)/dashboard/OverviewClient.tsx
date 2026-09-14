@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { useRole } from "@/components/dashboard/RoleContext";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import type { PeriodSummary } from "@/lib/profit-engine";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -375,6 +376,7 @@ function useQuickActions(
 export function OverviewClient({ data }: { data: OverviewData }) {
   const { current, changes, chartData, stores, hasOrders } = data;
   const { role, plan, canManageBilling } = useRole();
+  const { currency } = useCurrency();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -581,8 +583,8 @@ export function OverviewClient({ data }: { data: OverviewData }) {
 
       {/* KPI stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Net Profit"    value={formatCurrency(current.netProfit)}    change={changes.profit}  changeLabel="vs prior period" icon={DollarSign} highlight />
-        <StatCard label="Revenue"       value={formatCurrency(current.totalRevenue)} change={changes.revenue} changeLabel="vs prior period" icon={TrendingUp} />
+        <StatCard label="Net Profit"    value={formatCurrency(current.netProfit, currency)}    change={changes.profit}  changeLabel="vs prior period" icon={DollarSign} highlight />
+        <StatCard label="Revenue"       value={formatCurrency(current.totalRevenue, currency)} change={changes.revenue} changeLabel="vs prior period" icon={TrendingUp} />
         <StatCard label="Net Margin"    value={formatPercent(current.netMargin)}     change={changes.margin}  changeLabel="pp vs prior period" icon={Percent} />
         <StatCard label="Orders"        value={current.orderCount.toLocaleString()}  change={changes.orders}  changeLabel="vs prior period" icon={ShoppingCart} />
       </div>
@@ -591,9 +593,9 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Gross Margin",    value: formatPercent(current.grossMargin) },
-          { label: "Total Ad Spend",  value: formatCurrency(current.totalAdSpend) },
-          { label: "Avg Order Value", value: formatCurrency(current.avgOrderValue) },
-          { label: "Total Refunds",   value: formatCurrency(current.totalRefunds), danger: current.totalRefunds > 0 },
+          { label: "Total Ad Spend",  value: formatCurrency(current.totalAdSpend, currency) },
+          { label: "Avg Order Value", value: formatCurrency(current.avgOrderValue, currency) },
+          { label: "Total Refunds",   value: formatCurrency(current.totalRefunds, currency), danger: current.totalRefunds > 0 },
         ].map(({ label, value, danger }) => (
           <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4">
             <p className="text-xs text-[var(--color-muted-foreground)] mb-1">{label}</p>
@@ -644,7 +646,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                   />
                   <Tooltip
                     formatter={(v: unknown, name: unknown) => [
-                      formatCurrency(v as number),
+                      formatCurrency(v as number, currency),
                       name === "revenue" ? "Revenue" : "Net Profit",
                     ]}
                     labelFormatter={(l: unknown) =>
