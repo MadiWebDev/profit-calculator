@@ -11,20 +11,23 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResultsChart } from "@/components/ResultsChart";
-import { formatPercent, formatNumber, buildShareUrl, cn } from "@/lib/utils";
+import { formatCurrency, formatPercent, formatNumber, buildShareUrl, cn } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface ProfitCalculatorProps {
   /** Pass only the slug — config is resolved client-side to avoid serializing functions */
   slug: string;
 }
 
-function formatOutput(value: number, format: string): string {
-  switch (format) {
-    case "currency":   return formatNumber(value, 2);
-    case "percent":    return formatPercent(value);
-    case "multiplier": return `${value.toFixed(2)}x`;
-    default:           return formatNumber(value, 2);
-  }
+function makeFormatOutput(currency: string) {
+  return function formatOutput(value: number, format: string): string {
+    switch (format) {
+      case "currency":   return formatCurrency(value, currency);
+      case "percent":    return formatPercent(value);
+      case "multiplier": return `${value.toFixed(2)}x`;
+      default:           return formatNumber(value, 2);
+    }
+  };
 }
 
 function ResultTrendIcon({ value }: { value: number }) {
@@ -38,6 +41,10 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [copied, setCopied] = useState(false);
+  const { currency, symbol } = useCurrency();
+
+  // Bind formatOutput to the live currency so all outputs use the correct symbol
+  const formatOutput = useMemo(() => makeFormatOutput(currency), [currency]);
 
   const defaultValues = useMemo(() => {
     if (!config) return {};
@@ -106,13 +113,13 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
     const lines = config.outputs.map(
       (o) => `${o.label}: ${formatOutput(results[o.key] ?? 0, o.format)}`
     );
-    const text = `${config.title} Results\n${"=".repeat(30)}\n${lines.join("\n")}`;
+    const text = `${config.title} Results (${currency})\n${"=".repeat(30)}\n${lines.join("\n")}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {}
-  }, [results, config]);
+  }, [results, config, formatOutput, currency]);
 
   const handleReset = useCallback(() => {
     if (!config) return;
@@ -171,7 +178,7 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
                     <div className="relative">
                       {field.type === "currency" && (
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted-foreground)] pointer-events-none select-none">
-                          $
+                          {symbol}
                         </span>
                       )}
                       <Input

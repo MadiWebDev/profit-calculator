@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { RoleProvider } from "@/components/dashboard/RoleContext";
 import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
+import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -47,6 +48,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           {/* Desktop topbar strip */}
           <div className="hidden lg:flex items-center justify-end gap-2 px-6 py-3 border-b border-[var(--color-border)] bg-[var(--color-card)] flex-shrink-0">
+            <CurrencySelector size="md" />
             <NotificationBell />
             <ThemeToggle />
           </div>

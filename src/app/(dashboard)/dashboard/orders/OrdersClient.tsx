@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface OrderRow {
   id: string;
@@ -49,6 +50,7 @@ const statusBadge = (status: string) => {
 export function OrdersClient({ data }: { data: OrdersData }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { currency } = useCurrency();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [isPending, startTransition] = useTransition();
 
@@ -144,15 +146,15 @@ export function OrdersClient({ data }: { data: OrdersData }) {
                     {new Date(order.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </td>
                   <td className="px-4 py-3">{statusBadge(order.status)}</td>
-                  <td className="px-4 py-3 text-[var(--color-foreground)]">{formatCurrency(order.grossRevenue)}</td>
-                  <td className="px-4 py-3 text-[var(--color-muted-foreground)]">{formatCurrency(order.totalCogs)}</td>
+                  <td className="px-4 py-3 text-[var(--color-foreground)]">{formatCurrency(order.grossRevenue, currency)}</td>
+                  <td className="px-4 py-3 text-[var(--color-muted-foreground)]">{formatCurrency(order.totalCogs, currency)}</td>
                   <td className={cn("px-4 py-3 font-semibold", order.netProfit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                    {formatCurrency(order.netProfit)}
+                    {formatCurrency(order.netProfit, currency)}
                   </td>
                   <td className={cn("px-4 py-3 font-medium", order.profitMargin >= 20 ? "text-green-600 dark:text-green-400" : order.profitMargin >= 10 ? "text-yellow-600 dark:text-yellow-400" : "text-red-500")}>
                     {formatPercent(order.profitMargin)}
                   </td>
-                  <td className="px-4 py-3 text-[var(--color-muted-foreground)]">{formatCurrency(order.adSpendAllocated)}</td>
+                  <td className="px-4 py-3 text-[var(--color-muted-foreground)]">{formatCurrency(order.adSpendAllocated, currency)}</td>
                 </tr>
               ))}
             </tbody>

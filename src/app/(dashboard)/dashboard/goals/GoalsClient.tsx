@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface GoalRow {
   id: string;
@@ -31,7 +32,7 @@ interface GoalForm {
   alertThreshold: number;
 }
 
-function GoalCard({ goal }: { goal: GoalRow }) {
+function GoalCard({ goal, currency }: { goal: GoalRow; currency: string }) {
   const pct = Math.max(0, Math.min(100, goal.progressPercent));
   const color = pct >= 80 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-500";
   const [year, mo] = goal.month.split("-");
@@ -43,8 +44,8 @@ function GoalCard({ goal }: { goal: GoalRow }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <p className="text-xs text-[var(--color-muted-foreground)] mb-1">{label}</p>
-            <p className="text-2xl font-bold text-[var(--color-foreground)]">{formatCurrency(goal.currentProfit, goal.currency)}</p>
-            <p className="text-xs text-[var(--color-muted-foreground)]">of {formatCurrency(goal.targetProfit, goal.currency)} target</p>
+            <p className="text-2xl font-bold text-[var(--color-foreground)]">{formatCurrency(goal.currentProfit, currency)}</p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">of {formatCurrency(goal.targetProfit, currency)} target</p>
           </div>
           <div className="text-right">
             <p className={cn("text-2xl font-extrabold", pct >= 80 ? "text-green-500" : pct >= 50 ? "text-yellow-500" : "text-red-500")}>
@@ -64,7 +65,7 @@ function GoalCard({ goal }: { goal: GoalRow }) {
         </div>
         <div className="flex justify-between text-xs text-[var(--color-muted-foreground)] mt-1">
           <span>0</span>
-          <span>{formatCurrency(goal.targetProfit, goal.currency)}</span>
+          <span>{formatCurrency(goal.targetProfit, currency)}</span>
         </div>
         {goal.targetRevenue && (
           <div className="mt-3 pt-3 border-t border-[var(--color-border)] flex items-center justify-between text-sm">
@@ -72,7 +73,7 @@ function GoalCard({ goal }: { goal: GoalRow }) {
               <TrendingUp className="h-3.5 w-3.5" /> Revenue progress
             </span>
             <span className="font-medium text-[var(--color-foreground)]">
-              {formatCurrency(goal.currentRevenue)} / {formatCurrency(goal.targetRevenue)}
+              {formatCurrency(goal.currentRevenue, currency)} / {formatCurrency(goal.targetRevenue, currency)}
             </span>
           </div>
         )}
@@ -83,6 +84,7 @@ function GoalCard({ goal }: { goal: GoalRow }) {
 
 export function GoalsClient({ goals }: { goals: GoalRow[] }) {
   const router = useRouter();
+  const { currency } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +184,7 @@ export function GoalsClient({ goals }: { goals: GoalRow[] }) {
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {goals.map((g) => <GoalCard key={g.id} goal={g} />)}
+        {goals.map((g) => <GoalCard key={g.id} goal={g} currency={currency} />)}
       </div>
     </div>
   );

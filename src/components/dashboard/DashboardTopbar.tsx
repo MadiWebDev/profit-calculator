@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X, Bell, Calculator } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
+import { Calculator } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
+import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
 import { cn } from "@/lib/utils";
 
 import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
@@ -38,6 +40,7 @@ export function DashboardTopbar({ userName, userEmail, plan, role }: DashboardTo
           <span className="text-sm">Profit<span className="text-[var(--color-primary)]">Calc</span></span>
         </Link>
         <div className="ml-auto flex items-center gap-1">
+          <CurrencySelector size="sm" />
           <NotificationBell />
           <ThemeToggle />
         </div>

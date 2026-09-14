@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 type AttributionModel = "last_click" | "first_click" | "linear";
 
@@ -66,6 +67,7 @@ function applyAttribution(
 export function AdSpendClient({ data }: { data: AdData }) {
   const [attribution, setAttribution] = useState<AttributionModel>("last_click");
   const { summary, byPlatform, byDay, byCampaign } = data;
+  const { currency } = useCurrency();
 
   const adjustedPlatforms = useMemo(() => applyAttribution(byPlatform, attribution), [byPlatform, attribution]);
 
@@ -113,8 +115,8 @@ export function AdSpendClient({ data }: { data: AdData }) {
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Ad Spend"    value={formatCurrency(summary.totalSpend)} />
-        <StatCard label="Attributed Revenue" value={formatCurrency(summary.totalRevenue)} highlight />
+        <StatCard label="Total Ad Spend"    value={formatCurrency(summary.totalSpend, currency)} />
+        <StatCard label="Attributed Revenue" value={formatCurrency(summary.totalRevenue, currency)} highlight />
         <StatCard label="Overall ROAS"       value={`${summary.overallRoas.toFixed(2)}x`} />
         <StatCard label="Total Conversions"  value={summary.totalConversions.toLocaleString()} />
       </div>
@@ -158,7 +160,7 @@ export function AdSpendClient({ data }: { data: AdData }) {
                     tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                   <Tooltip
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    formatter={((v: number, n: string) => [formatCurrency(v), n === "revenue" ? "Revenue" : "Spend"]) as any}
+                    formatter={((v: number, n: string) => [formatCurrency(v, currency), n === "revenue" ? "Revenue" : "Spend"]) as any}
                     contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
                   />
                   <Legend formatter={(v) => <span style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{v}</span>} />
@@ -196,12 +198,12 @@ export function AdSpendClient({ data }: { data: AdData }) {
                               <span className="font-medium capitalize text-[var(--color-foreground)]">{p._id}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-2.5">{formatCurrency(p.spend)}</td>
-                          <td className="px-4 py-2.5">{formatCurrency(p.revenue)}</td>
+                          <td className="px-4 py-2.5">{formatCurrency(p.spend, currency)}</td>
+                          <td className="px-4 py-2.5">{formatCurrency(p.revenue, currency)}</td>
                           <td className={cn("px-4 py-2.5 font-semibold", roas >= 3 ? "text-[var(--color-primary)]" : roas >= 2 ? "text-yellow-600" : "text-red-500")}>
                             {roas.toFixed(2)}x
                           </td>
-                          <td className="px-4 py-2.5">{formatCurrency(cpa)}</td>
+                          <td className="px-4 py-2.5">{formatCurrency(cpa, currency)}</td>
                           <td className="px-4 py-2.5 text-[var(--color-muted-foreground)]">{p.conversions}</td>
                         </tr>
                       );
@@ -267,14 +269,14 @@ export function AdSpendClient({ data }: { data: AdData }) {
                             <td className="px-4 py-2.5">
                               <span className="capitalize text-[var(--color-muted-foreground)]">{c._id.platform}</span>
                             </td>
-                            <td className="px-4 py-2.5">{formatCurrency(c.spend)}</td>
-                            <td className="px-4 py-2.5">{formatCurrency(c.revenue)}</td>
+                            <td className="px-4 py-2.5">{formatCurrency(c.spend, currency)}</td>
+                            <td className="px-4 py-2.5">{formatCurrency(c.revenue, currency)}</td>
                             <td className={cn("px-4 py-2.5 font-semibold", roas >= 3 ? "text-[var(--color-primary)]" : roas >= 2 ? "text-yellow-600" : "text-red-500")}>
                               {roas.toFixed(2)}x
                             </td>
-                            <td className="px-4 py-2.5">{formatCurrency(cpa)}</td>
+                            <td className="px-4 py-2.5">{formatCurrency(cpa, currency)}</td>
                             <td className={cn("px-4 py-2.5 font-semibold", c.profitAttributed >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                              {formatCurrency(c.profitAttributed)}
+                              {formatCurrency(c.profitAttributed, currency)}
                             </td>
                           </tr>
                         );

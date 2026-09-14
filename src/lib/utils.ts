@@ -5,24 +5,58 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Format a numeric amount as a currency string.
+ *
+ * Uses the native Intl.NumberFormat API — no third-party library required.
+ *
+ * @param value    - The numeric amount to format.
+ * @param currency - ISO 4217 currency code (e.g. "USD", "EUR"). Defaults to "USD".
+ * @param compact  - When true, values ≥ 1 000 are abbreviated (e.g. "$1.2k").
+ * @param locale   - BCP 47 locale string. When omitted the locale is derived from
+ *                   the currency code so symbol placement and separators match the
+ *                   currency's home region (e.g. "en-IN" for INR, "ur-PK" for PKR).
+ */
 export function formatCurrency(
   value: number,
   currency: string = "USD",
-  compact: boolean = false
+  compact: boolean = false,
+  locale?: string,
 ): string {
-  void currency; // currency param kept for API compatibility but symbol is suppressed
+  // Derive a sensible locale from the currency code when none is supplied.
+  // This ensures correct symbol placement (e.g. "₹" prefix for INR) and
+  // proper thousands separators for each region.
+  const LOCALE_MAP: Record<string, string> = {
+    USD: "en-US",
+    EUR: "en-DE",
+    GBP: "en-GB",
+    PKR: "ur-PK",
+    INR: "en-IN",
+    CAD: "en-CA",
+    AUD: "en-AU",
+    AED: "ar-AE",
+  };
+
+  const resolvedLocale = locale ?? LOCALE_MAP[currency] ?? "en-US";
+
   const options: Intl.NumberFormatOptions = {
-    style: "decimal",
+    style: "currency",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   };
-  if (compact && Math.abs(value) >= 1000) {
+
+  if (compact && Math.abs(value) >= 1_000) {
     options.notation = "compact";
     options.maximumFractionDigits = 1;
+    // compact notation looks cleaner without trailing zeros
+    options.minimumFractionDigits = 0;
   }
+
   try {
-    return new Intl.NumberFormat("en-US", options).format(value);
+    return new Intl.NumberFormat(resolvedLocale, options).format(value);
   } catch {
+    // Graceful fallback: unknown currency code or unsupported runtime
     return value.toFixed(2);
   }
 }

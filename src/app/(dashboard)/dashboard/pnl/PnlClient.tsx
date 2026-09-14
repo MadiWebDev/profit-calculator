@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface PnlSummary {
   grossRevenue: number; discounts: number; refunds: number; chargebacks: number;
@@ -118,6 +119,7 @@ export function PnlClient({
   data, defaultFrom, defaultTo,
 }: { data: PnlData; defaultFrom: string; defaultTo: string }) {
   const router = useRouter();
+  const { currency } = useCurrency();
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [isPending, startTransition] = useTransition();
@@ -175,7 +177,7 @@ export function PnlClient({
           )}>
             <p className="text-xs text-[var(--color-muted-foreground)] mb-1">{label}</p>
             <p className={cn("text-xl font-bold", value < 0 ? "text-red-500" : highlight ? "text-[var(--color-primary)]" : "text-[var(--color-foreground)]")}>
-              {formatCurrency(value)}
+              {formatCurrency(value, currency)}
             </p>
             <div className="flex items-center gap-1 text-xs mt-0.5 text-[var(--color-muted-foreground)]">
               {pct > 0 ? <TrendingUp className="h-3 w-3 text-green-500" /> : <TrendingDown className="h-3 w-3 text-red-500" />}
@@ -204,27 +206,27 @@ export function PnlClient({
                 </thead>
                 <tbody>
                   <PnlRow label="REVENUE" style="header" />
-                  <PnlRow label="Gross Revenue"     style="indent" value={s.grossRevenue}     pct={s.totalRevenue > 0 ? (s.grossRevenue / s.totalRevenue) * 100 : 0} />
-                  <PnlRow label="Less: Discounts"   style="indent" value={-s.discounts}       />
-                  <PnlRow label="Less: Refunds"      style="indent" value={-s.refunds}         />
-                  <PnlRow label="Less: Chargebacks"  style="indent" value={-s.chargebacks}     />
-                  <PnlRow label="Shipping Revenue"   style="indent" value={s.shippingRevenue}  />
-                  <PnlRow label="Net Revenue" style="subtotal" value={s.totalRevenue} pct={100} />
+                  <PnlRow label="Gross Revenue"     style="indent" value={s.grossRevenue}     pct={s.totalRevenue > 0 ? (s.grossRevenue / s.totalRevenue) * 100 : 0} currency={currency} />
+                  <PnlRow label="Less: Discounts"   style="indent" value={-s.discounts}       currency={currency} />
+                  <PnlRow label="Less: Refunds"      style="indent" value={-s.refunds}         currency={currency} />
+                  <PnlRow label="Less: Chargebacks"  style="indent" value={-s.chargebacks}     currency={currency} />
+                  <PnlRow label="Shipping Revenue"   style="indent" value={s.shippingRevenue}  currency={currency} />
+                  <PnlRow label="Net Revenue" style="subtotal" value={s.totalRevenue} pct={100} currency={currency} />
                   <PnlRow label="" style="spacer" />
                   <PnlRow label="COST OF GOODS SOLD" style="header" />
-                  <PnlRow label="Product Costs (COGS)" style="indent" value={-s.cogs} pct={s.totalRevenue > 0 ? (s.cogs / s.totalRevenue) * 100 : 0} />
-                  <PnlRow label="Gross Profit" style="subtotal" value={s.grossProfit} pct={s.grossMargin} />
+                  <PnlRow label="Product Costs (COGS)" style="indent" value={-s.cogs} pct={s.totalRevenue > 0 ? (s.cogs / s.totalRevenue) * 100 : 0} currency={currency} />
+                  <PnlRow label="Gross Profit" style="subtotal" value={s.grossProfit} pct={s.grossMargin} currency={currency} />
                   <PnlRow label="" style="spacer" />
                   <PnlRow label="OPERATING EXPENSES" style="header" />
-                  <PnlRow label="Transaction Fees"   style="indent" value={-s.transactionFees} />
-                  <PnlRow label="Shipping Costs"     style="indent" value={-s.shippingCosts}   />
-                  <PnlRow label="Advertising Spend"  style="indent" value={-s.totalAdSpend}    note={adSpendByPlatform.map((a) => `${a._id}: ${a.spend.toFixed(0)}`).join(", ")} />
-                  <PnlRow label="Total Operating Expenses" style="subtotal" value={-s.operatingExpenses} />
-                  <PnlRow label="Operating Profit (EBIT)" style="subtotal" value={s.operatingProfit} pct={s.operatingMargin} />
+                  <PnlRow label="Transaction Fees"   style="indent" value={-s.transactionFees} currency={currency} />
+                  <PnlRow label="Shipping Costs"     style="indent" value={-s.shippingCosts}   currency={currency} />
+                  <PnlRow label="Advertising Spend"  style="indent" value={-s.totalAdSpend}    note={adSpendByPlatform.map((a) => `${a._id}: ${a.spend.toFixed(0)}`).join(", ")} currency={currency} />
+                  <PnlRow label="Total Operating Expenses" style="subtotal" value={-s.operatingExpenses} currency={currency} />
+                  <PnlRow label="Operating Profit (EBIT)" style="subtotal" value={s.operatingProfit} pct={s.operatingMargin} currency={currency} />
                   <PnlRow label="" style="spacer" />
                   <PnlRow label="TAX & OTHER" style="header" />
-                  <PnlRow label="Taxes Collected" style="indent" value={-s.taxes} note="Pass-through" />
-                  <PnlRow label="NET PROFIT" style="total" value={s.netProfit} pct={s.netMargin} />
+                  <PnlRow label="Taxes Collected" style="indent" value={-s.taxes} note="Pass-through" currency={currency} />
+                  <PnlRow label="NET PROFIT" style="total" value={s.netProfit} pct={s.netMargin} currency={currency} />
                 </tbody>
               </table>
             </div>
@@ -249,7 +251,7 @@ export function PnlClient({
                       <div key={p._id}>
                         <div className="flex justify-between text-sm mb-1">
                           <span className="capitalize text-[var(--color-foreground)]">{p._id}</span>
-                          <span className="font-medium">{formatCurrency(p.spend)}</span>
+                          <span className="font-medium">{formatCurrency(p.spend, currency)}</span>
                         </div>
                         <div className="w-full h-1.5 bg-[var(--color-muted)] rounded-full overflow-hidden">
                           <div className="h-full bg-[var(--color-primary)] rounded-full" style={{ width: `${pct}%` }} />
@@ -278,7 +280,7 @@ export function PnlClient({
                 <YAxis tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  formatter={((v: number, name: string) => [formatCurrency(v), name]) as any}
+                  formatter={((v: number, name: string) => [formatCurrency(v, currency), name]) as any}
                   contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
                 />
                 <Legend formatter={(v) => <span style={{ fontSize: 12, color: "var(--color-muted-foreground)" }}>{v}</span>} />

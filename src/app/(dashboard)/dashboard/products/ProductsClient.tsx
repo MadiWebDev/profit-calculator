@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { useRole } from "@/components/dashboard/RoleContext";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import { ViewerBanner } from "@/components/dashboard/RoleGate";
 
 interface ProductRow {
@@ -34,6 +35,7 @@ function MarginBadge({ margin }: { margin: number }) {
 
 export function ProductsClient({ products }: { products: ProductRow[] }) {
   const { canEditCogs } = useRole();
+  const { currency } = useCurrency();
 
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -198,14 +200,14 @@ export function ProductsClient({ products }: { products: ProductRow[] }) {
                           className="flex items-center gap-1.5 text-[var(--color-foreground)] hover:text-[var(--color-primary)] group"
                           title="Click to edit COGS"
                         >
-                          <span>{formatCurrency(p.defaultCogs)}</span>
+                          <span>{formatCurrency(p.defaultCogs, currency)}</span>
                           <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                         </button>
                       )
                     ) : (
                       /* Locked — viewer */
                       <span className="inline-flex items-center gap-1.5 text-[var(--color-foreground)] cursor-not-allowed" title="Read-only">
-                        {formatCurrency(p.defaultCogs)}
+                        {formatCurrency(p.defaultCogs, currency)}
                         <Lock className="h-3 w-3 text-[var(--color-muted-foreground)] opacity-40" />
                       </span>
                     )}
@@ -213,12 +215,12 @@ export function ProductsClient({ products }: { products: ProductRow[] }) {
 
                   {/* Revenue */}
                   <td className="px-4 py-3 text-[var(--color-foreground)]">
-                    {formatCurrency(p.totalRevenue)}
+                    {formatCurrency(p.totalRevenue, currency)}
                   </td>
 
                   {/* Net Profit */}
                   <td className={cn("px-4 py-3 font-semibold", p.totalProfit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                    {formatCurrency(p.totalProfit)}
+                    {formatCurrency(p.totalProfit, currency)}
                   </td>
 
                   {/* Margin badge */}
@@ -244,12 +246,12 @@ export function ProductsClient({ products }: { products: ProductRow[] }) {
           <span>
             Total revenue:{" "}
             <span className="font-medium text-[var(--color-foreground)]">
-              {formatCurrency(filtered.reduce((s, p) => s + p.totalRevenue, 0))}
+              {formatCurrency(filtered.reduce((s, p) => s + p.totalRevenue, 0), currency)}
             </span>
             {" · "}
             Total profit:{" "}
             <span className={cn("font-medium", filtered.reduce((s, p) => s + p.totalProfit, 0) >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-              {formatCurrency(filtered.reduce((s, p) => s + p.totalProfit, 0))}
+              {formatCurrency(filtered.reduce((s, p) => s + p.totalProfit, 0), currency)}
             </span>
           </span>
         </div>

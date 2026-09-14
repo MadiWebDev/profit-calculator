@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, Calculator, ChevronDown } from "lucide-react";
+import { Menu, X, Calculator } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +49,7 @@ export function Navbar() {
 
           {/* CTA + theme toggle */}
           <div className="flex items-center gap-2">
+            <CurrencySelector size="md" />
             <ThemeToggle />
             <div className="hidden md:flex items-center gap-2">
               {session?.user ? (
@@ -84,7 +86,7 @@ export function Navbar() {
       <div
         className={cn(
           "md:hidden border-t border-[var(--color-border)] bg-[var(--color-background)] overflow-hidden transition-all duration-200",
-          open ? "max-h-80" : "max-h-0"
+          open ? "max-h-96" : "max-h-0"
         )}
         aria-hidden={!open}
       >
@@ -100,6 +102,11 @@ export function Navbar() {
             </Link>
           ))}
           <div className="pt-2 pb-1 border-t border-[var(--color-border)] mt-1 flex flex-col gap-2">
+            {/* Currency selector — full width in mobile menu */}
+            <div className="flex items-center justify-between px-1 py-1">
+              <span className="text-xs font-medium text-[var(--color-muted-foreground)]">Display Currency</span>
+              <CurrencySelector size="sm" />
+            </div>
             {session?.user ? (
               <Button asChild size="sm" onClick={() => setOpen(false)}>
                 <Link href="/dashboard">Dashboard</Link>
