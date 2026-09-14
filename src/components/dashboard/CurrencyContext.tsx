@@ -221,12 +221,27 @@ export function getCurrencyDef(code: string): CurrencyDef {
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  // Initialise from localStorage (SSR-safe: read lazily on first render)
-  const [currencyCode, setCurrencyCode] = useState<string>(() => {
-    if (typeof window === "undefined") return FALLBACK.code;
-    const stored = window.localStorage.getItem(LS_KEY);
-    return getCurrencyDef(stored ?? "").code; // validates; falls back to USD if invalid
-  });
+  // Always start with the fallback so server and client render identically.
+  // We read localStorage only after mount to avoid the SSR/client hydration
+  // mismatch that occurs when the lazy useState initialiser runs immediately
+  // on the client with a value the server never saw.
+  const [currencyCode, setCurrencyCode] = useState<string>(FALLBACK.code);
+
+  // On mount: hydrate from localStorage (client-only, runs after first render)
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(LS_KEY);
+      if (stored) {
+        const resolved = getCurrencyDef(stored).code;
+        if (resolved !== FALLBACK.code) {
+          setCurrencyCode(resolved);
+        }
+      }
+    } catch {
+      // Storage may be blocked in private browsing — fail silently
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sync to localStorage whenever the user picks a new currency
   useEffect(() => {

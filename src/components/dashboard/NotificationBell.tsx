@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, CheckCheck, Trash2, X, AlertCircle, CheckCircle2, Info, AlertTriangle } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Bell, CheckCheck, X, AlertCircle, CheckCircle2, Info, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 interface Notification {
   _id: string;
@@ -34,6 +34,7 @@ function timeAgo(iso: string): string {
 }
 
 export function NotificationBell() {
+  const { status } = useSession();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -48,15 +49,19 @@ export function NotificationBell() {
       const json = await res.json();
       setNotifications(json.notifications ?? []);
       setUnreadCount(json.unreadCount ?? 0);
+    } catch {
+      // Silently ignore network errors (e.g. during hydration)
     } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
+    // Only start polling once the session is confirmed authenticated
+    if (status !== "authenticated") return;
     fetchNotifications();
     // Poll every 60s
     const interval = setInterval(fetchNotifications, 60_000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, status]);
 
   // Close on outside click
   useEffect(() => {
