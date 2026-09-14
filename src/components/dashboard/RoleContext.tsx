@@ -2,29 +2,37 @@
 
 import { createContext, useContext } from "react";
 
-export type UserRole = "owner" | "admin" | "member" | "viewer";
+/**
+ * Two-role model:
+ *   superAdmin — website operator (internal admin panel, user management)
+ *   owner      — paying subscriber (full access to their workspace)
+ */
+export type UserRole = "superAdmin" | "owner";
 export type UserPlan = "free" | "starter" | "growth" | "pro";
 
 export interface RoleContextValue {
   role: UserRole;
   plan: UserPlan;
-  /** Whether this user can mutate data (owner, admin, member but NOT viewer) */
+  /** Always true for both roles — all dashboard users can write */
   canWrite: boolean;
-  /** Whether this user can manage team members */
+  /** Always true — owner manages their own workspace */
   canManageTeam: boolean;
-  /** Whether this user can manage billing and API keys */
+  /** Always true for owner; superAdmin manages from the admin panel */
   canManageBilling: boolean;
-  /** Whether this user can edit COGS */
+  /** Always true — owner can edit COGS in their workspace */
   canEditCogs: boolean;
+  /** Whether this user is the internal superAdmin */
+  isSuperAdmin: boolean;
 }
 
 export const RoleContext = createContext<RoleContextValue>({
-  role: "viewer",
+  role: "owner",
   plan: "free",
-  canWrite: false,
-  canManageTeam: false,
-  canManageBilling: false,
-  canEditCogs: false,
+  canWrite: true,
+  canManageTeam: true,
+  canManageBilling: true,
+  canEditCogs: true,
+  isSuperAdmin: false,
 });
 
 export function useRole(): RoleContextValue {
@@ -32,13 +40,15 @@ export function useRole(): RoleContextValue {
 }
 
 export function buildRoleContext(role: UserRole, plan: UserPlan): RoleContextValue {
+  const isSuperAdmin = role === "superAdmin";
   return {
     role,
     plan,
-    canWrite: role !== "viewer",
-    canManageTeam: role === "owner" || role === "admin",
-    canManageBilling: role === "owner",
-    canEditCogs: role === "owner" || role === "admin" || role === "member",
+    canWrite: true,
+    canManageTeam: true,
+    canManageBilling: !isSuperAdmin, // superAdmin uses admin panel, not billing tab
+    canEditCogs: true,
+    isSuperAdmin,
   };
 }
 

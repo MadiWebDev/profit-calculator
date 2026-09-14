@@ -80,23 +80,29 @@ export async function POST(req: Request) {
         await OrderModel.findOneAndUpdate(
           { storeId: store._id, externalId },
           {
-            storeId: store._id,
-            teamId: user.teamId,
-            externalId,
-            orderNumber: row.order_number ?? externalId,
-            orderDate,
-            currency: row.currency ?? "USD",
-            grossRevenue, discounts,
-            netRevenue: profit.netRevenue,
-            totalCogs, shippingCost, shippingRevenue,
-            transactionFees, taxes, refundAmount, chargebackAmount, adSpendAllocated,
-            netProfit: profit.netProfit,
-            profitMargin: profit.netMargin,
-            customerEmail: row.customer_email ?? row.email,
-            status: (row.status ?? "fulfilled") as "fulfilled" | "pending" | "refunded" | "cancelled",
-            importedFrom: "csv",
+            $set: {
+              storeId: store._id,
+              teamId: new mongoose.Types.ObjectId(user.teamId),
+              externalId,
+              orderNumber: row.order_number ?? externalId,
+              orderDate,
+              currency: row.currency ?? "USD",
+              grossRevenue, discounts,
+              netRevenue: profit.netRevenue,
+              totalCogs, shippingCost, shippingRevenue,
+              transactionFees, taxes, refundAmount, chargebackAmount, adSpendAllocated,
+              netProfit: profit.netProfit,
+              profitMargin: profit.netMargin,
+              customerEmail: row.customer_email ?? row.email ?? undefined,
+              status: (["fulfilled","pending","refunded","cancelled"].includes(
+                (row.status ?? "").trim().toLowerCase()
+              )
+                ? (row.status as string).trim().toLowerCase()
+                : "fulfilled") as "fulfilled" | "pending" | "refunded" | "cancelled",
+              importedFrom: "csv",
+            },
           },
-          { upsert: true }
+          { upsert: true, new: true }
         );
         imported++;
       } catch {

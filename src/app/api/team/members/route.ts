@@ -5,7 +5,7 @@ import TeamModel, { type ITeamMember } from "@/models/Team";
 import { logAudit } from "@/lib/audit";
 import mongoose from "mongoose";
 
-// GET — list all members
+// GET — list all members (owner only)
 export async function GET(req: Request) {
   const result = await requireAuth(req);
   if (result instanceof Response) return result;
@@ -35,56 +35,14 @@ export async function GET(req: Request) {
   });
 }
 
-// PATCH — change role
-export async function PATCH(req: Request) {
-  const result = await requireAuth(req);
-  if (result instanceof Response) return result;
-  const { session } = result;
-
-  if (!["owner", "admin"].includes(session.role)) {
-    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
-  }
-
-  const { userId, role } = await req.json();
-  if (!userId || !role) return NextResponse.json({ error: "userId and role required" }, { status: 400 });
-  if (!["admin", "member", "viewer"].includes(role)) {
-    return NextResponse.json({ error: "Invalid role" }, { status: 400 });
-  }
-  if (userId === session.userId) {
-    return NextResponse.json({ error: "Cannot change your own role" }, { status: 400 });
-  }
-
-  await connectDB();
-  const team = await TeamModel.findById(session.teamId);
-  if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
-
-  const member = team.members.find((m: ITeamMember) => m.userId?.toString() === userId);
-  if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
-  if (member.role === "owner") return NextResponse.json({ error: "Cannot change owner role" }, { status: 400 });
-
-  const oldRole = member.role;
-  member.role = role;
-  await team.save();
-
-  await logAudit({
-    teamId: new mongoose.Types.ObjectId(session.teamId),
-    userId: new mongoose.Types.ObjectId(session.userId),
-    action: "user.role_changed",
-    description: `Changed role of user ${userId} from ${oldRole} to ${role}`,
-    metadata: { targetUserId: userId, oldRole, newRole: role },
-  });
-
-  return NextResponse.json({ success: true });
-}
-
-// DELETE — remove member
+// DELETE — remove a member record (owner only)
 export async function DELETE(req: Request) {
   const result = await requireAuth(req);
   if (result instanceof Response) return result;
   const { session } = result;
 
-  if (!["owner", "admin"].includes(session.role)) {
-    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
+  if (session.role !== "owner") {
+    return NextResponse.json({ error: "Only the workspace owner can remove members" }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -98,7 +56,6 @@ export async function DELETE(req: Request) {
 
   const idx = team.members.findIndex((m: ITeamMember) => m.userId?.toString() === userId);
   if (idx === -1) return NextResponse.json({ error: "Member not found" }, { status: 404 });
-  if (team.members[idx].role === "owner") return NextResponse.json({ error: "Cannot remove the owner" }, { status: 400 });
 
   team.members.splice(idx, 1);
   await team.save();

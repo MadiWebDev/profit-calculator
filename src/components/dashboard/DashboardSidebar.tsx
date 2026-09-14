@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Megaphone,
   Sliders, Target, FileText, Settings, LogOut,
   Calculator, ChevronRight, Users, Zap, Key, ClipboardList,
-  Eye, Crown, Shield,
+  Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
@@ -17,21 +17,10 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   exact?: boolean;
-  /** Minimum role required to see this item */
-  minRole?: UserRole;
-  /** Show a badge */
   badge?: string;
 }
 
-const ROLE_RANK: Record<UserRole, number> = {
-  owner: 4, admin: 3, member: 2, viewer: 1,
-};
-
-function hasAccess(role: UserRole, minRole?: UserRole): boolean {
-  if (!minRole) return true;
-  return ROLE_RANK[role] >= ROLE_RANK[minRole];
-}
-
+/** All nav items — visible to every owner */
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard",           label: "Overview",     icon: LayoutDashboard, exact: true },
   { href: "/dashboard/orders",    label: "Orders",       icon: ShoppingCart },
@@ -39,26 +28,18 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/pnl",       label: "P&L Report",   icon: FileText },
   { href: "/dashboard/ad-spend",  label: "Ad Spend",     icon: Megaphone },
   { href: "/dashboard/ltv",       label: "LTV & Cohort", icon: Users },
-  { href: "/dashboard/bundles",   label: "Bundles",      icon: Zap, minRole: "member" },
+  { href: "/dashboard/bundles",   label: "Bundles",      icon: Zap },
   { href: "/dashboard/simulator", label: "Simulator",    icon: Sliders },
   { href: "/dashboard/goals",     label: "Goals",        icon: Target },
   { href: "/dashboard/reports",   label: "Reports",      icon: FileText },
-  { href: "/dashboard/team",      label: "Team",         icon: Users,        minRole: "admin" },
   { href: "/dashboard/settings",  label: "Settings",     icon: Settings },
 ];
 
-/** Owner-only bottom links shown separately */
-const OWNER_ITEMS: NavItem[] = [
-  { href: "/dashboard/settings/api-keys",   label: "API Keys",   icon: Key },
-  { href: "/dashboard/settings/audit-log",  label: "Audit Log",  icon: ClipboardList },
+/** Extra links shown under an "Owner" section */
+const OWNER_SECTION: NavItem[] = [
+  { href: "/dashboard/settings/api-keys",  label: "API Keys",  icon: Key },
+  { href: "/dashboard/settings/audit-log", label: "Audit Log", icon: ClipboardList },
 ];
-
-const ROLE_META: Record<UserRole, { label: string; icon: React.ElementType; color: string }> = {
-  owner:  { label: "Owner",  icon: Crown,  color: "text-yellow-500" },
-  admin:  { label: "Admin",  icon: Shield, color: "text-blue-500" },
-  member: { label: "Member", icon: Users,  color: "text-[var(--color-muted-foreground)]" },
-  viewer: { label: "Viewer", icon: Eye,    color: "text-[var(--color-muted-foreground)]" },
-};
 
 interface DashboardSidebarProps {
   userName?: string;
@@ -70,18 +51,13 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({
   userName = "User",
   userEmail = "",
-  plan = "free",
-  role = "viewer",
+  plan ,
+  role = "owner",
 }: DashboardSidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
-
-  const visibleNav = NAV_ITEMS.filter((item) => hasAccess(role, item.minRole));
-  const showOwnerItems = role === "owner";
-  const roleMeta = ROLE_META[role];
-  const RoleIcon = roleMeta.icon;
 
   return (
     <aside className="flex flex-col h-full w-64 bg-[var(--color-card)] border-r border-[var(--color-border)]">
@@ -101,8 +77,10 @@ export function DashboardSidebar({
           "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full",
           "bg-[var(--color-muted)] border border-[var(--color-border)]",
         )}>
-          <RoleIcon className={cn("h-3 w-3", roleMeta.color)} />
-          <span className={cn(roleMeta.color)}>{roleMeta.label}</span>
+          <Crown className="h-3 w-3 text-yellow-500" />
+          <span className="text-yellow-500">
+            {role === "superAdmin" ? "Super Admin" : "Owner"}
+          </span>
           <span className="text-[var(--color-muted-foreground)] font-normal capitalize">· {plan}</span>
         </div>
       </div>
@@ -112,12 +90,12 @@ export function DashboardSidebar({
         className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5"
         aria-label="Dashboard navigation"
       >
-        {visibleNav.map(({ href, label, icon: Icon, exact, badge }) => (
+        {NAV_ITEMS.map(({ href, label, icon: Icon, exact, badge }) => (
           <Link
             key={href}
             href={href}
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group",
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
               isActive(href, exact)
                 ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
                 : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)]"
@@ -137,35 +115,31 @@ export function DashboardSidebar({
           </Link>
         ))}
 
-        {/* Owner-only section */}
-        {showOwnerItems && (
-          <>
-            <div className="pt-3 pb-1 px-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted-foreground)]">
-                Owner
-              </p>
-            </div>
-            {OWNER_ITEMS.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group",
-                  isActive(href)
-                    ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                    : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)]"
-                )}
-                aria-current={isActive(href) ? "page" : undefined}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                <span className="flex-1">{label}</span>
-                {isActive(href) && (
-                  <ChevronRight className="h-3.5 w-3.5 opacity-60" />
-                )}
-              </Link>
-            ))}
-          </>
-        )}
+        {/* Owner section — API Keys & Audit Log */}
+        <div className="pt-3 pb-1 px-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted-foreground)]">
+            Owner
+          </p>
+        </div>
+        {OWNER_SECTION.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              isActive(href)
+                ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+            )}
+            aria-current={isActive(href) ? "page" : undefined}
+          >
+            <Icon className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1">{label}</span>
+            {isActive(href) && (
+              <ChevronRight className="h-3.5 w-3.5 opacity-60" />
+            )}
+          </Link>
+        ))}
       </nav>
 
       {/* Upgrade CTA — non-pro only */}

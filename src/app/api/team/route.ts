@@ -1,6 +1,6 @@
 /**
  * PATCH /api/team — update workspace settings (name, currency, timezone).
- * Owner/admin only.
+ * Owner only.
  */
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-helpers";
@@ -23,8 +23,8 @@ export async function PATCH(req: Request) {
   if (result instanceof Response) return result;
   const { session } = result;
 
-  if (session.role !== "owner" && session.role !== "admin") {
-    return NextResponse.json({ error: "Only owners and admins can update workspace settings" }, { status: 403 });
+  if (session.role !== "owner" && session.role !== "superAdmin") {
+    return NextResponse.json({ error: "Only the workspace owner can update workspace settings" }, { status: 403 });
   }
 
   let body: unknown;

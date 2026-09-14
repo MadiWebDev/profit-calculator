@@ -88,8 +88,12 @@ function OnboardingInner() {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   const downloadTemplate = () => {
+    // Use today's date so imported orders fall in the current period
+    const today = new Date();
+    const pad   = (n: number) => String(n).padStart(2, "0");
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
     const exampleRow = [
-      "1001", "2026-08-01", "#1001", "customer@example.com",
+      "1001", todayStr, "#1001", "customer@example.com",
       "49.99", "0", "0", "4.50",
       "12.00", "1.75", "0", "0",
       "8.00", "fulfilled",

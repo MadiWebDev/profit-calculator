@@ -2,7 +2,7 @@ import mongoose, { Schema, Document, model, models } from "mongoose";
 
 export interface ITeamMember {
   userId: mongoose.Types.ObjectId;
-  role: "owner" | "admin" | "member" | "viewer";
+  role: "owner";
   invitedAt: Date;
   joinedAt?: Date;
   inviteEmail?: string;
@@ -28,7 +28,7 @@ export interface ITeam extends Document {
 
 const TeamMemberSchema = new Schema<ITeamMember>({
   userId: { type: Schema.Types.ObjectId, ref: "User" },
-  role: { type: String, enum: ["owner", "admin", "member", "viewer"], default: "member" },
+  role: { type: String, enum: ["owner"], default: "owner" },
   invitedAt: { type: Date, default: Date.now },
   joinedAt: Date,
   inviteEmail: String,

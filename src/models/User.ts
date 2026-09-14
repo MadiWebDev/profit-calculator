@@ -8,7 +8,7 @@ export interface IUser extends Document {
   image?: string;
   emailVerified?: Date;
   teamId?: mongoose.Types.ObjectId;
-  role: "owner" | "admin" | "member" | "viewer";
+  role: "superAdmin" | "owner";
   plan: "free" | "starter" | "growth" | "pro";
   trialEndsAt?: Date;
   onboardingCompleted: boolean;
@@ -26,7 +26,7 @@ const UserSchema = new Schema<IUser>(
     image: String,
     emailVerified: Date,
     teamId: { type: Schema.Types.ObjectId, ref: "Team" },
-    role: { type: String, enum: ["owner", "admin", "member", "viewer"], default: "owner" },
+    role: { type: String, enum: ["superAdmin", "owner"], default: "owner" },
     plan: { type: String, enum: ["free", "starter", "growth", "pro"], default: "free" },
     trialEndsAt: Date,
     onboardingCompleted: { type: Boolean, default: false },

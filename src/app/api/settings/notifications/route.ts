@@ -56,11 +56,6 @@ export async function PATCH(req: Request) {
   if (result instanceof Response) return result;
   const { session } = result;
 
-  // Only owner/admin can change notification settings
-  if (session.role === "member" || session.role === "viewer") {
-    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
-  }
-
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }

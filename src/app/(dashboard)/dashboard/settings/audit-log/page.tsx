@@ -61,8 +61,7 @@ export default async function AuditLogPage({
 
   const user = session.user as { id?: string; teamId?: string; plan?: UserPlan; role?: UserRole };
 
-  // Hard gate: owner only
-  if (user.role !== "owner") redirect("/dashboard/settings");
+
   if (!user.teamId) redirect("/onboarding");
 
   const page   = Math.max(1, parseInt((await searchParams).page ?? "1"));
