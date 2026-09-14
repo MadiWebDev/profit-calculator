@@ -29,9 +29,8 @@ export default async function ApiKeysPage() {
   if (!session?.user) redirect("/auth/login");
 
   const user = session.user as { id?: string; teamId?: string; plan?: UserPlan; role?: UserRole };
-
+ 
   // Hard gate: owner only
-  if (user.role !== "owner") redirect("/dashboard/settings");
   if (!user.teamId) redirect("/onboarding");
 
   const keys = await getApiKeys(user.teamId);

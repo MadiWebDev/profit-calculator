@@ -7,7 +7,8 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { formatCurrency, formatPercent } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
@@ -48,6 +49,7 @@ const FIELDS: SliderField[] = [
 
 export default function SimulatorPage() {
   const [values, setValues] = useState(DEFAULTS);
+  const { currency } = useCurrency();
 
   const result = useMemo(() => calcSimulator({
     ...values,
@@ -127,7 +129,7 @@ export default function SimulatorPage() {
           <div className="grid grid-cols-2 gap-4">
             <StatCard
               label="Profit / Unit"
-              value={formatCurrency(result.profitPerUnit)}
+              value={formatCurrency(result.profitPerUnit, currency)}
               highlight={result.profitPerUnit > 0}
               icon={result.profitPerUnit >= 0 ? TrendingUp : TrendingDown}
             />
@@ -136,7 +138,7 @@ export default function SimulatorPage() {
               value={formatPercent(result.profitMargin)}
               highlight={result.profitMargin >= 20}
             />
-            <StatCard label="Total Net Profit" value={formatCurrency(result.totalProfit)} />
+            <StatCard label="Total Net Profit" value={formatCurrency(result.totalProfit, currency)} />
             <StatCard label="ROI %" value={formatPercent(result.roi)} />
           </div>
 
@@ -145,11 +147,11 @@ export default function SimulatorPage() {
             <CardContent className="pt-5">
               <div className="space-y-1">
                 {[
-                  { label: "Total Revenue", value: formatCurrency(result.totalRevenue) },
-                  { label: "Break-Even Price", value: formatCurrency(result.breakEvenPrice) },
+                  { label: "Total Revenue",    value: formatCurrency(result.totalRevenue, currency) },
+                  { label: "Break-Even Price", value: formatCurrency(result.breakEvenPrice, currency) },
                   { label: "Break-Even Units", value: result.breakEvenUnits.toLocaleString() },
-                  { label: "Cost Per Unit", value: formatCurrency(result.effectiveCostPerUnit) },
-                  { label: "Total Fees", value: formatCurrency(result.totalFees) },
+                  { label: "Cost Per Unit",    value: formatCurrency(result.effectiveCostPerUnit, currency) },
+                  { label: "Total Fees",       value: formatCurrency(result.totalFees, currency) },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center justify-between py-2 px-2 rounded hover:bg-[var(--color-muted)] text-sm">
                     <span className="text-[var(--color-muted-foreground)]">{label}</span>
@@ -171,8 +173,8 @@ export default function SimulatorPage() {
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" />
                   <XAxis type="number" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v.toFixed(0)}`} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} width={60} />
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  <Tooltip formatter={((v: number) => [`${v.toFixed(2)}`, ""]) as any} contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 6, fontSize: 12 }} />
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  <Tooltip formatter={((v: number) => [formatCurrency(v, currency), ""]) as any} contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 6, fontSize: 12 }} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                     {costBreakdown.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Bar>

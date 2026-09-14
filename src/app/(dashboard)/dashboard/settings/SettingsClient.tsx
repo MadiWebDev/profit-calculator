@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useRole } from "@/components/dashboard/RoleContext";
-import { ViewerBanner } from "@/components/dashboard/RoleGate";
 import type { PLAN_DISPLAY } from "@/lib/plans";
 
 const platformIcon: Record<string, string> = {
@@ -264,8 +263,8 @@ export function SettingsClient({
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "profile",       label: "Profile" },
-    ...(canManageBilling   ? [{ key: "billing"       as Tab, label: "Billing & Plan" }] : []),
-    ...(role !== "viewer"  ? [{ key: "stores"        as Tab, label: "Connected Stores" }] : []),
+    { key: "billing",       label: "Billing & Plan" },
+    { key: "stores",        label: "Connected Stores" },
     { key: "notifications", label: "Notifications" },
   ];
 
@@ -278,8 +277,6 @@ export function SettingsClient({
           Manage your account, billing, and workspace preferences.
         </p>
       </div>
-
-      <ViewerBanner message="You have read-only access to settings. Contact the workspace owner to make changes." />
 
       {/* Alert banners */}
       {error && (
@@ -329,7 +326,7 @@ export function SettingsClient({
                   </div>
                 </div>
               </div>
-              {role !== "viewer" && (
+              {(
                 <div className="grid grid-cols-1 gap-3 pt-2 border-t border-[var(--color-border)]">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Display Name</Label>
@@ -368,8 +365,7 @@ export function SettingsClient({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {(role === "owner" || role === "admin") ? (
-                  <>
+                <>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Workspace Name</Label>
                       <Input value={wsName} onChange={(e) => setWsName(e.target.value)} className="h-9" />
@@ -411,26 +407,6 @@ export function SettingsClient({
                       Save Workspace Settings
                     </Button>
                   </>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-[var(--color-muted-foreground)] mb-0.5 text-xs">Name</p>
-                      <p className="font-medium text-[var(--color-foreground)]">{data.team.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-[var(--color-muted-foreground)] mb-0.5 text-xs">Currency</p>
-                      <p className="font-medium text-[var(--color-foreground)]">{data.team.currency}</p>
-                    </div>
-                    <div>
-                      <p className="text-[var(--color-muted-foreground)] mb-0.5 text-xs">Timezone</p>
-                      <p className="font-medium text-[var(--color-foreground)]">{data.team.timezone}</p>
-                    </div>
-                    <div>
-                      <p className="text-[var(--color-muted-foreground)] mb-0.5 text-xs">Plan</p>
-                      <p className="font-medium text-[var(--color-foreground)] capitalize">{data.team.plan}</p>
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           )}
@@ -586,7 +562,7 @@ export function SettingsClient({
       )}
 
       {/* ── STORES TAB ──────────────────────────────────────────────────────── */}
-      {tab === "stores" && role !== "viewer" && (
+      {tab === "stores" && (
         <div className="space-y-4 max-w-2xl">
           <Card>
             <CardHeader className="pb-3">
@@ -594,11 +570,9 @@ export function SettingsClient({
                 <CardTitle className="text-base flex items-center gap-2">
                   <Store className="h-4 w-4" /> Connected Stores
                 </CardTitle>
-                {(role === "owner" || role === "admin") && (
-                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => router.push("/onboarding")}>
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => router.push("/onboarding")}>
                     <Plus className="h-3.5 w-3.5" /> Add Store
                   </Button>
-                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -646,8 +620,7 @@ export function SettingsClient({
                             </span>
                           ) : store.syncStatus}
                         </Badge>
-                        {(role === "owner" || role === "admin") && (
-                          <Button
+                        <Button
                             variant="ghost" size="sm" className="h-8 w-8 p-0"
                             onClick={() => syncStore(store.id)}
                             disabled={syncingStore === store.id || store.syncStatus === "syncing"}
@@ -655,7 +628,6 @@ export function SettingsClient({
                           >
                             <RefreshCw className={cn("h-3.5 w-3.5", syncingStore === store.id && "animate-spin")} />
                           </Button>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -689,7 +661,6 @@ export function SettingsClient({
                   <Toggle
                     checked={notifPrefs[key]}
                     onChange={() => setNotifPrefs((p) => ({ ...p, [key]: !p[key] }))}
-                    disabled={role === "viewer"}
                   />
                 </div>
               ))}
@@ -729,11 +700,10 @@ export function SettingsClient({
                         value={slackWebhook}
                         onChange={(e) => setSlackWebhook(e.target.value)}
                         className="h-9 font-mono text-xs"
-                        disabled={role === "viewer"}
                       />
                       <Button
                         size="sm" variant="outline"
-                        disabled={!slackWebhook || testingSlack || role === "viewer"}
+                        disabled={!slackWebhook || testingSlack}
                         onClick={testSlack}
                         className="h-9 gap-1.5 whitespace-nowrap"
                       >
@@ -750,8 +720,7 @@ export function SettingsClient({
                     </p>
                   </div>
 
-                  {role !== "viewer" && (
-                    <div className="space-y-2 pt-2 border-t border-[var(--color-border)]">
+                  <div className="space-y-2 pt-2 border-t border-[var(--color-border)]">
                       <p className="text-xs font-medium text-[var(--color-foreground)]">Slack alert triggers</p>
                       {([
                         { key: "slack_goal_behind", label: "Goal behind pace" },
@@ -766,23 +735,19 @@ export function SettingsClient({
                         </div>
                       ))}
                     </div>
-                  )}
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* Save button — applies to both email prefs and Slack config */}
-          {role !== "viewer" && (
-            <Button onClick={saveNotifications} disabled={savingNotifs} className="gap-2">
-              {savingNotifs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-              Save Notification Preferences
-            </Button>
-          )}
+          <Button onClick={saveNotifications} disabled={savingNotifs} className="gap-2">
+            {savingNotifs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+            Save Notification Preferences
+          </Button>
 
-          {/* API Keys shortcut — owner only */}
-          {role === "owner" && (
-            <Card>
+          {/* API Keys shortcut */}
+          <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Key className="h-4 w-4" /> API Access
@@ -798,7 +763,6 @@ export function SettingsClient({
                 </Button>
               </CardContent>
             </Card>
-          )}
         </div>
       )}
     </div>

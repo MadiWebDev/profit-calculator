@@ -23,12 +23,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     teamId?: string | null;
   };
 
-  const role: UserRole  = user.role  ?? "viewer";
+  const role: UserRole  = user.role  ?? "owner";
   const plan: UserPlan  = user.plan  ?? "free";
   const teamId: string  = user.teamId ?? "";
 
   // ── Trial / archival check ─────────────────────────────────────────────────
-  // Only run for team owners/admins — viewers & members follow the team owner's status.
   const trialInfo = teamId
     ? await getAccountStatus(teamId)
     : null;
@@ -74,9 +73,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           {/* Desktop topbar strip */}
           <div className="hidden lg:flex items-center justify-end gap-2 px-6 py-3 border-b border-[var(--color-border)] bg-[var(--color-card)] flex-shrink-0">
-            <CurrencySelector size="md" />
             <NotificationBell />
-            <ThemeToggle />
           </div>
 
           {/* Page content */}

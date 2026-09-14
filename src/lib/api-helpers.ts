@@ -51,7 +51,7 @@ export async function requireAuth(
       userId: user.id,
       teamId: user.teamId,
       plan: user.plan ?? "free",
-      role: user.role ?? "member",
+      role: user.role ?? "owner",
       email: user.email ?? "",
     },
   };
