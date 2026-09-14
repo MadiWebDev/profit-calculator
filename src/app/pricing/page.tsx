@@ -40,11 +40,11 @@ const PLAN_FEATURES: PlanFeature[] = [
 ];
 
 const FAQs = [
-  { q: "When does the 14-day trial start?", a: "The moment you create your account. No credit card is required to start." },
-  { q: "What happens after the trial ends?", a: "You'll be prompted to choose a plan. Your data is retained either way. If you don't upgrade, you move to a read-only free view." },
+  { q: "When does the 7-day trial start?", a: "The moment you create your account. No credit card is required to start." },
+  { q: "What happens after the trial ends?", a: "Your account is archived — nothing is deleted, but the dashboard is locked until you choose a paid plan. Upgrading restores full access instantly." },
   { q: "Can I change plans at any time?", a: "Yes. Upgrade or downgrade at any time. Upgrades take effect immediately. Downgrades take effect at the next billing cycle." },
-  { q: "What payment methods do you accept?", a: "All major credit and debit cards, plus PayPal. Processed securely by Dodo Payments or Paddle (depending on your region)." },
-  { q: "Is there a free forever plan?", a: "The free calculators at /calculators are always free. The SaaS platform has a 14-day trial; after that you need a paid plan to continue syncing data." },
+  { q: "What payment methods do you accept?", a: "All major credit and debit cards. Processed securely by Paddle." },
+  { q: "Is there a free forever plan?", a: "The free calculators at /calculators are always free. The SaaS dashboard has a 7-day trial; after that you need a paid plan to continue syncing data." },
   { q: "What does 'Unlimited orders' mean on Pro?", a: "No cap — import or sync as many orders as your store generates. No overage fees, ever." },
 ];
 
@@ -65,12 +65,12 @@ export default function PricingPage() {
       {/* Header */}
       <section className="py-16 sm:py-20 text-center bg-gradient-to-b from-[var(--color-accent)] to-[var(--color-background)]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <Badge variant="success" className="mb-4 text-xs font-semibold">14-day free trial · No credit card</Badge>
+          <Badge variant="success" className="mb-4 text-xs font-semibold">7-day free trial · No credit card</Badge>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-4">
             Profit tracking that doesn&apos;t cost a fortune
           </h1>
           <p className="text-lg text-[var(--color-muted-foreground)] mb-8">
-            All plans start with a 14-day free trial. No credit card required.
+            All plans start with a 7-day free trial. No credit card required.
           </p>
 
           {/* Billing toggle */}
@@ -219,10 +219,10 @@ export default function PricingPage() {
       <section className="py-16 bg-[var(--color-primary)]">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <h2 className="text-3xl font-bold text-white mb-3">Start free — no card required</h2>
-          <p className="text-green-100 mb-6">Join sellers tracking real profit, not guessing it.</p>
+          <p className="text-green-100 mb-6">7-day free trial. Join sellers tracking real profit, not guessing it.</p>
           <Button asChild size="lg" variant="secondary" className="font-semibold px-8 gap-2">
             <Link href="/auth/register">
-              <Zap className="h-5 w-5" /> Start 14-Day Free Trial
+              <Zap className="h-5 w-5" /> Start 7-Day Free Trial
             </Link>
           </Button>
         </div>

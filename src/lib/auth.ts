@@ -72,7 +72,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             onboardingCompleted: false,
             plan:               "free",
             role:               "owner",
-            trialEndsAt:        new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            trialEndsAt:        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           });
 
           // Create personal team for Google OAuth users
@@ -91,7 +91,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             ownerId:   newUser._id,
             members:   [{ userId: newUser._id, role: "owner", status: "active", invitedAt: new Date() }],
             plan:      "free",
-            trialEndsAt: newUser.trialEndsAt,
+          trialEndsAt: newUser.trialEndsAt,
           });
           await UserModel.findByIdAndUpdate(newUser._id, { teamId: team._id });
         }
