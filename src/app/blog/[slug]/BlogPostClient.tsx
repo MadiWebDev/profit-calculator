@@ -202,61 +202,57 @@ export default function BlogPostClient({ blog }: BlogPostClientProps) {
           </div>
 
           {/* Share Buttons */}
-          <div className="flex items-center gap-2 mb-8">
-            <span className="text-sm text-[var(--color-muted-foreground)] mr-2">
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <span className="text-sm font-medium text-[var(--color-muted-foreground)] mr-1">
               Share:
             </span>
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={() => handleShare("twitter")}
-              className="gap-2"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1DA1F2] hover:bg-[#1a8cd8] text-white transition-all hover:scale-105 text-sm font-medium shadow-sm"
+              title="Share on Twitter"
             >
               <SocialIcon
-        url="https://www.x.com/"
-        aria-label="Instagram"
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-              X
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+                network="twitter"
+                style={{ height: 20, width: 20 }}
+                bgColor="transparent"
+                fgColor="currentColor"
+              />
+              <span className="hidden sm:inline">Twitter</span>
+            </button>
+            <button
               onClick={() => handleShare("facebook")}
-              className="gap-2"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1877F2] hover:bg-[#166fe5] text-white transition-all hover:scale-105 text-sm font-medium shadow-sm"
+              title="Share on Facebook"
             >
               <SocialIcon
-        url="https://www.facebook.com/"
-        aria-label="Facebook"
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-              Facebook
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+                network="facebook"
+                style={{ height: 20, width: 20 }}
+                bgColor="transparent"
+                fgColor="currentColor"
+              />
+              <span className="hidden sm:inline">Facebook</span>
+            </button>
+            <button
               onClick={() => handleShare("linkedin")}
-              className="gap-2"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0A66C2] hover:bg-[#095196] text-white transition-all hover:scale-105 text-sm font-medium shadow-sm"
+              title="Share on LinkedIn"
             >
-            <SocialIcon
-        url="https://www.linkedin.com/"
-        aria-label="LinkedIn"
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-              LinkedIn
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+              <SocialIcon
+                network="linkedin"
+                style={{ height: 20, width: 20 }}
+                bgColor="transparent"
+                fgColor="currentColor"
+              />
+              <span className="hidden sm:inline">LinkedIn</span>
+            </button>
+            <button
               onClick={() => handleShare()}
-              className="gap-2"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-muted)] hover:bg-[var(--color-accent)] text-[var(--color-foreground)] transition-all hover:scale-105 text-sm font-medium border border-[var(--color-border)] shadow-sm"
+              title="Copy link"
             >
               <Link2 className="h-4 w-4" />
-              Copy
-            </Button>
+              <span className="hidden sm:inline">Copy Link</span>
+            </button>
           </div>
 
           {/* Featured Image */}
@@ -374,39 +370,43 @@ export default function BlogPostClient({ blog }: BlogPostClientProps) {
       </article>
 
       {/* Sticky Share Bar (Mobile) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[var(--color-card)] border-t border-[var(--color-border)] p-4 md:hidden z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-[var(--color-card)] border-t border-[var(--color-border)] p-4 md:hidden z-50 shadow-lg">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm text-[var(--color-muted-foreground)]">
-            Share this article
+          <span className="text-sm font-medium text-[var(--color-muted-foreground)]">
+            Share article
           </span>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={() => handleShare("twitter")}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-[#1DA1F2] text-white hover:bg-[#1a8cd8] transition-colors"
+              title="Share on Twitter"
             >
-             <SocialIcon
-        url="https://www.x.com/"
-        aria-label="LinkedIn"
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+              <SocialIcon
+                network="twitter"
+                style={{ height: 18, width: 18 }}
+                bgColor="transparent"
+                fgColor="currentColor"
+              />
+            </button>
+            <button
               onClick={() => handleShare("facebook")}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-[#1877F2] text-white hover:bg-[#166fe5] transition-colors"
+              title="Share on Facebook"
             >
-<SocialIcon
-        url="https://www.facebook.com/"
-        aria-label="LinkedIn"
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleShare()}>
+              <SocialIcon
+                network="facebook"
+                style={{ height: 18, width: 18 }}
+                bgColor="transparent"
+                fgColor="currentColor"
+              />
+            </button>
+            <button
+              onClick={() => handleShare()}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-[var(--color-muted)] text-[var(--color-foreground)] hover:bg-[var(--color-accent)] border border-[var(--color-border)] transition-colors"
+              title="Copy link"
+            >
               <Share2 className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
         </div>
       </div>

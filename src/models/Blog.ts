@@ -41,8 +41,7 @@ const BlogSchema = new Schema<IBlog>(
     title: { 
       type: String, 
       required: true, 
-      trim: true,
-      maxlength: 200 
+      trim: true
     },
     slug: { 
       type: String, 
@@ -58,8 +57,7 @@ const BlogSchema = new Schema<IBlog>(
     },
     excerpt: { 
       type: String, 
-      required: true,
-      maxlength: 500 
+      required: true
     },
     featuredImage: String,
     featuredImageAlt: String,
@@ -97,23 +95,11 @@ const BlogSchema = new Schema<IBlog>(
     }],
     
     // SEO Fields
-    metaTitle: { 
-      type: String,
-      maxlength: 60 
-    },
-    metaDescription: { 
-      type: String,
-      maxlength: 160 
-    },
+    metaTitle: String,
+    metaDescription: String,
     metaKeywords: [String],
-    ogTitle: { 
-      type: String,
-      maxlength: 60 
-    },
-    ogDescription: { 
-      type: String,
-      maxlength: 160 
-    },
+    ogTitle: String,
+    ogDescription: String,
     ogImage: String,
     twitterCard: {
       type: String,
@@ -173,4 +159,9 @@ BlogSchema.pre("save", async function() {
   }
 });
 
-export default models.Blog || model<IBlog>("Blog", BlogSchema);
+// Delete the model if it exists to ensure fresh schema
+if (models.Blog) {
+  delete models.Blog;
+}
+
+export default model<IBlog>("Blog", BlogSchema);

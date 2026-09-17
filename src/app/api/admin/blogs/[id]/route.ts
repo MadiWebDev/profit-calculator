@@ -90,7 +90,7 @@ export async function PUT(
     const blog = await Blog.findByIdAndUpdate(
       id,
       { $set: data },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     )
       .populate("author", "name email image")
       .populate("relatedPosts", "title slug featuredImage")
@@ -170,7 +170,7 @@ export async function PATCH(
     const blog = await Blog.findByIdAndUpdate(
       id,
       { $inc: { views: 1 } },
-      { new: true }
+      { returnDocument: "after" }
     ).lean();
 
     if (!blog) {

@@ -7,11 +7,17 @@ export const metadata = {
   description: "Edit blog post",
 };
 
-export default function EditBlogPage({ params }: { params: { id: string } }) {
+export default async function EditBlogPage({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> 
+}) {
+  const { id } = await params;
+  
   return (
     <div>
       <Suspense fallback={<EditorSkeleton />}>
-        <BlogEditorClient blogId={params.id} />
+        <BlogEditorClient blogId={id} />
       </Suspense>
     </div>
   );

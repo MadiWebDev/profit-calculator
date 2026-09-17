@@ -89,6 +89,8 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
   useEffect(() => {
     if (blogId && blogId !== "new") {
       fetchBlog();
+    } else {
+      setLoading(false);
     }
   }, [blogId]);
 
@@ -404,7 +406,7 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
                 URL Slug <span className="text-red-500">*</span>
               </Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-[var(--color-muted-foreground)]">
+                <span className="text-sm text-[var(--color-muted-foreground)] flex-shrink-0">
                   /blog/
                 </span>
                 <Input
@@ -414,7 +416,25 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, slug: e.target.value }))
                   }
+                  className="flex-1"
                 />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (formData.title) {
+                      const generatedSlug = generateSlug(formData.title);
+                      setFormData((prev) => ({ ...prev, slug: generatedSlug }));
+                      toast.success("Slug generated from title");
+                    } else {
+                      toast.error("Please enter a title first");
+                    }
+                  }}
+                  className="flex-shrink-0"
+                  title="Generate slug from title"
+                >
+                  Generate
+                </Button>
               </div>
             </div>
 
@@ -598,10 +618,10 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, metaTitle: e.target.value }))
                 }
-                maxLength={60}
+                maxLength={100}
               />
               <div className="text-xs text-[var(--color-muted-foreground)] text-right">
-                {formData.metaTitle.length}/60
+                {formData.metaTitle.length}/100
               </div>
             </div>
 
@@ -619,10 +639,10 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
                   }))
                 }
                 rows={3}
-                maxLength={160}
+                maxLength={250}
               />
               <div className="text-xs text-[var(--color-muted-foreground)] text-right">
-                {formData.metaDescription.length}/160
+                {formData.metaDescription.length}/250
               </div>
             </div>
 
@@ -669,8 +689,11 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, ogTitle: e.target.value }))
                 }
-                maxLength={60}
+                maxLength={100}
               />
+              <div className="text-xs text-[var(--color-muted-foreground)] text-right">
+                {formData.ogTitle.length}/100
+              </div>
             </div>
 
             {/* OG Description */}
@@ -687,8 +710,11 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
                   }))
                 }
                 rows={2}
-                maxLength={160}
+                maxLength={250}
               />
+              <div className="text-xs text-[var(--color-muted-foreground)] text-right">
+                {formData.ogDescription.length}/250
+              </div>
             </div>
 
             {/* OG Image */}
