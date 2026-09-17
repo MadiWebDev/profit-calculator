@@ -131,7 +131,7 @@ export function ResultsChart({ data, type = "pie" }: ResultsChartProps) {
         <Tooltip content={<CustomTooltip />} />
         <Legend
           formatter={(value) => (
-            <span style={{ fontSize: 12, color: "var(--color-foreground)" }}>{value}</span>
+            <span style={{ fontSize: 12,  }}>{value}</span>
           )}
         />
       </PieChart>
