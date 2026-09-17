@@ -96,7 +96,7 @@ export default async function CalculatorPage({ params }: Props) {
         }>
           <ProfitCalculator slug={slug} />
         </Suspense>
-
+ 
         {/* ── AD SLOT (below calculator, never overlapping) ─ */}
         <div className="flex justify-center my-10">
           <AdSlot position="leaderboard" />

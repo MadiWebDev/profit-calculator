@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import StoreModel from "@/models/Store";
 import { encrypt } from "@/lib/encryption";
@@ -11,6 +12,9 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const teamId = (session.user as { teamId?: string }).teamId;
   if (!teamId) return NextResponse.json({ stores: [] });
+
+  const block = await checkSubscription(teamId);
+  if (block) return block;
 
   await connectDB();
   const stores = await StoreModel.find({ teamId, isActive: true })
@@ -25,6 +29,9 @@ export async function POST(req: Request) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { id?: string; teamId?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   try {
     const body = await req.json();

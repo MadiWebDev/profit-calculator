@@ -32,10 +32,7 @@ interface ResultsChartProps {
 function CustomTooltip({
   active,
   payload,
-}: {
-  active?: boolean;
-  payload?: { name: string; value: number; payload: ChartEntry }[];
-}) {
+}: any) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   return (

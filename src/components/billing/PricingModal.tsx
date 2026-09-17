@@ -31,7 +31,6 @@ const PLAN_FEATURES: Record<PlanKey, string[]> = {
     "1 store",
     "1 ad platform",
     "CSV import",
-    "2 team members",
     "Email support",
   ],
   growth: [
@@ -40,7 +39,6 @@ const PLAN_FEATURES: Record<PlanKey, string[]> = {
     "3 ad platforms",
     "AI insights (weekly)",
     "PDF reports",
-    "5 team members",
     "Slack alerts",
   ],
   pro: [
@@ -48,8 +46,7 @@ const PLAN_FEATURES: Record<PlanKey, string[]> = {
     "Unlimited stores",
     "All ad platforms",
     "Real-time AI insights",
-    "Public API + Zapier",
-    "Unlimited team members",
+    "Public API",
     "Priority chat support",
   ],
 };
