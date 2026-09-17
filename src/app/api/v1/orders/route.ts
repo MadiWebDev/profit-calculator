@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { validateApiKey, hasScope } from "@/lib/api-key-auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import mongoose from "mongoose";
@@ -21,6 +22,9 @@ export async function GET(req: NextRequest) {
   if (!hasScope(session, "read:orders")) {
     return NextResponse.json({ error: "Missing scope: read:orders" }, { status: 403 });
   }
+
+  const block = await checkSubscription(session.teamId);
+  if (block) return block;
 
   const { searchParams } = req.nextUrl;
   const page    = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));

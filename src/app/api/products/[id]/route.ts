@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import ProductModel from "@/models/Product";
 import { logAudit } from "@/lib/audit";
@@ -12,6 +13,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { id?: string; teamId?: string; role?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   const { id } = await params;
   const body = await req.json();
@@ -62,6 +66,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { id?: string; teamId?: string; role?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   const { id } = await params;
 

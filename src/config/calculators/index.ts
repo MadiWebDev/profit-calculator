@@ -6,7 +6,7 @@ import dropshippingProfit from "./dropshipping-profit";
 import amazonFbaProfit from "./amazon-fba-profit";
 import freelancerProfit from "./freelancer-profit";
 import profitMargin from "./profit-margin";
-
+import rentalPropertyRoi from "./rental-property-roi" 
 export const calculators: CalculatorConfig[] = [
   shopifyProfit,
   metaAdsRoas,
@@ -15,6 +15,7 @@ export const calculators: CalculatorConfig[] = [
   amazonFbaProfit,
   freelancerProfit,
   profitMargin,
+  rentalPropertyRoi
 ];
 
 export const calculatorMap: Record<string, CalculatorConfig> = Object.fromEntries(

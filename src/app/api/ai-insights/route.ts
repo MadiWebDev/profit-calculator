@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
@@ -14,6 +15,9 @@ export async function POST() {
 
   const user = session.user as { teamId?: string; plan?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   // Free plan: return static sample insights instead of calling OpenAI
   if (!user.plan || user.plan === "free" || user.plan === "starter") {

@@ -54,10 +54,12 @@ async function getOverviewData(
     recentOrders,
     stores,
     totalOrderCount,
+    periodOrderCount,
+    priorPeriodOrderCount,
     activeGoal,
   ] = await Promise.all([
 
-    // ── Current-period orders (all non-cancelled) ──────────────────────────
+    // ── Current-period orders (non-cancelled only — for financial metrics) ──
     OrderModel.find({
       teamId,
       orderDate: { $gte: from, $lte: toEOD },
@@ -70,7 +72,7 @@ async function getOverviewData(
       )
       .lean(),
 
-    // ── Prior-period orders (same length) ──────────────────────────────────
+    // ── Prior-period orders (non-cancelled only — for financial metrics) ──
     OrderModel.find({
       teamId,
       orderDate: { $gte: priorFrom, $lte: priorTo },
@@ -83,23 +85,40 @@ async function getOverviewData(
       )
       .lean(),
 
-    // ── Daily time-series ─────────────────────────────────────────────────
+    // ── Daily time-series (ALL statuses for order count, non-cancelled for $) ──
     OrderModel.aggregate([
       {
         $match: {
           teamId: teamOid,
           orderDate: { $gte: from, $lte: toEOD },
-          status: { $ne: "cancelled" },
         },
       },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$orderDate" } },
-          revenue:  { $sum: "$netRevenue" },
-          profit:   { $sum: "$netProfit" },
-          orders:   { $sum: 1 },
-          adSpend:  { $sum: "$adSpendAllocated" },
-          cogs:     { $sum: "$totalCogs" },
+          // Revenue/profit only from non-cancelled
+          revenue: {
+            $sum: {
+              $cond: [{ $ne: ["$status", "cancelled"] }, "$netRevenue", 0],
+            },
+          },
+          profit: {
+            $sum: {
+              $cond: [{ $ne: ["$status", "cancelled"] }, "$netProfit", 0],
+            },
+          },
+          adSpend: {
+            $sum: {
+              $cond: [{ $ne: ["$status", "cancelled"] }, "$adSpendAllocated", 0],
+            },
+          },
+          cogs: {
+            $sum: {
+              $cond: [{ $ne: ["$status", "cancelled"] }, "$totalCogs", 0],
+            },
+          },
+          // Count includes ALL statuses
+          orders: { $sum: 1 },
         },
       },
       { $sort: { _id: 1 } },
@@ -165,8 +184,20 @@ async function getOverviewData(
       .select("name platform syncStatus lastSyncAt ordersCount")
       .lean(),
 
-    // ── Total order count (ever) ──────────────────────────────────────────
+    // ── Total order count (ever, any status) — for hasOrders flag ────────
     OrderModel.countDocuments({ teamId }),
+
+    // ── In-period order count (ALL statuses) — for Orders KPI card ───────
+    OrderModel.countDocuments({
+      teamId,
+      orderDate: { $gte: from, $lte: toEOD },
+    }),
+
+    // ── Prior-period order count (ALL statuses) — for Orders % change ────
+    OrderModel.countDocuments({
+      teamId,
+      orderDate: { $gte: priorFrom, $lte: priorTo },
+    }),
 
     // ── Active goal ───────────────────────────────────────────────────────
     ProfitGoalModel.findOne({
@@ -225,6 +256,9 @@ async function getOverviewData(
   const pct = (curr: number, prev: number) =>
     prev !== 0 ? round2(((curr - prev) / Math.abs(prev)) * 100) : 0;
 
+  // Orders % change uses the all-status in-period counts, not just non-cancelled
+  const ordersChange = pct(periodOrderCount, priorPeriodOrderCount);
+
   // ── Cost breakdown from aggregate ─────────────────────────────────────────
   const cb = costBreakdown[0] ?? {};
   const grossRev   = cb.grossRevenue   ?? 0;
@@ -281,12 +315,13 @@ async function getOverviewData(
       revenue:  pct(current.totalRevenue, last.totalRevenue),
       profit:   pct(current.netProfit,    last.netProfit),
       margin:   round2(current.netMargin  - last.netMargin),
-      orders:   pct(current.orderCount,   last.orderCount),
+      orders:   ordersChange,
       adSpend:  pct(current.totalAdSpend, last.totalAdSpend),
       cogs:     pct(current.totalCogs,    last.totalCogs),
       refunds:  pct(current.totalRefunds, last.totalRefunds),
       aov:      pct(current.avgOrderValue, last.avgOrderValue),
     },
+    totalOrdersInPeriod: periodOrderCount,
     chartData,
     costBreakdown: {
       grossRevenue:     round2(grossRev),
@@ -362,7 +397,7 @@ export default async function DashboardPage({
 
   // If the selected range has zero orders but orders exist in the DB,
   // automatically fall back to all-time so the user always sees their data.
-  if (data.current.orderCount === 0 && data.hasOrders) {
+  if (data.totalOrdersInPeriod === 0 && data.hasOrders) {
     const allTimeFrom = new Date(2000, 0, 1);
     data = await getOverviewData(user.teamId, allTimeFrom, now, "All Time");
   }

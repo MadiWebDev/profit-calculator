@@ -104,6 +104,7 @@ interface OverviewData {
   stores: StoreInfo[];
   goalProgress: GoalProgress | null;
   hasOrders: boolean;
+  totalOrdersInPeriod: number;
   dateRange?: { from: string; to: string; label: string };
 }
 
@@ -339,7 +340,7 @@ function MiniCard({ label, value, change, danger, warning }: {
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
-function exportKpiCsv(current: PeriodSummary, cb: CostBreakdown, label: string) {
+function exportKpiCsv(current: PeriodSummary, cb: CostBreakdown, label: string, totalOrders: number) {
   const rows = [
     ["Metric", "Value"],
     ["Period",                   label],
@@ -357,7 +358,8 @@ function exportKpiCsv(current: PeriodSummary, cb: CostBreakdown, label: string) 
     ["ROAS",                     cb.roas.toFixed(2)],
     ["Net Profit",               current.netProfit.toFixed(2)],
     ["Net Margin %",             current.netMargin.toFixed(2)],
-    ["Order Count",              current.orderCount.toString()],
+    ["Order Count (all)",        totalOrders.toString()],
+    ["Order Count (excl. cancelled)", current.orderCount.toString()],
     ["Avg Order Value",          current.avgOrderValue.toFixed(2)],
     ["Avg Net Profit / Order",   current.avgNetProfit.toFixed(2)],
     ["Total Refunds",            current.totalRefunds.toFixed(2)],
@@ -375,17 +377,14 @@ function exportKpiCsv(current: PeriodSummary, cb: CostBreakdown, label: string) 
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
 
-function ChartTooltip({ active, payload, label, currency }: {
-  active?: boolean; payload?: Array<{ name: string; value: number; color: string }>;
-  label?: string; currency: string;
-}) {
+function ChartTooltip({ active, payload, label, currency }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-3 text-xs space-y-1 min-w-[160px]">
       <p className="font-semibold text-[var(--color-foreground)] border-b border-[var(--color-border)] pb-1 mb-1">
         {label ? fmtDate(label) : ""}
       </p>
-      {payload.map((p) => (
+      {payload.map((p: any) => (
         <div key={p.name} className="flex items-center justify-between gap-4">
           <span className="flex items-center gap-1.5 text-[var(--color-muted-foreground)]">
             <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
@@ -408,6 +407,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
   const {
     current, changes, chartData, costBreakdown: cb,
     statusMap, recentOrders, stores, goalProgress, hasOrders,
+    totalOrdersInPeriod,
   } = data;
 
   const { plan, canManageBilling } = useRole();
@@ -541,7 +541,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
           <DateRangePicker from={dateFrom} to={dateTo} onApply={handleDateChange} />
           {hasOrders && (
             <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
-              onClick={() => exportKpiCsv(current, cb, dateLabel)}>
+              onClick={() => exportKpiCsv(current, cb, dateLabel, totalOrdersInPeriod)}>
               <Download className="h-3.5 w-3.5" /> Export
             </Button>
           )}
@@ -562,7 +562,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       </div>
 
       {/* ── No data in range nudge ── */}
-      {hasOrders && current.orderCount === 0 && !isPending && (
+      {hasOrders && totalOrdersInPeriod === 0 && !isPending && (
         <div className="flex items-start gap-3 rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/50 px-4 py-3 text-sm">
           <span className="text-yellow-500 mt-0.5 flex-shrink-0">⚠️</span>
           <div>
@@ -607,8 +607,8 @@ export function OverviewClient({ data }: { data: OverviewData }) {
           icon={Percent}
         />
         <StatCard
-          label="Orders"
-          value={current.orderCount.toLocaleString()}
+          label="Total Orders"
+          value={totalOrdersInPeriod.toLocaleString()}
           change={changes.orders}
           changeLabel="vs prior period"
           icon={ShoppingCart}

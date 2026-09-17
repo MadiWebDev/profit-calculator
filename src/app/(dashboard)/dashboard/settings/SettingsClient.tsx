@@ -21,10 +21,10 @@ const platformIcon: Record<string, string> = {
 };
 
 const PLAN_FEATURES: Record<string, string[]> = {
-  free:    ["50 orders/month", "1 store", "CSV import", "1 team member"],
-  starter: ["100 orders/month", "1 store", "1 ad platform", "2 team members"],
-  growth:  ["1,000 orders/month", "2 stores", "3 ad platforms", "AI insights (weekly)", "PDF reports", "5 team members"],
-  pro:     ["Unlimited orders", "Unlimited stores", "All ad platforms", "Real-time AI insights", "API access", "Unlimited team"],
+  free:    ["50 orders/month", "1 store", "CSV import"],
+  starter: ["100 orders/month", "1 store", "1 ad platform"],
+  growth:  ["1,000 orders/month", "2 stores", "3 ad platforms", "AI insights (weekly)", "PDF reports" ],
+  pro:     ["Unlimited orders", "Unlimited stores", "All ad platforms", "Real-time AI insights", "API access"],
 };
 
 // Common IANA timezones for the dropdown

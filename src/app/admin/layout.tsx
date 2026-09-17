@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
-import { Calculator, Users, LogOut, LayoutDashboard } from "lucide-react";
+import { Calculator, Users, LogOut, LayoutDashboard, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -38,6 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {[
             { href: "/admin",       label: "Overview",  icon: LayoutDashboard, exact: true },
             { href: "/admin/users", label: "Users",     icon: Users },
+            { href: "/admin/blogs", label: "Blogs",     icon: FileText },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={href}

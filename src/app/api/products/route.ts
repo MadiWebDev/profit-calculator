@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import ProductModel from "@/models/Product";
 import { logAudit } from "@/lib/audit";
 import mongoose from "mongoose";
 
 // ── GET /api/products ─────────────────────────────────────────────────────────
-// Returns the team's active products (same data the server page uses, exposed
-// as a REST endpoint so client-side mutations can refetch without a full reload).
 export async function GET() {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { teamId?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   await connectDB();
   const products = await ProductModel.find({ teamId: user.teamId, isActive: true })
@@ -45,6 +47,9 @@ export async function POST(req: Request) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { id?: string; teamId?: string; role?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   const body = await req.json();
   const name = typeof body.name === "string" ? body.name.trim() : "";

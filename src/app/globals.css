@@ -232,3 +232,179 @@ body {
 .group-\[\.toast\]\:text-primary-foreground { color: var(--color-primary-foreground) !important; }
 .group-\[\.toast\]\:bg-muted { background-color: var(--color-muted) !important; }
 .group-\[\.toast\]\:text-muted-foreground { color: var(--color-muted-foreground) !important; }
+
+/* Blog post prose styling */
+.prose {
+  max-width: 65ch;
+}
+
+.prose :where(p):not(:where([class~="not-prose"] *)) {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+}
+
+.prose :where(h1):not(:where([class~="not-prose"] *)) {
+  font-size: 2.25em;
+  margin-top: 0;
+  margin-bottom: 0.8888889em;
+  line-height: 1.1111111;
+  font-weight: 800;
+  color: var(--color-foreground);
+}
+
+.prose :where(h2):not(:where([class~="not-prose"] *)) {
+  font-size: 1.75em;
+  margin-top: 2em;
+  margin-bottom: 1em;
+  line-height: 1.3333333;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.prose :where(h3):not(:where([class~="not-prose"] *)) {
+  font-size: 1.375em;
+  margin-top: 1.6em;
+  margin-bottom: 0.6em;
+  line-height: 1.4545455;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.prose :where(h4):not(:where([class~="not-prose"] *)) {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.prose :where(a):not(:where([class~="not-prose"] *)) {
+  color: var(--color-primary);
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.prose :where(a):hover:not(:where([class~="not-prose"] *)) {
+  opacity: 0.8;
+}
+
+.prose :where(strong):not(:where([class~="not-prose"] *)) {
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.prose :where(ul):not(:where([class~="not-prose"] *)) {
+  list-style-type: disc;
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
+}
+
+.prose :where(ol):not(:where([class~="not-prose"] *)) {
+  list-style-type: decimal;
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
+}
+
+.prose :where(li):not(:where([class~="not-prose"] *)) {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose :where(blockquote):not(:where([class~="not-prose"] *)) {
+  font-weight: 500;
+  font-style: italic;
+  border-left-width: 0.25rem;
+  border-left-color: var(--color-border);
+  quotes: "\201C""\201D""\2018""\2019";
+  margin-top: 1.6em;
+  margin-bottom: 1.6em;
+  padding-left: 1em;
+  color: var(--color-muted-foreground);
+}
+
+.prose :where(code):not(:where([class~="not-prose"] *)) {
+  font-size: 0.875em;
+  font-weight: 600;
+  background-color: var(--color-muted);
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  color: var(--color-foreground);
+}
+
+.prose :where(pre):not(:where([class~="not-prose"] *)) {
+  background-color: var(--color-muted);
+  overflow-x: auto;
+  font-weight: 400;
+  font-size: 0.875em;
+  line-height: 1.7142857;
+  margin-top: 1.7142857em;
+  margin-bottom: 1.7142857em;
+  border-radius: 0.5rem;
+  padding: 1.1428571em 1.4285714em;
+}
+
+.prose :where(pre code):not(:where([class~="not-prose"] *)) {
+  background-color: transparent;
+  padding: 0;
+  font-weight: inherit;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  line-height: inherit;
+}
+
+.prose :where(img):not(:where([class~="not-prose"] *)) {
+  margin-top: 2em;
+  margin-bottom: 2em;
+  border-radius: 0.5rem;
+}
+
+.prose :where(hr):not(:where([class~="not-prose"] *)) {
+  border-color: var(--color-border);
+  border-top-width: 1px;
+  margin-top: 3em;
+  margin-bottom: 3em;
+}
+
+.prose :where(table):not(:where([class~="not-prose"] *)) {
+  width: 100%;
+  table-layout: auto;
+  text-align: left;
+  margin-top: 2em;
+  margin-bottom: 2em;
+  font-size: 0.875em;
+  line-height: 1.7142857;
+}
+
+.prose :where(thead):not(:where([class~="not-prose"] *)) {
+  border-bottom-width: 1px;
+  border-bottom-color: var(--color-border);
+}
+
+.prose :where(th):not(:where([class~="not-prose"] *)) {
+  padding: 0.5714286em;
+  font-weight: 600;
+  vertical-align: bottom;
+  color: var(--color-foreground);
+}
+
+.prose :where(td):not(:where([class~="not-prose"] *)) {
+  padding: 0.5714286em;
+  vertical-align: baseline;
+}
+
+.prose :where(tbody tr):not(:where([class~="not-prose"] *)) {
+  border-bottom-width: 1px;
+  border-bottom-color: var(--color-border);
+}
+
+.prose-lg {
+  font-size: 1.125rem;
+  line-height: 1.7777778;
+}
+
+.dark .prose :where(code):not(:where([class~="not-prose"] *)) {
+  color: var(--color-foreground);
+}

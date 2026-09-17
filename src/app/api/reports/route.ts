@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import ProductModel from "@/models/Product";
@@ -17,6 +18,9 @@ export async function GET(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { teamId?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type") ?? "profit_summary";

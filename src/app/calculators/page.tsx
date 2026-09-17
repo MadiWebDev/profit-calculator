@@ -16,6 +16,7 @@ const categories: { key: CalculatorConfig["category"]; label: string; desc: stri
   { key: "advertising", label: "Advertising", desc: "ROAS, ROI, and CPA calculators for paid media" },
   { key: "freelance",   label: "Freelance",   desc: "Take-home pay and effective rate calculators" },
   { key: "general",     label: "General",     desc: "Universal profit margin and markup calculators" },
+  { key: "real-estate", label: "Real Estate",     desc: "Universal profit margin and markup calculators" },
 ];
 
 export default function CalculatorsPage() {

@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { validateApiKey, hasScope } from "@/lib/api-key-auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import CogsRuleModel from "@/models/CogsRule";
 import mongoose from "mongoose";
@@ -34,6 +35,11 @@ async function auth(req: NextRequest) {
       err: NextResponse.json({ error: "Missing scope: write:cogs" }, { status: 403 }),
     };
   }
+
+  // Subscription guard — archived accounts cannot use the API
+  const block = await checkSubscription(session.teamId);
+  if (block) return { session: null, err: block };
+
   return { session, err: null };
 }
 

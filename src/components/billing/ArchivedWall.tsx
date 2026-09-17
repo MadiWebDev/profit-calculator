@@ -3,12 +3,17 @@
 /**
  * ArchivedWall
  * ─────────────
- * Full-screen overlay rendered when a user's trial has expired and they have
- * no active paid subscription. It completely replaces the dashboard content
- * and forces the user to upgrade via the PricingModal.
+ * Full-page gate rendered when a user's trial has expired and they have no
+ * active paid subscription. It is the ONLY thing the layout renders when the
+ * account is archived — there is no dashboard content underneath it (the
+ * server component returns early before rendering children).
  *
- * Usage (server component can't render this directly — wrap in a client):
- *   <ArchivedWall trialEndedAt={info.trialEndsAt} />
+ * Security notes:
+ * - No dashboard HTML is in the DOM — DevTools element deletion reveals nothing.
+ * - All data API routes independently return 402 for archived accounts, so
+ *   raw fetch() calls from the console are also blocked server-side.
+ * - The PricingModal is rendered with dismissible={false} so Escape / outside
+ *   click cannot close it, preventing a stuck state with no upgrade CTA.
  */
 
 import { useState } from "react";
@@ -16,7 +21,6 @@ import { Lock, Clock, Zap, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { PricingModal } from "@/components/billing/PricingModal";
-import { cn } from "@/lib/utils";
 
 interface ArchivedWallProps {
   /** ISO string or Date of when the trial ended */
@@ -39,17 +43,21 @@ export function ArchivedWall({ trialEndedAt, userName }: ArchivedWallProps) {
 
   return (
     <>
-      {/* Full-screen wall — sits on top of the dashboard layout */}
+      {/*
+        Full-page layout — not a CSS overlay. The layout server component
+        returns ONLY this component when isArchived is true, so there is
+        nothing else in the DOM to un-hide via DevTools.
+      */}
       <div
-        className={cn(
-          "fixed inset-0 z-50 flex flex-col items-center justify-center",
-          "bg-[var(--color-background)]/95 backdrop-blur-sm px-4"
-        )}
+        role="main"
+        aria-labelledby="archived-wall-heading"
+        className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-background)] px-4 py-12"
       >
         {/* Card */}
         <div className="w-full max-w-md rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl p-8 flex flex-col items-center text-center gap-6">
+
           {/* Icon */}
-          <div className="relative">
+          <div className="relative" aria-hidden="true">
             <div className="h-20 w-20 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center">
               <Lock className="h-9 w-9 text-[var(--color-primary)]" />
             </div>
@@ -60,7 +68,10 @@ export function ArchivedWall({ trialEndedAt, userName }: ArchivedWallProps) {
 
           {/* Headline */}
           <div className="space-y-2">
-            <h1 className="text-2xl font-extrabold text-[var(--color-foreground)]">
+            <h1
+              id="archived-wall-heading"
+              className="text-2xl font-extrabold text-[var(--color-foreground)]"
+            >
               {userName ? `${userName.split(" ")[0]}, your` : "Your"} free trial has ended
             </h1>
             {formattedDate && (
@@ -79,7 +90,7 @@ export function ArchivedWall({ trialEndedAt, userName }: ArchivedWallProps) {
           </div>
 
           {/* What they're missing */}
-          <ul className="w-full space-y-2 text-left">
+          <ul className="w-full space-y-2 text-left" aria-label="Included with a paid plan">
             {[
               "Order-level profit & margin tracking",
               "Real-time store syncing",
@@ -90,7 +101,10 @@ export function ArchivedWall({ trialEndedAt, userName }: ArchivedWallProps) {
                 key={f}
                 className="flex items-center gap-3 text-sm text-[var(--color-muted-foreground)]"
               >
-                <span className="h-5 w-5 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center flex-shrink-0">
+                <span
+                  className="h-5 w-5 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
                   <Zap className="h-3 w-3 text-[var(--color-primary)]" />
                 </span>
                 {f}
@@ -104,15 +118,15 @@ export function ArchivedWall({ trialEndedAt, userName }: ArchivedWallProps) {
               className="w-full gap-2 text-base py-5"
               onClick={() => setPricingOpen(true)}
             >
-              <Zap className="h-4 w-4" />
-              View Plans & Upgrade
+              <Zap className="h-4 w-4" aria-hidden="true" />
+              View Plans &amp; Upgrade
             </Button>
 
             <button
               onClick={() => signOut({ callbackUrl: "/auth/login" })}
               className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors py-1"
             >
-              <LogOut className="h-3.5 w-3.5" />
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
               Sign out
             </button>
           </div>
@@ -125,10 +139,13 @@ export function ArchivedWall({ trialEndedAt, userName }: ArchivedWallProps) {
         </p>
       </div>
 
-      {/* Pricing modal — not dismissible when account is archived */}
+      {/*
+        PricingModal — dismissible={false} so Escape and outside-click cannot
+        close it. The user must either upgrade or sign out.
+      */}
       <PricingModal
         open={pricingOpen}
-        dismissible
+        dismissible={false}
         onClose={() => setPricingOpen(false)}
       />
     </>

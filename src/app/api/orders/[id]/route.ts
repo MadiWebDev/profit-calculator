@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { calcOrderProfit } from "@/lib/profit-engine";
@@ -12,6 +13,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { teamId?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   const { id } = await params;
 
@@ -47,14 +51,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 // ── PATCH /api/orders/[id] ────────────────────────────────────────────────────
-// Allows updating editable fields. Recomputes netProfit / profitMargin if any
-// revenue or cost field changes.
-// Only owner / admin / member may edit orders.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { id?: string; teamId?: string; role?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   const { id } = await params;
   const body = await req.json();
@@ -137,6 +141,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { id?: string; teamId?: string; role?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   const { id } = await params;
 

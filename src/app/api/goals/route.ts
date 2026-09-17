@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import ProfitGoalModel from "@/models/ProfitGoal";
 import mongoose from "mongoose";
@@ -9,6 +10,9 @@ export async function POST(req: Request) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { id?: string; teamId?: string };
   if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   try {
     const { month, targetProfit, targetRevenue, alertThreshold } = await req.json();
@@ -44,6 +48,9 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = session.user as { teamId?: string };
   if (!user.teamId) return NextResponse.json({ goals: [] });
+
+  const block = await checkSubscription(user.teamId);
+  if (block) return block;
 
   await connectDB();
   const goals = await ProfitGoalModel.find({ teamId: user.teamId }).sort({ month: -1 }).lean();
