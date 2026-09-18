@@ -319,25 +319,36 @@ function OnboardingInner() {
 
           {/* ── Choose platform ── */}
           {step === "choose" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {PLATFORMS.map(({ id, label, icon: Icon, desc }) => (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {PLATFORMS.map(({ id, label, icon: Icon, desc }) => (
+                  <button
+                    key={id}
+                    onClick={() => { setPlatform(id); setStep(id as Step); setError(null); }}
+                    className={cn(
+                      "flex items-start gap-3 text-left p-4 rounded-xl border-2 transition-all",
+                      "border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-accent)]"
+                    )}
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-muted)] flex-shrink-0 mt-0.5">
+                      <Icon className="h-5 w-5 text-[var(--color-primary)]" />
+                    </span>
+                    <div>
+                      <p className="font-semibold text-[var(--color-foreground)]">{label}</p>
+                      <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5 leading-relaxed">{desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="text-center pt-1">
                 <button
-                  key={id}
-                  onClick={() => { setPlatform(id); setStep(id as Step); setError(null); }}
-                  className={cn(
-                    "flex items-start gap-3 text-left p-4 rounded-xl border-2 transition-all",
-                    "border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-accent)]"
-                  )}
+                  onClick={() => router.push("/dashboard")}
+                  className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors underline-offset-4 hover:underline"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-muted)] flex-shrink-0 mt-0.5">
-                    <Icon className="h-5 w-5 text-[var(--color-primary)]" />
-                  </span>
-                  <div>
-                    <p className="font-semibold text-[var(--color-foreground)]">{label}</p>
-                    <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5 leading-relaxed">{desc}</p>
-                  </div>
+                  I&apos;ll do this later
                 </button>
-              ))}
+              </div>
             </div>
           )}
 
