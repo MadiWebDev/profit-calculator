@@ -3,8 +3,8 @@ import Link from "next/link";
 import { ArrowLeft, Key, Lock, Activity, BookOpen, Code2, ChevronRight } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "API Reference | CalcProfit",
-  description: "REST API reference for CalcProfit — access your profit, order, and summary data programmatically.",
+  title: "API Reference | GetProfitCalc",
+  description: "REST API reference for GetProfitCalc — access your profit, order, and summary data programmatically.",
 };
 
 interface Endpoint {
@@ -105,7 +105,7 @@ export default function ApiDocsPage() {
             <h1 className="text-3xl font-bold text-[var(--color-foreground)]">API Reference</h1>
           </div>
           <p className="text-[var(--color-muted-foreground)] max-w-2xl leading-relaxed">
-            CalcProfit exposes a REST API for Pro plan users. Use it to pull your profit data into
+            GetProfitCalc exposes a REST API for Pro plan users. Use it to pull your profit data into
             custom dashboards, data warehouses, or automation workflows.
           </p>
         </div>
@@ -122,7 +122,7 @@ export default function ApiDocsPage() {
               header using the <strong>Bearer</strong> scheme.
             </p>
             <pre className="bg-[var(--color-muted)] rounded-lg px-4 py-3 text-xs font-mono text-[var(--color-foreground)] overflow-x-auto">
-{`curl https://profitcalc.io/api/v1/summary?from=2025-01-01&to=2025-01-31 \\
+{`curl https://getprofitcalc.com/api/v1/summary?from=2025-01-01&to=2025-01-31 \\
   -H "Authorization: Bearer pc_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"`}
             </pre>
             <div className="flex items-start gap-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
@@ -148,7 +148,7 @@ export default function ApiDocsPage() {
             <div>
               <p className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-1">Base URL</p>
               <code className="font-mono text-sm bg-[var(--color-muted)] px-3 py-2 rounded-lg block">
-                https://profitcalc.io
+                https://getprofitcalc.com
               </code>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">

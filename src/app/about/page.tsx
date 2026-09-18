@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { calculators } from "@/config/calculators";
 
 export const metadata = buildMetadata({
-  title: "About CalcProfit",
+  title: "About GetProfitCalc",
   description:
-    "CalcProfit is a free hub of profit and ROI calculators built for ecommerce sellers, dropshippers, Amazon FBA sellers, marketers, and freelancers.",
+    "GetProfitCalc is a free hub of profit and ROI calculators built for ecommerce sellers, dropshippers, Amazon FBA sellers, marketers, and freelancers.",
   path: "/about",
 });
 
@@ -20,7 +20,7 @@ export default function AboutPage() {
           <Calculator className="h-7 w-7" />
         </div>
         <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-4">
-          About CalcProfit
+          About GetProfitCalc
         </h1>
         <p className="text-xl text-[var(--color-muted-foreground)] max-w-2xl mx-auto leading-relaxed">
           We built the calculators we always wished existed — ones that account for{" "}
@@ -33,13 +33,13 @@ export default function AboutPage() {
         <h2 className="text-2xl font-bold text-[var(--color-foreground)] mb-4">Our Mission</h2>
         <div className="space-y-4 text-[var(--color-muted-foreground)] leading-relaxed">
           <p>
-            CalcProfit exists because most profit calculators are too simple. They ask for revenue and
+            GetProfitCalc exists because most profit calculators are too simple. They ask for revenue and
             COGS, subtract them, and call it margin. But any experienced ecommerce seller knows that the
             real answer is buried under Shopify transaction fees, Stripe processing charges, shipping costs,
             Facebook ad spend, Amazon FBA fees, and return rates.
           </p>
           <p>
-            We built CalcProfit to give every seller, marketer, and freelancer a free tool that reflects
+            We built GetProfitCalc to give every seller, marketer, and freelancer a free tool that reflects
             the true complexity of running an online business — without requiring a finance degree or a
             spreadsheet full of custom formulas.
           </p>
@@ -93,7 +93,7 @@ export default function AboutPage() {
       <section className="mb-14 rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-6">
         <h2 className="text-lg font-bold text-[var(--color-foreground)] mb-3">Important Disclaimer</h2>
         <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed">
-          CalcProfit provides calculators and educational content for informational purposes only. The
+          GetProfitCalc provides calculators and educational content for informational purposes only. The
           results produced by our tools are estimates based on the values you input and the formulas we
           apply. They do not constitute financial, tax, legal, or business advice. Platform fees, tax
           rates, shipping costs, and other variables change frequently — always verify figures with

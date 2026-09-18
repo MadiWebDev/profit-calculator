@@ -66,7 +66,7 @@ const testimonials = [
 ];
 
 const faqs = [
-  { q: "Are the calculators really free?", a: "Yes — every calculator on CalcProfit is completely free, forever. No account needed, no limits, no credit card." },
+  { q: "Are the calculators really free?", a: "Yes — every calculator on GetProfitCalc is completely free, forever. No account needed, no limits, no credit card." },
   { q: "What's the difference between the free calculators and the SaaS platform?", a: "The free calculators are one-off tools you use manually. The SaaS platform connects to your actual store and automatically tracks every order's real profit in real time, with AI insights, goal tracking, and reports." },
   { q: "Do I need a credit card to start the 7-day trial?", a: "No. Sign up with just your email. No credit card is required until you choose to upgrade after your trial ends." },
   { q: "Which platforms does the profit tracker support?", a: "Shopify (OAuth), WooCommerce (API keys), Etsy (OAuth), and any other platform via CSV import. More native integrations are being added regularly." },
@@ -186,7 +186,7 @@ export default function HomePage() {
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <Badge variant="outline" className="mb-3">Why CalcProfit Wins</Badge>
+            <Badge variant="outline" className="mb-3">Why GetProfitCalc Wins</Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-[var(--color-foreground)] mb-3">
               Everything TrueProfit has. Plus what they don&apos;t.
             </h2>
@@ -212,7 +212,7 @@ export default function HomePage() {
       <section className="py-16 bg-[var(--color-muted)]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-[var(--color-foreground)] mb-2">CalcProfit vs. Other Profit Trackers</h2>
+            <h2 className="text-3xl font-bold text-[var(--color-foreground)] mb-2">GetProfitCalc vs. Other Profit Trackers</h2>
             <p className="text-[var(--color-muted-foreground)] text-sm">A fair, factual comparison. Last updated September 2026.</p>
           </div>
           <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden shadow-sm">
@@ -220,7 +220,7 @@ export default function HomePage() {
               <thead>
                 <tr className="bg-[var(--color-card)] border-b border-[var(--color-border)]">
                   <th className="px-5 py-4 text-left font-semibold text-[var(--color-foreground)]">Feature</th>
-                  <th className="px-5 py-4 text-center font-bold text-[var(--color-primary)]">CalcProfit</th>
+                  <th className="px-5 py-4 text-center font-bold text-[var(--color-primary)]">GetProfitCalc</th>
                   <th className="px-5 py-4 text-center font-semibold text-[var(--color-muted-foreground)]">Others</th>
                 </tr>
               </thead>

@@ -37,7 +37,7 @@ export function Footer() {
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white">
                 <Calculator className="h-4 w-4" />
               </span>
-              <span>Profit<span className="text-[var(--color-primary)]">Calc</span></span>
+              <span>Get<span className="text-[var(--color-primary)]">Profit</span>Calc</span>
             </Link>
             <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed">
               Free profit calculators and real-time profit tracking for ecommerce sellers. Starts at $2/month.
@@ -64,7 +64,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--color-muted-foreground)]">
-          <p>© {new Date().getFullYear()} CalcProfit. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} GetProfitCalc. All rights reserved.</p>
           <p>For informational purposes only. Not financial or tax advice.</p>
         </div>
       </div>

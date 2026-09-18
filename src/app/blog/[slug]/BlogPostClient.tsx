@@ -74,7 +74,7 @@ export default function BlogPostClient({ blog }: BlogPostClientProps) {
       },
       publisher: {
         "@type": "Organization",
-        name: "ProfitCalc",
+        name: "GetProfitCalc",
         logo: {
           "@type": "ImageObject",
           url: `${process.env.NEXT_PUBLIC_SITE_URL}/logo.png`,

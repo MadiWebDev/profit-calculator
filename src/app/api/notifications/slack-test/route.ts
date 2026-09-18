@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   try {
     await sendSlackNotification(
       webhookUrl,
-      "CalcProfit connected ✅",
+      "GetProfitCalc connected ✅",
       "Slack notifications are working. You'll receive profit alerts here.",
       "success",
       "/dashboard"

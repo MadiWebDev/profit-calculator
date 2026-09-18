@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
-const STORAGE_KEY = "profitcalc_cookie_consent";
+const STORAGE_KEY = "getprofitcalc_cookie_consent";
 
 export function CookieConsent() {
   const [visible, setVisible] = useState(false);

@@ -5,7 +5,7 @@ export const runtime = "edge";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const title = searchParams.get("title") ?? "CalcProfit";
+  const title = searchParams.get("title") ?? "GetProfitCalc";
   const subtitle = searchParams.get("subtitle") ?? "Free Profit & ROI Calculators";
 
   return new ImageResponse(
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
             📊
           </div>
           <span style={{ fontSize: 28, fontWeight: 700, color: "#f8fafc" }}>
-            Profit<span style={{ color: "#22c55e" }}>Calc</span>
+            Get<span style={{ color: "#22c55e" }}>Profit</span>Calc
           </span>
         </div>
 
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
             marginTop: 32,
           }}
         >
-          <span style={{ color: "#64748b", fontSize: 18 }}>profitcalc.io</span>
+          <span style={{ color: "#64748b", fontSize: 18 }}>getprofitcalc.com</span>
           <div
             style={{
               background: "#22c55e",

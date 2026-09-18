@@ -11,7 +11,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Features — AI Profit Tracking for Ecommerce & Ads",
   description:
-    "CalcProfit features: AI profit insights, multi-platform support (Shopify, WooCommerce, Etsy), what-if simulator, ad creative ROI, goal tracking, tax estimates, and more.",
+    "GetProfitCalc features: AI profit insights, multi-platform support (Shopify, WooCommerce, Etsy), what-if simulator, ad creative ROI, goal tracking, tax estimates, and more.",
   path: "/features",
 });
 
@@ -32,7 +32,7 @@ const FEATURES = [
     icon: Globe,
     title: "Multi-Platform Store Support",
     badge: "All Plans",
-    desc: "Most profit trackers are Shopify-only. CalcProfit supports Shopify, WooCommerce, and Etsy via native OAuth integrations — plus CSV import for any platform with no native integration yet.",
+    desc: "Most profit trackers are Shopify-only. GetProfitCalc supports Shopify, WooCommerce, and Etsy via native OAuth integrations — plus CSV import for any platform with no native integration yet.",
     points: [
       "Shopify: OAuth connection, automatic order sync",
       "WooCommerce: REST API key connection",
@@ -56,7 +56,7 @@ const FEATURES = [
     icon: ShoppingBag,
     title: "Ad Creative–Level Profit",
     badge: "Growth + Pro",
-    desc: "Campaign-level ROAS is a vanity metric. CalcProfit shows you which specific ad creative is profitable after deducting COGS, shipping, and fees — not just which generated the most revenue.",
+    desc: "Campaign-level ROAS is a vanity metric. GetProfitCalc shows you which specific ad creative is profitable after deducting COGS, shipping, and fees — not just which generated the most revenue.",
     points: [
       "Connects to Meta Ads, Google Ads, and TikTok Ads",
       "Breaks down ROAS, CPA, and net profit at ad/creative level",
@@ -68,7 +68,7 @@ const FEATURES = [
     icon: Package,
     title: "Tax Set-Aside Estimator",
     badge: "All Plans",
-    desc: "One of the most under-served pain points for small sellers: not knowing how much to set aside for taxes. CalcProfit estimates your quarterly tax obligation based on net profit.",
+    desc: "One of the most under-served pain points for small sellers: not knowing how much to set aside for taxes. GetProfitCalc estimates your quarterly tax obligation based on net profit.",
     points: [
       "Configurable effective tax rate (default 28%)",
       "Shows quarterly payment estimate and after-tax profit",

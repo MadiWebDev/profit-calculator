@@ -65,7 +65,7 @@ function AcceptInviteInner() {
               </div>
               <h1 className="text-xl font-bold text-[var(--color-foreground)] mb-2">You&apos;re in! 🎉</h1>
               <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
-                You&apos;ve joined <strong>{teamName}</strong> on CalcProfit. Redirecting you to the dashboard…
+                You&apos;ve joined <strong>{teamName}</strong> on GetProfitCalc. Redirecting you to the dashboard…
               </p>
               <Button asChild className="w-full">
                 <Link href="/dashboard">Go to Dashboard</Link>

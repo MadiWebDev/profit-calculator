@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://profitcalc.io";
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://getprofitcalc.com";
 
 export function buildMetadata({
   title,
@@ -19,25 +19,25 @@ export function buildMetadata({
   const ogImage = image ?? `${BASE_URL}/api/og?title=${encodeURIComponent(title)}`;
 
   return {
-    title: `${title} | CalcProfit`,
+    title: `${title} | GetProfitCalc`,
     description,
     metadataBase: new URL(BASE_URL),
     alternates: { canonical: url },
     robots: noIndex ? { index: false, follow: false } : { index: true, follow: true },
     openGraph: {
-      title: `${title} | CalcProfit`,
+      title: `${title} | GetProfitCalc`,
       description,
       url,
-      siteName: "CalcProfit",
+      siteName: "GetProfitCalc",
       images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: `${title} | CalcProfit`,
+      title: `${title} | GetProfitCalc`,
       description,
       images: [ogImage],
-      site: "@profitcalc",
+      site: "@getprofitcalc",
     },
   };
 }
@@ -80,7 +80,7 @@ export function buildCalculatorJsonLd({
   ];
 }
 
-export const SITE_NAME = "CalcProfit";
+export const SITE_NAME = "GetProfitCalc";
 export const SITE_DESCRIPTION =
   "Free profit and ROI calculators for ecommerce sellers, dropshippers, Amazon FBA, Facebook Ads, Google Ads, and freelancers. Calculate your real profit in seconds.";
 export { BASE_URL };

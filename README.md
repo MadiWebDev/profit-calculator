@@ -2,7 +2,7 @@
 
 <h1>
   <img src="public/file.svg" width="32" style="vertical-align:middle" />
-  CalcProfit
+  GetProfitCalc
 </h1>
 
 <p><strong>A full-stack SaaS profit analytics platform for e-commerce merchants.</strong><br/>
@@ -23,7 +23,7 @@ Track true net profit across orders, products, and ad spend — with AI-powered 
 
 ## Overview
 
-CalcProfit helps e-commerce store owners understand whether they're actually making money. Most merchants know their revenue — few know their net profit after COGS, shipping, platform fees, ad spend, refunds, and chargebacks are accounted for. CalcProfit closes that gap.
+GetProfitCalc helps e-commerce store owners understand whether they're actually making money. Most merchants know their revenue — few know their net profit after COGS, shipping, platform fees, ad spend, refunds, and chargebacks are accounted for. GetProfitCalc closes that gap.
 
 Merchants connect their Shopify or Etsy store (or import via CSV), set product COGS, and get a full income-statement-style breakdown in real time. Ad spend from Meta, Google, TikTok, Pinterest, and Snapchat is synced and attributed at the order level so ROAS is calculated against true profit, not just revenue.
 
@@ -212,7 +212,7 @@ AUTH_GOOGLE_ID=
 AUTH_GOOGLE_SECRET=
 
 # ── Database ──────────────────────────────────────────────────────────────────
-MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/profitcalc
+MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/getprofitcalc
 
 # ── Encryption (AES-256 for OAuth tokens at rest) ────────────────────────────
 ENCRYPTION_KEY=                       # 32-character hex string
@@ -240,7 +240,7 @@ NEXT_PUBLIC_PADDLE_PRO_PRICE_ID=
 
 # ── Email (Resend) ─────────────────────────────────────────────────────────────
 RESEND_API_KEY=
-EMAIL_FROM=CalcProfit <hello@yourdomain.com>
+EMAIL_FROM=GetProfitCalc <hello@yourdomain.com>
 
 # ── AI (OpenAI) ───────────────────────────────────────────────────────────────
 OPENAI_API_KEY=
@@ -345,7 +345,7 @@ Authenticate with a `Bearer <api-key>` header. Keys are created in Settings → 
 
 ## Billing Webhook Setup
 
-CalcProfit verifies webhook signatures to prevent replay attacks (timestamps older than 5 minutes are rejected).
+GetProfitCalc verifies webhook signatures to prevent replay attacks (timestamps older than 5 minutes are rejected).
 
 **Dodo Payments**: Point your webhook to `https://yourdomain.com/api/billing/webhook`. Set `DODO_WEBHOOK_SECRET` to your webhook secret. The app listens for `subscription.created`, `subscription.activated`, `subscription.cancelled`, and `payment.failed` events.
 
