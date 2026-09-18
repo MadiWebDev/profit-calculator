@@ -1,7 +1,7 @@
-// CalcProfit Service Worker
+// GetProfitCalc Service Worker
 // Provides offline support for cached dashboard views
 
-const CACHE_NAME = "profitcalc-v1";
+const CACHE_NAME = "getprofitcalc-v1";
 const STATIC_ASSETS = [
   "/",
   "/dashboard",

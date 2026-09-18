@@ -1,5 +1,5 @@
 /**
- * CalcProfit Core Profit Engine
+ * GetProfitCalc Core Profit Engine
  * Pure functions — no side effects, no DB calls, fully testable.
  * All monetary values in the store's base currency (no conversion here).
  */

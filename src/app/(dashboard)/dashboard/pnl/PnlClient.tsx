@@ -79,7 +79,7 @@ function PnlRow({
 
 function exportPnlCSV(s: PnlSummary, from: string, to: string) {
   const rows = [
-    ["CalcProfit — Profit & Loss Statement"],
+    ["GetProfitCalc — Profit & Loss Statement"],
     [`Period: ${from} to ${to}`],
     [],
     ["", "Amount (USD)", "% of Revenue"],

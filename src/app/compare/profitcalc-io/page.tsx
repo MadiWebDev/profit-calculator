@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "CalcProfit vs TrueProfit — Honest Comparison",
+  title: "GetProfitCalc vs TrueProfit — Honest Comparison",
   description:
-    "How does CalcProfit compare to TrueProfit, BeProfit, and other profit tracking tools? Side-by-side comparison of features, pricing, and platform support.",
-  path: "/compare/profitcalc-io",
+    "How does GetProfitCalc compare to TrueProfit, BeProfit, and other profit tracking tools? Side-by-side comparison of features, pricing, and platform support.",
+  path: "/compare/getprofitcalc",
 });
 
 interface CompRow {
@@ -80,7 +80,7 @@ export default function ComparePage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <Badge variant="outline" className="mb-4 text-xs">Honest comparison · Updated September 2026</Badge>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-4">
-            CalcProfit vs. Other Profit Trackers
+            GetProfitCalc vs. Other Profit Trackers
           </h1>
           <p className="text-lg text-[var(--color-muted-foreground)] mb-6">
             A fair, factual side-by-side of features, pricing, and platform support.
@@ -105,7 +105,7 @@ export default function ComparePage() {
                   <thead className="bg-[var(--color-muted)] border-b border-[var(--color-border)]">
                     <tr>
                       <th className="px-5 py-3 text-left font-medium text-[var(--color-muted-foreground)] w-1/2">Feature</th>
-                      <th className="px-5 py-3 text-center font-bold text-[var(--color-primary)]">CalcProfit</th>
+                      <th className="px-5 py-3 text-center font-bold text-[var(--color-primary)]">GetProfitCalc</th>
                       <th className="px-5 py-3 text-center font-medium text-[var(--color-muted-foreground)]">Others</th>
                     </tr>
                   </thead>
@@ -137,12 +137,12 @@ export default function ComparePage() {
       <section className="py-12 bg-[var(--color-muted)] px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
           <h2 className="text-2xl font-bold text-[var(--color-foreground)] text-center mb-8">
-            Why sellers switch to CalcProfit
+            Why sellers switch to GetProfitCalc
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {[
-              { title: "Price shock",         body: "TrueProfit starts at $39. BeProfit at $25. CalcProfit starts at $2. For 90% of small sellers, you'll pay 90% less." },
-              { title: "WooCommerce support", body: "Most profit trackers are Shopify-only. If you run WooCommerce or Etsy, you're left out. CalcProfit connects to all three." },
+              { title: "Price shock",         body: "TrueProfit starts at $39. BeProfit at $25. GetProfitCalc starts at $2. For 90% of small sellers, you'll pay 90% less." },
+              { title: "WooCommerce support", body: "Most profit trackers are Shopify-only. If you run WooCommerce or Etsy, you're left out. GetProfitCalc connects to all three." },
               { title: "AI insights",         body: "No competitor at this price point offers AI analysis. We use GPT-4 to proactively explain profit changes in plain English." },
               { title: "No credit card trial",body: "Most tools require Shopify billing or a credit card to start a trial. We don't — just your email." },
             ].map(({ title, body }) => (
@@ -158,7 +158,7 @@ export default function ComparePage() {
       {/* CTA */}
       <section className="py-16 bg-[var(--color-primary)]">
         <div className="mx-auto max-w-3xl px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-3">Try CalcProfit free for 14 days</h2>
+          <h2 className="text-3xl font-bold text-white mb-3">Try GetProfitCalc free for 14 days</h2>
           <p className="text-green-100 mb-6">No credit card. No Shopify billing required. Just your email.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild size="lg" variant="secondary" className="font-semibold gap-2">

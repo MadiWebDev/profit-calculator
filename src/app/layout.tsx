@@ -16,8 +16,8 @@ export const metadata: Metadata = {
   title: { default: `${SITE_NAME} — Free Profit & ROI Calculators`, template: `%s | ${SITE_NAME}` },
   description: SITE_DESCRIPTION,
   keywords: ["profit calculator", "roi calculator", "ecommerce calculator", "shopify profit", "dropshipping profit", "amazon fba calculator"],
-  authors: [{ name: "CalcProfit" }],
-  creator: "CalcProfit",
+  authors: [{ name: "GetProfitCalc" }],
+  creator: "GetProfitCalc",
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -25,12 +25,12 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: `${SITE_NAME} — Free Profit & ROI Calculators`,
     description: SITE_DESCRIPTION,
-    images: [{ url: `${BASE_URL}/api/og?title=CalcProfit`, width: 1200, height: 630 }],
+    images: [{ url: `${BASE_URL}/api/og?title=GetProfitCalc`, width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    site: "@profitcalc",
-    creator: "@profitcalc",
+    site: "@getprofitcalc",
+    creator: "@getprofitcalc",
   },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
   verification: { google: "YOUR_GOOGLE_VERIFICATION_CODE" },
@@ -44,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#22c55e" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="CalcProfit" />
+        <meta name="apple-mobile-web-app-title" content="GetProfitCalc" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} min-h-screen flex flex-col bg-[var(--color-background)] text-[var(--color-foreground)] antialiased`}>

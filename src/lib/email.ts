@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = process.env.EMAIL_FROM ?? "CalcProfit <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "GetProfitCalc <onboarding@resend.dev>";
 
 /** Throws if Resend returns an error so callers get a real exception. */
 async function sendEmail(payload: Parameters<typeof resend.emails.send>[0]) {
@@ -17,7 +17,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
   return sendEmail({
     from: FROM,
     to,
-    subject: "Welcome to CalcProfit 🎉",
+    subject: "Welcome to GetProfitCalc 🎉",
     html: `
       <h2>Welcome, ${name}!</h2>
       <p>Your 14-day free trial has started. No credit card required.</p>
@@ -77,11 +77,11 @@ export async function sendTeamInviteEmail(
   return sendEmail({
     from: FROM,
     to,
-    subject: `${inviterName} invited you to join ${teamName} on CalcProfit`,
+    subject: `${inviterName} invited you to join ${teamName} on GetProfitCalc`,
     html: `
       <h2>You're invited!</h2>
       <p><strong>${inviterName}</strong> has invited you to join 
-        <strong>${teamName}</strong> on CalcProfit.
+        <strong>${teamName}</strong> on GetProfitCalc.
       </p>
       <a href="${url}" style="
         display:inline-block;background:#22c55e;color:#fff;
@@ -103,7 +103,7 @@ export async function sendPasswordResetEmail(
   return sendEmail({
     from: FROM,
     to,
-    subject: "Reset your CalcProfit password",
+    subject: "Reset your GetProfitCalc password",
     html: `
       <h2>Password Reset Request</h2>
       <p>Hi ${name},</p>

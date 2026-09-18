@@ -1,6 +1,6 @@
 {
-  "name": "CalcProfit — Profit Tracker",
-  "short_name": "CalcProfit",
+  "name": "GetProfitCalc — Profit Tracker",
+  "short_name": "GetProfitCalc",
   "description": "Real-time profit tracking for ecommerce sellers and marketers",
   "start_url": "/dashboard",
   "display": "standalone",
@@ -42,10 +42,10 @@
   "categories": ["finance", "productivity", "business"],
   "screenshots": [
     {
-      "src": "/api/og?title=CalcProfit+Dashboard",
+      "src": "/api/og?title=GetProfitCalc+Dashboard",
       "sizes": "1200x630",
       "type": "image/png",
-      "label": "CalcProfit Dashboard"
+      "label": "GetProfitCalc Dashboard"
     }
   ],
   "shortcuts": [

@@ -2,8 +2,8 @@ import { buildMetadata } from "@/lib/seo";
 import { Mail, MessageSquare, Clock } from "lucide-react";
 
 export const metadata = buildMetadata({
-  title: "Contact CalcProfit",
-  description: "Get in touch with the CalcProfit team. Report a bug, suggest a calculator, or ask a question.",
+  title: "Contact GetProfitCalc",
+  description: "Get in touch with the GetProfitCalc team. Report a bug, suggest a calculator, or ask a question.",
   path: "/contact",
 });
 
@@ -26,13 +26,13 @@ export default function ContactPage() {
           {
             icon: Mail,
             title: "Email Us",
-            desc: "hello@profitcalc.io",
+            desc: "hello@getprofitcalc.com",
             note: "Best for general enquiries",
           },
           {
             icon: MessageSquare,
             title: "Bug Reports",
-            desc: "bugs@profitcalc.io",
+            desc: "bugs@getprofitcalc.com",
             note: "Calculator errors or UI issues",
           },
           {
@@ -58,7 +58,7 @@ export default function ContactPage() {
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 sm:p-8">
         <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-6">Send a Message</h2>
         <form
-          action="mailto:hello@profitcalc.io"
+          action="mailto:hello@getprofitcalc.com"
           method="get"
           className="space-y-5"
           aria-label="Contact form"

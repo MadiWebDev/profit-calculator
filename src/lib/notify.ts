@@ -74,7 +74,7 @@ export async function sendSlackNotification(
       type: "actions",
       elements: [{
         type: "button",
-        text: { type: "plain_text", text: "View in CalcProfit" },
+        text: { type: "plain_text", text: "View in GetProfitCalc" },
         url: `${process.env.NEXT_PUBLIC_SITE_URL}${actionUrl}`,
         style: severity === "error" ? "danger" : "primary",
       }],

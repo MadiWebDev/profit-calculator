@@ -65,7 +65,7 @@ export default function RegisterPage() {
       const sr = await signIn("credentials", { email: email.toLowerCase(), password, redirect: false });
 
       if (sr?.ok) {
-        toast.success("Welcome to CalcProfit!", { id: tid });
+        toast.success("Welcome to GetProfitCalc!", { id: tid });
         router.push("/onboarding");
         router.refresh();
       } else {

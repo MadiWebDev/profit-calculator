@@ -2,13 +2,13 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
   title: "Privacy Policy",
-  description: "CalcProfit privacy policy — how we collect, use, and protect your data, including our use of Google AdSense and cookies.",
+  description: "GetProfitCalc privacy policy — how we collect, use, and protect your data, including our use of Google AdSense and cookies.",
   path: "/privacy-policy",
 });
 
 const LAST_UPDATED = "August 1, 2026";
-const SITE_URL = "https://profitcalc.io";
-const CONTACT_EMAIL = "hello@profitcalc.io";
+const SITE_URL = "https://getprofitcalc.com";
+const CONTACT_EMAIL = "hello@getprofitcalc.com";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -21,7 +21,7 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">1. Introduction</h2>
           <p>
-            Welcome to CalcProfit (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;). This Privacy Policy
+            Welcome to GetProfitCalc (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;). This Privacy Policy
             explains how we collect, use, disclose, and safeguard your information when you visit{" "}
             <a href={SITE_URL} className="text-[var(--color-primary)] hover:underline">{SITE_URL}</a>.
             Please read this policy carefully. If you disagree with its terms, please discontinue use of our site.
@@ -61,7 +61,7 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">4. Google AdSense & Advertising</h2>
           <p className="mb-3">
-            CalcProfit uses Google AdSense to display advertisements. Google AdSense uses cookies to serve ads
+            GetProfitCalc uses Google AdSense to display advertisements. Google AdSense uses cookies to serve ads
             based on your prior visits to our website or other websites. Google&apos;s use of advertising cookies
             enables it and its partners to serve ads based on your visit to our site and/or other sites on the Internet.
           </p>
@@ -132,7 +132,7 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">9. Children&apos;s Privacy</h2>
           <p>
-            CalcProfit is not directed to children under the age of 13. We do not knowingly collect personal
+            GetProfitCalc is not directed to children under the age of 13. We do not knowingly collect personal
             information from children. If you believe a child has provided personal information, contact us and
             we will promptly delete it.
           </p>

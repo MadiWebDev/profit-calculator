@@ -2,13 +2,13 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
   title: "Terms of Service",
-  description: "CalcProfit terms of service — rules for using our free profit and ROI calculators.",
+  description: "GetProfitCalc terms of service — rules for using our free profit and ROI calculators.",
   path: "/terms-of-service",
 });
 
 const LAST_UPDATED = "August 1, 2026";
-const CONTACT_EMAIL = "hello@profitcalc.io";
-const SITE_URL = "https://profitcalc.io";
+const CONTACT_EMAIL = "hello@getprofitcalc.com";
+const SITE_URL = "https://getprofitcalc.com";
 
 export default function TermsOfServicePage() {
   return (
@@ -21,7 +21,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">1. Acceptance of Terms</h2>
           <p>
-            By accessing and using CalcProfit at{" "}
+            By accessing and using GetProfitCalc at{" "}
             <a href={SITE_URL} className="text-[var(--color-primary)] hover:underline">{SITE_URL}</a>
             {" "}("the Site"), you accept and agree to be bound by these Terms of Service and our
             Privacy Policy. If you do not agree, please do not use the Site.
@@ -31,7 +31,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">2. Description of Service</h2>
           <p>
-            CalcProfit provides free, browser-based profit and ROI calculators for informational and educational
+            GetProfitCalc provides free, browser-based profit and ROI calculators for informational and educational
             purposes. The calculators process data entered by users entirely within the browser and produce
             estimated outputs based on provided formulas.
           </p>
@@ -54,7 +54,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">4. No Financial or Professional Advice</h2>
           <p>
-            Nothing on CalcProfit constitutes financial, tax, legal, investment, or business advice. The
+            Nothing on GetProfitCalc constitutes financial, tax, legal, investment, or business advice. The
             calculators are tools to assist with your own analysis. For decisions involving significant financial
             risk, consult a qualified accountant, financial advisor, or legal professional.
           </p>
@@ -63,7 +63,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">5. Limitation of Liability</h2>
           <p>
-            TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, PROFITCALC SHALL NOT BE LIABLE FOR ANY
+            TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, GETPROFITCALC SHALL NOT BE LIABLE FOR ANY
             INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING LOSS OF PROFITS,
             DATA, OR GOODWILL, ARISING FROM YOUR USE OF THE SITE OR RELIANCE ON ITS CALCULATORS, EVEN IF
             ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
@@ -85,8 +85,8 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">7. Intellectual Property</h2>
           <p>
-            All content on CalcProfit — including text, formulas, design, code, and branding — is the
-            intellectual property of CalcProfit or its content providers and is protected by copyright law.
+            All content on GetProfitCalc — including text, formulas, design, code, and branding — is the
+            intellectual property of GetProfitCalc or its content providers and is protected by copyright law.
             You may not reproduce, distribute, or create derivative works without explicit written permission.
           </p>
         </section>

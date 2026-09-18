@@ -25,12 +25,12 @@ export function Navbar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-xl" aria-label="CalcProfit home">
+          <Link href="/" className="flex items-center gap-2 font-bold text-xl" aria-label="GetProfitCalc home">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white">
               <Calculator className="h-5 w-5" />
             </span>
             <span className="text-[var(--color-foreground)]">
-              Profit<span className="text-[var(--color-primary)]">Calc</span>
+              Get<span className="text-[var(--color-primary)]">Profit</span>Calc
             </span>
           </Link>
 
