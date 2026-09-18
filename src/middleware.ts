@@ -24,7 +24,10 @@ export const config = {
      *   middleware running before the route handler can sometimes fail to
      *   read the cookie on the Edge when the redirect has no cookie header.
      *   We validate the session inside the route handler instead.
+     * - Etsy OAuth callback — same reason as Shopify above; Etsy redirects
+     *   the browser back after OAuth and the session cookie may not be
+     *   forwarded through the Edge middleware on the initial redirect hop.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|csv)$|api/og|api/billing/webhook|api/stores/shopify/callback).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|csv)$|api/og|api/billing/webhook|api/stores/shopify/callback|api/stores/etsy/callback).*)",
   ],
 };
