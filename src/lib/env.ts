@@ -55,6 +55,10 @@ const REQUIRED_VARS: EnvVar[] = [
 
   // ── App URL ───────────────────────────────────────────────────────────────
   { key: "NEXT_PUBLIC_SITE_URL", critical: false, description: "Public site URL — used in emails and checkout success URLs" },
+
+  // ── TikTok Ads ────────────────────────────────────────────────────────────
+  { key: "TIKTOK_APP_ID",     critical: false, description: "TikTok for Business App ID — required for TikTok Ads OAuth" },
+  { key: "TIKTOK_APP_SECRET", critical: false, description: "TikTok for Business App Secret — required for TikTok Ads token exchange" },
 ];
 
 export function validateEnv(): void {
