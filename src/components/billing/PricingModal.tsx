@@ -3,27 +3,26 @@
 /**
  * PricingModal
  * ─────────────
- * Full-featured pricing overlay shown when an account is archived (trial
- * expired, no active subscription) or when the user manually opens upgrade UI.
+ * Full-featured pricing overlay. Supports 4 billing intervals:
+ *   Monthly · 3 Months (-10%) · 6 Months (-15%) · 1 Year (-20%)
  *
- * Uses usePaddleCheckout which:
- *  • Opens a Paddle.js inline overlay when PAYMENT_GATEWAY=paddle and
- *    NEXT_PUBLIC_PADDLE_CLIENT_TOKEN is present.
- *  • Falls back to a full-page redirect for all other gateway configurations
- *    (Dodo, or Paddle without a client token).
+ * Prices are fetched live from Paddle via usePaddleCheckout.
+ * Falls back to static base prices while loading.
+ *
+ * dismissible={false} forces the user to upgrade or sign out (archived state).
  */
 
 import { useState } from "react";
-import { Check, X, Zap, Loader2, ArrowRight } from "lucide-react";
+import { Check, X, Zap, Loader2, ArrowRight, Shield } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { PLAN_DISPLAY } from "@/lib/plans";
+import { PLAN_DISPLAY, INTERVAL_META, ALL_INTERVALS } from "@/lib/plans";
+import type { BillingInterval, PlanKey } from "@/lib/billing";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 
-type Interval = "monthly" | "annual";
-type PlanKey  = "starter" | "growth" | "pro";
+// ── Plan feature lists ────────────────────────────────────────────────────────
 
 const PLAN_FEATURES: Record<PlanKey, string[]> = {
   starter: [
@@ -32,46 +31,45 @@ const PLAN_FEATURES: Record<PlanKey, string[]> = {
     "1 ad platform",
     "CSV import",
     "Email support",
+    "2 team members",
   ],
   growth: [
     "1,000 orders / month",
     "2 stores",
     "3 ad platforms",
-    "AI insights (weekly)",
+    "AI insights (weekly digest)",
     "PDF reports",
     "Slack alerts",
+    "5 team members",
   ],
   pro: [
     "Unlimited orders",
     "Unlimited stores",
     "All ad platforms",
     "Real-time AI insights",
-    "Public API",
+    "Public API + Zapier",
     "Priority chat support",
+    "Unlimited team members",
   ],
 };
 
+// ── Props ─────────────────────────────────────────────────────────────────────
+
 interface PricingModalProps {
   open: boolean;
-  /** Pass false to hide the close button — forces selection (archived state) */
+  /** false = no close button, forces upgrade (archived state) */
   dismissible?: boolean;
   onClose?: () => void;
 }
 
-export function PricingModal({
-  open,
-  dismissible = true,
-  onClose,
-}: PricingModalProps) {
-  const [interval, setInterval] = useState<Interval>("monthly");
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function PricingModal({ open, dismissible = true, onClose }: PricingModalProps) {
+  const [interval,   setInterval]   = useState<BillingInterval>("monthly");
   const [activePlan, setActivePlan] = useState<PlanKey | null>(null);
 
-  const { openCheckout, loading, error, clearError } = usePaddleCheckout();
-
-  const price = (plan: PlanKey) =>
-    interval === "annual"
-      ? PLAN_DISPLAY[plan].annualPrice
-      : PLAN_DISPLAY[plan].price;
+  const { openCheckout, loading, error, clearError, getPrice, getTotalPrice, getCurrency, pricesLoaded } =
+    usePaddleCheckout();
 
   const handleUpgrade = async (plan: PlanKey) => {
     setActivePlan(plan);
@@ -97,7 +95,7 @@ export function PricingModal({
         <DialogTitle className="sr-only">Choose a plan</DialogTitle>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="bg-gradient-to-br from-[var(--color-primary)]/10 to-transparent px-6 pt-8 pb-6 text-center border-b border-[var(--color-border)]">
+        <div className="relative bg-gradient-to-br from-[var(--color-primary)]/10 to-transparent px-6 pt-8 pb-6 text-center border-b border-[var(--color-border)]">
           {dismissible && onClose && (
             <button
               onClick={onClose}
@@ -116,31 +114,40 @@ export function PricingModal({
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--color-foreground)] mb-1">
             Choose a plan
           </h2>
-          <p className="text-sm text-[var(--color-muted-foreground)] max-w-sm mx-auto">
-            Pick the plan that fits your store. Cancel anytime, no lock-in.
+          <p className="text-sm text-[var(--color-muted-foreground)] max-w-sm mx-auto mb-5">
+            Pick the plan and billing period that fits your store. Cancel anytime.
           </p>
 
-          {/* Monthly / Annual toggle */}
-          <div className="mt-4 inline-flex items-center rounded-full border border-[var(--color-border)] bg-[var(--color-muted)] p-1">
-            {(["monthly", "annual"] as Interval[]).map((i) => (
-              <button
-                key={i}
-                onClick={() => setInterval(i)}
-                className={cn(
-                  "px-4 py-1.5 rounded-full text-xs font-medium transition-colors capitalize",
-                  interval === i
-                    ? "bg-[var(--color-card)] text-[var(--color-foreground)] shadow-sm"
-                    : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
-                )}
-              >
-                {i}
-                {i === "annual" && (
-                  <span className="ml-1.5 text-green-600 dark:text-green-400 font-bold">
-                    −20%
-                  </span>
-                )}
-              </button>
-            ))}
+          {/* ── Interval selector (4 tabs) ─────────────────────────────── */}
+          <div className="inline-flex items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-1 gap-0.5">
+            {ALL_INTERVALS.map((iv) => {
+              const meta    = INTERVAL_META[iv];
+              const isActive = interval === iv;
+              return (
+                <button
+                  key={iv}
+                  onClick={() => setInterval(iv)}
+                  className={cn(
+                    "relative px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap",
+                    isActive
+                      ? "bg-[var(--color-card)] text-[var(--color-foreground)] shadow-sm"
+                      : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+                  )}
+                >
+                  {meta.label}
+                  {meta.discountPct > 0 && (
+                    <span
+                      className={cn(
+                        "ml-1.5 text-[10px] font-bold",
+                        isActive ? "text-green-600 dark:text-green-400" : "text-green-500/70"
+                      )}
+                    >
+                      −{meta.discountPct}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -148,7 +155,7 @@ export function PricingModal({
         {error && (
           <div className="mx-6 mt-4 flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-600">
             {error}
-            <button className="ml-auto" onClick={clearError}>
+            <button className="ml-auto shrink-0" onClick={clearError} aria-label="Dismiss error">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -160,6 +167,17 @@ export function PricingModal({
             const isGrowth   = plan === "growth";
             const isLoading  = loading && activePlan === plan;
             const anyLoading = loading;
+
+            const perMonth    = getPrice(plan, interval);
+            const totalCharge = getTotalPrice(plan, interval);
+            const currency    = getCurrency(plan, interval);
+            const meta        = INTERVAL_META[interval];
+
+            // Format helpers
+            const fmtMoney = (n: number) =>
+              new Intl.NumberFormat("en-US", {
+                style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+              }).format(n);
 
             return (
               <div
@@ -174,10 +192,7 @@ export function PricingModal({
               >
                 {isGrowth && (
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <Badge
-                      variant="success"
-                      className="text-[10px] font-bold px-3 py-1 uppercase tracking-wide"
-                    >
+                    <Badge variant="success" className="text-[10px] font-bold px-3 py-1 uppercase tracking-wide">
                       Most Popular
                     </Badge>
                   </div>
@@ -186,30 +201,43 @@ export function PricingModal({
                 {/* Plan name + price */}
                 <div className="mb-4">
                   <p className="text-sm font-bold uppercase tracking-wide text-[var(--color-muted-foreground)] mb-1">
-                    {plan}
+                    {PLAN_DISPLAY[plan].name}
                   </p>
+
+                  {/* Per-month price */}
                   <div className="flex items-end gap-1">
-                    <span className="text-4xl font-extrabold text-[var(--color-foreground)]">
-                      ${price(plan).toFixed(2)}
+                    <span
+                      className={cn(
+                        "text-4xl font-extrabold text-[var(--color-foreground)] transition-opacity",
+                        !pricesLoaded && "opacity-50"
+                      )}
+                    >
+                      {fmtMoney(perMonth)}
                     </span>
-                    <span className="text-sm text-[var(--color-muted-foreground)] mb-1.5">
-                      /mo
-                    </span>
+                    <span className="text-sm text-[var(--color-muted-foreground)] mb-1.5">/mo</span>
                   </div>
-                  {interval === "annual" && (
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                      billed ${(price(plan) * 12).toFixed(0)} / year
-                    </p>
-                  )}
+
+                  {/* Billing cadence sub-line */}
+                  <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+                    {interval === "monthly" ? (
+                      "billed monthly"
+                    ) : (
+                      <>
+                        {fmtMoney(totalCharge)} {meta.billedLabel}
+                        {meta.discountPct > 0 && (
+                          <span className="ml-1.5 font-semibold text-green-600 dark:text-green-400">
+                            save {meta.discountPct}%
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </p>
                 </div>
 
                 {/* Feature list */}
                 <ul className="space-y-2 flex-1 mb-5">
                   {PLAN_FEATURES[plan].map((f) => (
-                    <li
-                      key={f}
-                      className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]"
-                    >
+                    <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
                       <Check className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
                       {f}
                     </li>
@@ -228,7 +256,7 @@ export function PricingModal({
                   ) : (
                     <ArrowRight className="h-4 w-4" />
                   )}
-                  {isLoading ? "Redirecting…" : "Get started"}
+                  {isLoading ? "Opening checkout…" : "Get started"}
                 </Button>
               </div>
             );
@@ -236,9 +264,10 @@ export function PricingModal({
         </div>
 
         {/* ── Footer ──────────────────────────────────────────────────────── */}
-        <p className="text-center text-xs text-[var(--color-muted-foreground)] pb-5 px-6">
+        <div className="flex items-center justify-center gap-2 pb-5 px-6 text-xs text-[var(--color-muted-foreground)]">
+          <Shield className="h-3.5 w-3.5 shrink-0" />
           Payments processed securely via Paddle. Cancel anytime from Settings.
-        </p>
+        </div>
       </DialogContent>
     </Dialog>
   );
