@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CreditCard, Store, Zap, Loader2, AlertTriangle, CheckCircle2,
   RefreshCw, Plus, User, Bell, Key, ExternalLink, Lock,
@@ -50,6 +50,16 @@ const CURRENCIES = [
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface AdAccountRow {
+  id:          string;
+  platform:    string;
+  accountId:   string;
+  accountName: string;
+  currency:    string;
+  syncStatus:  string;
+  lastSyncAt?: string;
+}
+
 interface SettingsData {
   team: { name: string; plan: string; currency: string; timezone: string } | null;
   subscription: {
@@ -61,11 +71,12 @@ interface SettingsData {
     id: string; name: string; platform: string;
     syncStatus: string; lastSyncAt?: string; ordersCount: number; domain?: string;
   }[];
+  adAccounts: AdAccountRow[];
   planDisplay: typeof PLAN_DISPLAY;
   user: { name: string; email: string; image?: string };
 }
 
-type Tab = "profile" | "billing" | "stores" | "notifications";
+type Tab = "profile" | "billing" | "stores" | "ad-accounts" | "notifications";
 
 // ── Small UI helpers ──────────────────────────────────────────────────────────
 
@@ -121,10 +132,53 @@ export function SettingsClient({
   userPlan: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { role, canManageBilling } = useRole();
 
   const defaultTab: Tab = canManageBilling ? "billing" : "profile";
   const [tab, setTab] = useState<Tab>(defaultTab);
+
+  // ── Ad accounts state — declared early so the useEffect below can use it ──
+  const [connectingTikTok, setConnectingTikTok] = useState(false);
+  const [syncingAdAccount, setSyncingAdAccount] = useState<string | null>(null);
+  const [adAccountSuccess, setAdAccountSuccess] = useState<string | null>(null);
+
+  // ── Global feedback — declared early so the useEffect below can use it ────
+  const [error,   setError]   = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const setFeedback = (type: "ok" | "err", msg: string) => {
+    if (type === "ok") { setSuccess(msg); setError(null); }
+    else               { setError(msg);   setSuccess(null); }
+    setTimeout(() => { setSuccess(null); setError(null); }, 5000);
+  };
+
+  // ── Handle OAuth redirect back with ?connected=tiktok ────────────────────
+  useEffect(() => {
+    const connected = searchParams.get("connected");
+    const account   = searchParams.get("account");
+    if (connected === "tiktok") {
+      setTab("ad-accounts");
+      setAdAccountSuccess(
+        account
+          ? `TikTok Ads "${account}" connected successfully!`
+          : "TikTok Ads connected successfully!"
+      );
+      const url = new URL(window.location.href);
+      url.searchParams.delete("connected");
+      url.searchParams.delete("account");
+      window.history.replaceState({}, "", url.toString());
+    }
+    const err = searchParams.get("error");
+    if (err) {
+      setTab("ad-accounts");
+      setFeedback("err", `TikTok connection failed: ${err.replace(/_/g, " ")}`);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      window.history.replaceState({}, "", url.toString());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Billing ───────────────────────────────────────────────────────────────
   const [upgradeInterval, setUpgradeInterval] = useState<BillingInterval>("monthly");
@@ -160,16 +214,6 @@ export function SettingsClient({
   const [testingSlack,  setTestingSlack]  = useState(false);
   const [savingNotifs,  setSavingNotifs]  = useState(false);
   const [notifsLoaded,  setNotifsLoaded]  = useState(false);
-
-  // ── Global feedback ───────────────────────────────────────────────────────
-  const [error,   setError]   = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  const setFeedback = (type: "ok" | "err", msg: string) => {
-    if (type === "ok") { setSuccess(msg); setError(null); }
-    else               { setError(msg);   setSuccess(null); }
-    setTimeout(() => { setSuccess(null); setError(null); }, 5000);
-  };
 
   // Load notification prefs when tab becomes active
   useEffect(() => {
@@ -262,6 +306,36 @@ export function SettingsClient({
     } finally { setSyncingStore(null); }
   };
 
+  const connectTikTok = async () => {
+    setConnectingTikTok(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ad-accounts/tiktok/auth", { method: "POST" });
+      const j   = await res.json();
+      if (j.oauthUrl) {
+        window.location.href = j.oauthUrl;
+      } else {
+        setFeedback("err", j.message ?? "TikTok OAuth not configured.");
+        setConnectingTikTok(false);
+      }
+    } catch {
+      setFeedback("err", "Failed to initiate TikTok connection.");
+      setConnectingTikTok(false);
+    }
+  };
+
+  const syncAdAccount = async (adAccountId: string) => {
+    setSyncingAdAccount(adAccountId);
+    try {
+      await fetch("/api/ad-accounts/tiktok/sync", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ adAccountId }),
+      });
+      router.refresh();
+    } finally { setSyncingAdAccount(null); }
+  };
+
   const testSlack = async () => {
     if (!slackWebhook) return;
     setTestingSlack(true);
@@ -291,6 +365,7 @@ export function SettingsClient({
     { key: "profile",       label: "Profile" },
     { key: "billing",       label: "Billing & Plan" },
     { key: "stores",        label: "Connected Stores" },
+    { key: "ad-accounts",   label: "Ad Accounts" },
     { key: "notifications", label: "Notifications" },
   ];
 
@@ -319,7 +394,7 @@ export function SettingsClient({
       )}
 
       {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-[var(--color-border)] pb-0 -mb-2 overflow-x-auto">
+      <div className="flex items-center gap-1 border-b border-[var(--color-border)] pb-5 mb-2 overflow-x-auto">
         {tabs.map((t) => (
           <TabButton key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
             {t.label}
@@ -719,6 +794,134 @@ export function SettingsClient({
               )}
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* ── AD ACCOUNTS TAB ──────────────────────────────────────────────────── */}
+      {tab === "ad-accounts" && (
+        <div className="space-y-4 max-w-2xl">
+          {/* Success banner after OAuth redirect */}
+          {adAccountSuccess && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 text-sm text-green-700 dark:text-green-300">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              {adAccountSuccess}
+            </div>
+          )}
+
+          {/* TikTok Ads */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span className="text-lg">🎵</span> TikTok Ads
+                </CardTitle>
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={connectTikTok}
+                  disabled={connectingTikTok}
+                >
+                  {connectingTikTok
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Plus className="h-3.5 w-3.5" />
+                  }
+                  Connect TikTok Ads
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {data.adAccounts.filter((a) => a.platform === "tiktok").length === 0 ? (
+                <div className="text-center py-8 space-y-2">
+                  <span className="text-4xl">🎵</span>
+                  <p className="text-sm font-medium text-[var(--color-foreground)]">No TikTok Ads account connected</p>
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    Connect your TikTok Ads account to pull spend data into your dashboard.
+                  </p>
+                  <Button size="sm" onClick={connectTikTok} disabled={connectingTikTok} className="gap-2 mt-2">
+                    {connectingTikTok
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Zap className="h-3.5 w-3.5" />
+                    }
+                    Connect Now
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {data.adAccounts
+                    .filter((a) => a.platform === "tiktok")
+                    .map((acc) => (
+                      <div
+                        key={acc.id}
+                        className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] hover:border-[var(--color-primary)]/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">🎵</span>
+                          <div>
+                            <p className="font-medium text-sm text-[var(--color-foreground)]">
+                              {acc.accountName}
+                            </p>
+                            <p className="text-xs text-[var(--color-muted-foreground)]">
+                              ID: {acc.accountId} · {acc.currency}
+                            </p>
+                            <p className="text-xs text-[var(--color-muted-foreground)]">
+                              {acc.lastSyncAt
+                                ? `Last synced ${new Date(acc.lastSyncAt).toLocaleDateString()}`
+                                : "Never synced"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              acc.syncStatus === "idle"    ? "success"     :
+                              acc.syncStatus === "syncing" ? "outline"     :
+                              acc.syncStatus === "error"   ? "destructive" : "outline"
+                            }
+                            className="text-xs capitalize"
+                          >
+                            {acc.syncStatus === "syncing" ? (
+                              <span className="flex items-center gap-1">
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing
+                              </span>
+                            ) : acc.syncStatus}
+                          </Badge>
+                          <Button
+                            variant="ghost" size="sm" className="h-8 w-8 p-0"
+                            onClick={() => syncAdAccount(acc.id)}
+                            disabled={syncingAdAccount === acc.id || acc.syncStatus === "syncing"}
+                            title="Sync now"
+                          >
+                            <RefreshCw className={cn("h-3.5 w-3.5", syncingAdAccount === acc.id && "animate-spin")} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Coming soon placeholders */}
+          {(["Meta Ads", "Google Ads"] as const).map((name) => (
+            <Card key={name} className="opacity-60">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <span className="text-lg">{name === "Meta Ads" ? "📘" : "🔴"}</span>
+                    {name}
+                    <Badge variant="outline" className="text-xs text-[var(--color-muted-foreground)]">
+                      Coming soon
+                    </Badge>
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-[var(--color-muted-foreground)]">
+                  {name} integration is coming soon. TikTok Ads is available now.
+                </p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 

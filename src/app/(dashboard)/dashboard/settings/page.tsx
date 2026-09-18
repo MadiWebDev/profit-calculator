@@ -5,6 +5,7 @@ import SubscriptionModel from "@/models/Subscription";
 import TeamModel from "@/models/Team";
 import StoreModel from "@/models/Store";
 import UserModel from "@/models/User";
+import AdAccountModel from "@/models/AdAccount";
 import { SettingsClient } from "./SettingsClient";
 import { PLAN_DISPLAY } from "@/lib/plans";
 import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
@@ -12,11 +13,12 @@ import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
 async function getSettingsData(teamId: string, userId: string) {
   await connectDB();
 
-  const [team, sub, stores, user] = await Promise.all([
+  const [team, sub, stores, user, adAccounts] = await Promise.all([
     TeamModel.findById(teamId).lean(),
     SubscriptionModel.findOne({ teamId }).lean(),
     StoreModel.find({ teamId, isActive: true }).lean(),
     UserModel.findById(userId).select("name email image").lean(),
+    AdAccountModel.find({ teamId, isActive: true }).lean(),
   ]);
 
   return {
@@ -48,6 +50,15 @@ async function getSettingsData(teamId: string, userId: string) {
       lastSyncAt: s.lastSyncAt?.toISOString(),
       ordersCount: s.ordersCount,
       domain: s.domain,
+    })),
+    adAccounts: adAccounts.map((a) => ({
+      id:          a._id.toString(),
+      platform:    a.platform,
+      accountId:   a.accountId,
+      accountName: a.accountName,
+      currency:    a.currency,
+      syncStatus:  a.syncStatus,
+      lastSyncAt:  a.lastSyncAt?.toISOString(),
     })),
     planDisplay: PLAN_DISPLAY,
     user: {

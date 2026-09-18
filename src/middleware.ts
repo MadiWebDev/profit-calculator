@@ -27,7 +27,9 @@ export const config = {
      * - Etsy OAuth callback — same reason as Shopify above; Etsy redirects
      *   the browser back after OAuth and the session cookie may not be
      *   forwarded through the Edge middleware on the initial redirect hop.
+     * - TikTok Ads OAuth callback — same reason; TikTok redirects the browser
+     *   back after OAuth and the session cookie may not be present on the Edge.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|csv)$|api/og|api/billing/webhook|api/stores/shopify/callback|api/stores/etsy/callback).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|csv)$|api/og|api/billing/webhook|api/stores/shopify/callback|api/stores/etsy/callback|api/ad-accounts/tiktok/callback).*)",
   ],
 };
