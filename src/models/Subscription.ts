@@ -1,16 +1,16 @@
 import mongoose, { Schema, Document, model, models } from "mongoose";
 
-export type BillingGateway = "dodo" | "paddle";
+export type BillingGateway = "paddle";
 export type PlanId = "starter" | "growth" | "pro";
-export type BillingInterval = "monthly" | "annual";
+export type BillingInterval = "monthly" | "quarterly" | "semiannual" | "annual";
 export type SubStatus = "trialing" | "active" | "past_due" | "cancelled" | "paused";
 
 export interface ISubscription extends Document {
   _id: mongoose.Types.ObjectId;
   teamId: mongoose.Types.ObjectId;
   gateway: BillingGateway;
-  externalId: string;       // Dodo/Paddle subscription ID
-  customerId: string;       // Dodo/Paddle customer ID
+  externalId: string;       // Paddle subscription ID
+  customerId: string;       // Paddle customer ID
   plan: PlanId;
   interval: BillingInterval;
   status: SubStatus;
@@ -31,11 +31,15 @@ export interface ISubscription extends Document {
 const SubscriptionSchema = new Schema<ISubscription>(
   {
     teamId: { type: Schema.Types.ObjectId, ref: "Team", required: true, unique: true },
-    gateway: { type: String, enum: ["dodo", "paddle"], required: true },
+    gateway: { type: String, enum: ["paddle"], required: true, default: "paddle" },
     externalId: { type: String, required: true },
     customerId: { type: String, required: true },
     plan: { type: String, enum: ["starter", "growth", "pro"], required: true },
-    interval: { type: String, enum: ["monthly", "annual"], default: "monthly" },
+    interval: {
+      type: String,
+      enum: ["monthly", "quarterly", "semiannual", "annual"],
+      default: "monthly",
+    },
     status: {
       type: String,
       enum: ["trialing", "active", "past_due", "cancelled", "paused"],

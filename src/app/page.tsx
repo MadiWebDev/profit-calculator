@@ -68,7 +68,7 @@ const testimonials = [
 const faqs = [
   { q: "Are the calculators really free?", a: "Yes — every calculator on CalcProfit is completely free, forever. No account needed, no limits, no credit card." },
   { q: "What's the difference between the free calculators and the SaaS platform?", a: "The free calculators are one-off tools you use manually. The SaaS platform connects to your actual store and automatically tracks every order's real profit in real time, with AI insights, goal tracking, and reports." },
-  { q: "Do I need a credit card to start the 14-day trial?", a: "No. Sign up with just your email. No credit card is required until you choose to upgrade after your trial ends." },
+  { q: "Do I need a credit card to start the 7-day trial?", a: "No. Sign up with just your email. No credit card is required until you choose to upgrade after your trial ends." },
   { q: "Which platforms does the profit tracker support?", a: "Shopify (OAuth), WooCommerce (API keys), Etsy (OAuth), and any other platform via CSV import. More native integrations are being added regularly." },
   { q: "How does AI Insights work?", a: "We send your aggregated profit data (no personal customer info) to OpenAI's GPT-4, which generates 3 proactive insights about your business. Available on Growth and Pro plans." },
   { q: "Can I import historical orders?", a: "Yes. Use our CSV import on any plan to upload historical order data. We provide a template with all the columns we expect." },
@@ -83,12 +83,11 @@ function ComparisonCell({ value }: { value: string | boolean }) {
 }
 
 function PricingCard({
-  plan, price, annualPrice, features: feats, highlight, interval,
+  plan, monthlyPrice, features: feats, highlight,
 }: {
-  plan: string; price: number; annualPrice: number;
-  features: string[]; highlight?: boolean; interval: "monthly" | "annual";
+  plan: string; monthlyPrice: number;
+  features: string[]; highlight?: boolean;
 }) {
-  const displayPrice = interval === "annual" ? annualPrice : price;
   return (
     <div className={`rounded-2xl border-2 p-6 flex flex-col ${highlight ? "border-[var(--color-primary)] shadow-lg shadow-green-500/10" : "border-[var(--color-border)]"} bg-[var(--color-card)]`}>
       {highlight && (
@@ -98,13 +97,13 @@ function PricingCard({
       )}
       <h3 className="text-lg font-bold text-[var(--color-foreground)] capitalize mb-1">{plan}</h3>
       <div className="flex items-end gap-1 mb-1">
-        <span className="text-4xl font-extrabold text-[var(--color-foreground)]">${displayPrice.toFixed(2)}</span>
+        <span className="text-4xl font-extrabold text-[var(--color-foreground)]">${monthlyPrice.toFixed(2)}</span>
         <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
       </div>
-      {interval === "annual" && (
-        <p className="text-xs text-green-600 dark:text-green-400 mb-3">billed annually — save 20%</p>
-      )}
-      <ul className="space-y-2.5 mb-6 flex-1 mt-4">
+      <p className="text-xs text-[var(--color-muted-foreground)] mb-3">
+        Save up to 20% with longer billing periods
+      </p>
+      <ul className="space-y-2.5 mb-6 flex-1 mt-2">
         {feats.map((f) => (
           <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
             <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
@@ -140,7 +139,7 @@ export default function HomePage() {
             Know Your Real{" "}
             <span className="text-[var(--color-primary)]">Profit</span>
             <br className="hidden sm:block" />
-            Before You Spend a Dollar
+            Before You Spend a Money
           </h1>
           <p className="max-w-2xl mx-auto text-lg sm:text-xl text-[var(--color-muted-foreground)] mb-4 leading-relaxed">
             Free profit calculators for every business model. Plus a full profit-tracking SaaS that actually costs less than a coffee subscription — starting at <strong className="text-[var(--color-foreground)]">$2/month</strong>.
@@ -151,7 +150,7 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button asChild size="lg" className="w-full sm:w-auto text-base font-semibold px-8 gap-2">
               <Link href="/auth/register">
-                Start Free 14-Day Trial <ArrowRight className="h-5 w-5" />
+                Start Free 7-Day Trial <ArrowRight className="h-5 w-5" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="w-full sm:w-auto text-base">
@@ -159,7 +158,7 @@ export default function HomePage() {
             </Button>
           </div>
           <p className="text-xs text-[var(--color-muted-foreground)] mt-4">
-            No credit card required · Cancel anytime · 14-day free trial
+            No credit card required · Cancel anytime · 7-day free trial
           </p>
         </div>
       </section>
@@ -250,30 +249,24 @@ export default function HomePage() {
               Pricing that doesn&apos;t punish small sellers
             </h2>
             <p className="text-[var(--color-muted-foreground)] max-w-xl mx-auto">
-              All plans include a 14-day free trial. No credit card required. Cancel anytime.
+              All plans include a 7-day free trial. No credit card required. Cancel anytime.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
             <PricingCard
               plan="starter"
-              price={PLAN_DISPLAY.starter.price}
-              annualPrice={PLAN_DISPLAY.starter.annualPrice}
-              interval="monthly"
+              monthlyPrice={PLAN_DISPLAY.starter.monthlyPrice}
               features={["100 orders/month", "1 store", "1 ad platform", "CSV import", "Email support"]}
             />
             <PricingCard
               plan="growth"
-              price={PLAN_DISPLAY.growth.price}
-              annualPrice={PLAN_DISPLAY.growth.annualPrice}
-              interval="monthly"
+              monthlyPrice={PLAN_DISPLAY.growth.monthlyPrice}
               highlight
               features={["1,000 orders/month", "2 stores", "3 ad platforms", "AI insights (weekly)", "PDF reports", "5 team members"]}
             />
             <PricingCard
               plan="pro"
-              price={PLAN_DISPLAY.pro.price}
-              annualPrice={PLAN_DISPLAY.pro.annualPrice}
-              interval="monthly"
+              monthlyPrice={PLAN_DISPLAY.pro.monthlyPrice}
               features={["Unlimited orders", "Unlimited stores", "All ad platforms", "AI insights (real-time)", "Public API + Zapier", "Priority support"]}
             />
           </div>
@@ -366,7 +359,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-white mb-3">Ready to see your real profit?</h2>
           <p className="text-green-100 mb-6 text-lg">
-            14-day free trial. No credit card. Connect your store in under 2 minutes.
+            7-day free trial. No credit card. Connect your store in under 2 minutes.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild size="lg" variant="secondary" className="font-semibold text-base px-8">
