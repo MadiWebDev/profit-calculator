@@ -23,20 +23,14 @@ export async function GET(req: NextRequest) {
       >
         {/* Logo / Brand */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 48 }}>
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 12,
-              background: "#22c55e",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 28,
-            }}
-          >
-            📊
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://getprofitcalc.com/getprofitcalc.png"
+            alt="GetProfitCalc"
+            width={52}
+            height={52}
+            style={{ borderRadius: 12, objectFit: "contain" }}
+          />
           <span style={{ fontSize: 28, fontWeight: 700, color: "#f8fafc" }}>
             Get<span style={{ color: "#22c55e" }}>Profit</span>Calc
           </span>

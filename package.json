@@ -52,6 +52,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/crypto-js": "^4.2.2",
     "@types/papaparse": "^5.5.2",
+    "@woocommerce/woocommerce-rest-api": "^1.0.2",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.11.0",

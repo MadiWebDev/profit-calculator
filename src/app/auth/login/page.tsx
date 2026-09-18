@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Calculator, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import Image from "next/image";
 
 /* ── tiny inline primitives so we have zero dependency on shadcn hydration ── */
 function Btn({
@@ -78,11 +79,20 @@ function LoginInner() {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-primary)] text-white">
-              <Calculator className="h-5 w-5" />
+          
+            <Link href="/" className="inline-flex items-center items-center font-bold text-xl" aria-label="GetProfitCalc home">
+            <Image
+              src="/getprofitcalc.png"
+              alt="GetProfitCalc logo"
+              width={100}
+              height={100}
+              className="h-12 w-12 rounded-lg object-contain"
+              priority
+            />
+            <span className="text-[var(--color-foreground)]">
+              Get<span className="text-[var(--color-primary)]">Profit</span>Calc
             </span>
-            <span>Profit<span className="text-[var(--color-primary)]">Calc</span></span>
+          
           </Link>
           <h1 className="text-2xl font-bold text-[var(--color-foreground)] mt-6 mb-1">Welcome back</h1>
           <p className="text-sm text-[var(--color-muted-foreground)]">Sign in to your account</p>

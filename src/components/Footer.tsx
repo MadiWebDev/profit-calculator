@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Calculator } from "lucide-react";
+import Image from "next/image";
 
 const footerLinks = {
   Product: [
@@ -33,12 +34,19 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <Link href="/" className="flex items-center gap-2 font-bold text-lg mb-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white">
-                <Calculator className="h-4 w-4" />
-              </span>
-              <span>Get<span className="text-[var(--color-primary)]">Profit</span>Calc</span>
-            </Link>
+           <Link href="/" className="flex items-center font-bold text-xl" aria-label="GetProfitCalc home">
+            <Image
+              src="/getprofitcalc.png"
+              alt="GetProfitCalc logo"
+              width={100}
+              height={100}
+              className="h-12 w-12 rounded-lg object-contain"
+              priority
+            />
+            <span className="text-[var(--color-foreground)]">
+              Get<span className="text-[var(--color-primary)]">Profit</span>Calc
+            </span>
+          </Link>
             <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed">
               Free profit calculators and real-time profit tracking for ecommerce sellers. Starts at $2/month.
             </p>
