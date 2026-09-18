@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, Calculator } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
@@ -25,10 +26,15 @@ export function Navbar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-xl" aria-label="GetProfitCalc home">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white">
-              <Calculator className="h-5 w-5" />
-            </span>
+          <Link href="/" className="flex items-center font-bold text-xl" aria-label="GetProfitCalc home">
+            <Image
+              src="/getprofitcalc.png"
+              alt="GetProfitCalc logo"
+              width={100}
+              height={100}
+              className="h-12 w-12 rounded-lg object-contain"
+              priority
+            />
             <span className="text-[var(--color-foreground)]">
               Get<span className="text-[var(--color-primary)]">Profit</span>Calc
             </span>
