@@ -67,7 +67,7 @@ export const Preloader = ({ persistent = true }: { persistent?: boolean }) => {
               className="relative w-32 h-32 md:w-40 md:h-40 mb-8"
             >
               <Image
-                src="/logocopy.webp"
+                src="/getprofitcalc.png"
                 alt="Logo"
                 fill
                 className="object-contain"

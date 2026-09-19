@@ -63,7 +63,7 @@ export function InitialPreloaderClient() {
         >
             <div className="flex flex-col items-center max-w-xs text-center px-4">
                 <img
-                    src="/logocopy.webp"
+                    src="/getprofitcalc.png"
                     alt="Loading..."
                     style={{
                         width: '128px',

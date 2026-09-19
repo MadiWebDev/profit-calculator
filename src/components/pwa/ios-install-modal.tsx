@@ -116,7 +116,7 @@ export function IOSInstallModal({ open, onClose }: IOSInstallModalProps) {
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-2xl overflow-hidden border border-border/40 shadow-sm flex-shrink-0">
                     <Image
-                      src="/getprofitcalc.jpg"
+                      src="/getprofitcalc.png"
                       alt="GetProfitCalc"
                       width={44}
                       height={44}
