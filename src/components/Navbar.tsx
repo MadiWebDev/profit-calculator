@@ -23,19 +23,23 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[var(--color-border)] bg-[var(--color-background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--color-background)]/60">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
-          <Link href="/" className="flex items-center font-bold text-xl" aria-label="GetProfitCalc home">
+      <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
+        <div className="flex h-14 sm:h-16 items-center justify-between gap-2">
+          {/* Logo — shrinks on phones so it never crowds the right-side controls */}
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 sm:gap-2 font-bold text-base sm:text-xl min-w-0 flex-shrink-0"
+            aria-label="GetProfitCalc home"
+          >
             <Image
               src="/getprofitcalc.png"
               alt="GetProfitCalc logo"
               width={100}
               height={100}
-              className="h-12 w-12 rounded-lg object-contain"
+              className="h-8 w-8 sm:h-12 sm:w-12 rounded-lg object-contain flex-shrink-0"
               priority
             />
-            <span className="text-[var(--color-foreground)]">
+            <span className="text-[var(--color-foreground)] truncate">
               Get<span className="text-[var(--color-primary)]">Profit</span>Calc
             </span>
           </Link>
@@ -54,8 +58,13 @@ export function Navbar() {
           </nav>
 
           {/* CTA + theme toggle */}
-          <div className="flex items-center gap-2">
-            <CurrencySelector size="md" />
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            {/* Currency selector only in the top bar from sm+; on phones it
+                lives inside the mobile menu below so the header row stays
+                uncrowded next to the theme toggle and hamburger. */}
+            <div className="hidden sm:block">
+              <CurrencySelector size="md" />
+            </div>
             <ThemeToggle />
             <div className="hidden md:flex items-center gap-2">
               {session?.user ? (
@@ -77,7 +86,7 @@ export function Navbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="md:hidden flex-shrink-0"
               onClick={() => setOpen(!open)}
               aria-label="Toggle menu"
               aria-expanded={open}
@@ -92,7 +101,7 @@ export function Navbar() {
       <div
         className={cn(
           "md:hidden border-t border-[var(--color-border)] bg-[var(--color-background)] overflow-hidden transition-all duration-200",
-          open ? "max-h-96" : "max-h-0"
+          open ? "max-h-[28rem] overflow-y-auto" : "max-h-0"
         )}
         aria-hidden={!open}
       >
@@ -108,8 +117,9 @@ export function Navbar() {
             </Link>
           ))}
           <div className="pt-2 pb-1 border-t border-[var(--color-border)] mt-1 flex flex-col gap-2">
-            {/* Currency selector — full width in mobile menu */}
-            <div className="flex items-center justify-between px-1 py-1">
+            {/* Currency selector — full width in mobile menu, hidden here on
+                sm+ since it already shows in the top bar at that size. */}
+            <div className="flex sm:hidden items-center justify-between px-1 py-1 gap-2">
               <span className="text-xs font-medium text-[var(--color-muted-foreground)]">Display Currency</span>
               <CurrencySelector size="sm" />
             </div>
