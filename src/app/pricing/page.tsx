@@ -77,9 +77,9 @@ const FAQs = [
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function FeatureCell({ value }: { value: string | boolean }) {
-  if (value === true)  return <Check className="h-5 w-5 text-green-500 mx-auto" />;
-  if (value === false) return <X     className="h-5 w-5 text-[var(--color-border)] mx-auto" />;
-  return <span className="text-sm text-center block text-[var(--color-foreground)]">{value}</span>;
+  if (value === true)  return <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 mx-auto" />;
+  if (value === false) return <X     className="h-4 w-4 sm:h-5 sm:w-5 text-[var(--color-border)] mx-auto" />;
+  return <span className="text-xs sm:text-sm text-center block text-[var(--color-foreground)]">{value}</span>;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -109,23 +109,23 @@ export default function PricingPage() {
     }).format(n);
 
   return (
-    <div className="bg-[var(--color-background)]">
+    <div className="bg-[var(--color-background)] overflow-x-hidden">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-20 text-center bg-gradient-to-b from-[var(--color-accent)] to-[var(--color-background)]">
+      <section className="py-12 sm:py-16 md:py-20 text-center bg-gradient-to-b from-[var(--color-accent)] to-[var(--color-background)]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <Badge variant="success" className="mb-4 text-xs font-semibold">
             7-day free trial · No credit card
           </Badge>
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-4">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[var(--color-foreground)] mb-4 leading-tight">
             Profit tracking that doesn&apos;t cost a fortune
           </h1>
-          <p className="text-lg text-[var(--color-muted-foreground)] mb-8">
+          <p className="text-base sm:text-lg text-[var(--color-muted-foreground)] mb-8">
             All plans start with a 7-day free trial. No credit card required.
           </p>
 
           {/* ── Billing interval selector ─────────────────────────────────── */}
-          <div className="inline-flex items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-1 gap-0.5">
+          <div className="flex flex-wrap items-center justify-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-1 max-w-full">
             {ALL_INTERVALS.map((iv) => {
               const meta     = INTERVAL_META[iv];
               const isActive = interval === iv;
@@ -134,7 +134,7 @@ export default function PricingPage() {
                   key={iv}
                   onClick={() => setInterval(iv)}
                   className={cn(
-                    "relative px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
+                    "relative px-2.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap",
                     isActive
                       ? "bg-[var(--color-card)] text-[var(--color-foreground)] shadow-sm"
                       : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
@@ -144,7 +144,7 @@ export default function PricingPage() {
                   {meta.discountPct > 0 && (
                     <span
                       className={cn(
-                        "ml-1.5 text-xs font-bold",
+                        "ml-1 sm:ml-1.5 text-[10px] sm:text-xs font-bold",
                         isActive ? "text-green-600 dark:text-green-400" : "text-green-500/60"
                       )}
                     >
@@ -159,8 +159,8 @@ export default function PricingPage() {
       </section>
 
       {/* ── Plan cards ──────────────────────────────────────────────────────── */}
-      <section className="pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <section className="pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
           {(["starter", "growth", "pro"] as PlanKey[]).map((plan) => {
             const isGrowth    = plan === "growth";
             const perMonth    = getPrice(plan, interval);
@@ -172,9 +172,9 @@ export default function PricingPage() {
               <div
                 key={plan}
                 className={cn(
-                  "rounded-2xl border-2 p-6 flex flex-col relative",
+                  "rounded-2xl border-2 p-5 sm:p-6 flex flex-col relative",
                   isGrowth
-                    ? "border-[var(--color-primary)] shadow-xl shadow-green-500/10"
+                    ? "border-[var(--color-primary)] shadow-xl shadow-green-500/10 mt-3 sm:mt-0"
                     : "border-[var(--color-border)]",
                   "bg-[var(--color-card)]"
                 )}
@@ -191,10 +191,10 @@ export default function PricingPage() {
                   </h2>
 
                   {/* Per-month price */}
-                  <div className="flex items-end gap-1">
+                  <div className="flex items-end gap-1 flex-wrap">
                     <span
                       className={cn(
-                        "text-5xl font-extrabold text-[var(--color-foreground)] transition-opacity",
+                        "text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] transition-opacity break-all",
                         !pricesLoaded && "opacity-50"
                       )}
                     >
@@ -273,68 +273,75 @@ export default function PricingPage() {
       </section>
 
       {/* ── Full feature comparison table ────────────────────────────────────── */}
-      <section className="py-12 bg-[var(--color-muted)] px-4 sm:px-6 lg:px-8">
+      <section className="py-10 sm:py-12 bg-[var(--color-muted)] px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-bold text-[var(--color-foreground)] text-center mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-foreground)] text-center mb-6 sm:mb-8">
             Full Feature Comparison
           </h2>
-          <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[var(--color-card)] border-b border-[var(--color-border)]">
-                  <th className="px-5 py-4 text-left font-semibold text-[var(--color-foreground)] w-2/5">
-                    Feature
-                  </th>
-                  {(["starter", "growth", "pro"] as PlanKey[]).map((plan) => (
-                    <th
-                      key={plan}
-                      className={cn(
-                        "px-4 py-4 text-center font-bold capitalize",
-                        plan === "growth"
-                          ? "text-[var(--color-primary)]"
-                          : "text-[var(--color-foreground)]"
-                      )}
-                    >
-                      {PLAN_DISPLAY[plan].name}
+          <div className="rounded-2xl border border-[var(--color-border)] shadow-sm overflow-hidden">
+            {/* Horizontal scroll wrapper keeps the table usable on narrow screens
+                instead of squishing every column unreadably small. */}
+            <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+              <table className="w-full min-w-[560px] text-xs sm:text-sm">
+                <thead>
+                  <tr className="bg-[var(--color-card)] border-b border-[var(--color-border)]">
+                    <th className="px-3 sm:px-5 py-3 sm:py-4 text-left font-semibold text-[var(--color-foreground)] w-2/5 sticky left-0 bg-[var(--color-card)]">
+                      Feature
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-[var(--color-card)] divide-y divide-[var(--color-border)]">
-                {PLAN_FEATURES.map((row) => (
-                  <tr key={row.label} className="hover:bg-[var(--color-muted)]/30">
-                    <td className="px-5 py-3 text-[var(--color-foreground)] flex items-center gap-1.5">
-                      {row.label}
-                      {row.tooltip && (
-                        <span title={row.tooltip}>
-                          <HelpCircle className="h-3.5 w-3.5 text-[var(--color-muted-foreground)]" />
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3"><FeatureCell value={row.starter} /></td>
-                    <td className="px-4 py-3"><FeatureCell value={row.growth}  /></td>
-                    <td className="px-4 py-3"><FeatureCell value={row.pro}     /></td>
+                    {(["starter", "growth", "pro"] as PlanKey[]).map((plan) => (
+                      <th
+                        key={plan}
+                        className={cn(
+                          "px-2 sm:px-4 py-3 sm:py-4 text-center font-bold capitalize whitespace-nowrap",
+                          plan === "growth"
+                            ? "text-[var(--color-primary)]"
+                            : "text-[var(--color-foreground)]"
+                        )}
+                      >
+                        {PLAN_DISPLAY[plan].name}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-[var(--color-card)] divide-y divide-[var(--color-border)]">
+                  {PLAN_FEATURES.map((row) => (
+                    <tr key={row.label} className="hover:bg-[var(--color-muted)]/30">
+                      <td className="px-3 sm:px-5 py-2.5 sm:py-3 text-[var(--color-foreground)] flex items-center gap-1.5 sticky left-0 bg-[var(--color-card)]">
+                        {row.label}
+                        {row.tooltip && (
+                          <span title={row.tooltip}>
+                            <HelpCircle className="h-3.5 w-3.5 text-[var(--color-muted-foreground)] flex-shrink-0" />
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-4 py-2.5 sm:py-3"><FeatureCell value={row.starter} /></td>
+                      <td className="px-2 sm:px-4 py-2.5 sm:py-3"><FeatureCell value={row.growth}  /></td>
+                      <td className="px-2 sm:px-4 py-2.5 sm:py-3"><FeatureCell value={row.pro}     /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+          <p className="text-[11px] text-[var(--color-muted-foreground)] text-center mt-2 sm:hidden">
+            Swipe to see all plans →
+          </p>
         </div>
       </section>
 
       {/* ── FAQ ──────────────────────────────────────────────────────────────── */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
-          <h2 className="text-2xl font-bold text-[var(--color-foreground)] text-center mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-foreground)] text-center mb-6 sm:mb-8">
             Pricing FAQ
           </h2>
           <div className="space-y-4">
             {FAQs.map(({ q, a }) => (
               <div
                 key={q}
-                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5"
+                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 sm:p-5"
               >
-                <h3 className="font-semibold text-[var(--color-foreground)] mb-2">{q}</h3>
+                <h3 className="font-semibold text-[var(--color-foreground)] mb-2 text-sm sm:text-base">{q}</h3>
                 <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed">{a}</p>
               </div>
             ))}
@@ -344,7 +351,7 @@ export default function PricingPage() {
 
       {/* ── Trust bar ────────────────────────────────────────────────────────── */}
       <section className="py-6 border-t border-[var(--color-border)] bg-[var(--color-muted)]">
-        <div className="mx-auto max-w-3xl px-4 flex flex-wrap items-center justify-center gap-6 text-xs text-[var(--color-muted-foreground)]">
+        <div className="mx-auto max-w-3xl px-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-6 text-xs text-[var(--color-muted-foreground)]">
           <span className="flex items-center gap-1.5">
             <Shield className="h-4 w-4" /> Secure checkout via Paddle
           </span>
@@ -361,19 +368,38 @@ export default function PricingPage() {
       </section>
 
       {/* ── CTA ──────────────────────────────────────────────────────────────── */}
-      <section className="py-16 bg-[var(--color-primary)]">
-        <div className="mx-auto max-w-3xl px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-3">
+      <section className="py-12 sm:py-16 bg-[var(--color-primary)] px-4">
+        <div className="mx-auto max-w-3xl text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">
             Start free — no card required
           </h2>
-          <p className="text-green-100 mb-6">
+          <p className="text-green-100 mb-6 text-sm sm:text-base">
             7-day free trial. Join sellers tracking real profit, not guessing it.
           </p>
-          <Button asChild size="lg" variant="secondary" className="font-semibold px-8 gap-2">
+          <Button asChild size="lg" variant="secondary" className="font-semibold px-8 gap-2 w-full sm:w-auto">
             <Link href="/auth/register">
               <Zap className="h-5 w-5" /> Start 7-Day Free Trial
             </Link>
           </Button>
+        </div>
+      </section>
+
+      {/* ── Legal links — required for Paddle domain approval ────────────────── */}
+      <section className="py-5 border-t border-[var(--color-border)] bg-[var(--color-muted)]">
+        <div className="mx-auto max-w-3xl px-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-[var(--color-muted-foreground)]">
+          <Link href="/terms-of-service" className="hover:text-[var(--color-foreground)] hover:underline transition-colors">
+            Terms of Service
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/privacy-policy" className="hover:text-[var(--color-foreground)] hover:underline transition-colors">
+            Privacy Policy
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/refund-policy" className="hover:text-[var(--color-foreground)] hover:underline transition-colors">
+            Refund Policy
+          </Link>
+          <span aria-hidden="true">·</span>
+          <span>Payments processed by <a href="https://www.paddle.com" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--color-foreground)] hover:underline transition-colors">Paddle</a></span>
         </div>
       </section>
     </div>
