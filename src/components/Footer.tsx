@@ -136,7 +136,7 @@ export function Footer() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-8">
             <FooterLinkList title="Ads & Marketing" links={adsCalcs} />
             <FooterLinkList title="Business & SaaS" links={businessCalcs} />
-            <FooterLinkList title="Investing" links={financeCalcs} />
+            {/* <FooterLinkList title="Investing" links={financeCalcs} /> */}
             <FooterLinkList title="Real Estate" links={realEstateCalcs} />
             <FooterLinkList title="Food & Restaurant" links={foodCalcs} />
             <div className="col-span-2">
@@ -145,7 +145,7 @@ export function Footer() {
                 href="/calculators"
                 className="inline-flex items-center gap-2 text-sm text-[var(--color-primary)] hover:underline"
               >
-                View all 33 free calculators →
+                View all free calculators →
               </Link>
                {/* ── PWA Install Row ──────────────────────────────────────────────── */}
           {!isInstalled &&  <motion.div

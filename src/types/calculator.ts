@@ -40,7 +40,7 @@ export interface CalculatorConfig {
   metaDescription: string;
   keywords: string[];
   icon: string; // emoji or icon name
-  category: "ecommerce" | "advertising" | "freelance" | "general" | "real-estate" | "investing" | "saas" | "restaurant" | "retail" | "crypto" | "finance";
+  category: "ecommerce" | "advertising" | "freelance" | "general" | "real-estate" | "saas" | "restaurant" | "retail" ;
   fields: CalculatorField[];
   outputs: OutputField[];
   compute: (values: Record<string, number>) => Record<string, number>;

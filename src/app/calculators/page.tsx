@@ -42,16 +42,16 @@ const categories: {
     label: "SaaS",
     desc: "Measure SaaS performance with MRR, ARR, churn, LTV, CAC, gross margin, break-even, and subscription profitability calculators.",
   },
-  {
-    key: "crypto",
-    label: "Crypto",
-    desc: "Calculate cryptocurrency profits, losses, returns, trading fees, break-even prices, position sizes, and performance.",
-  },
-  {
-    key: "finance",
-    label: "Finance",
-    desc: "Calculate interest, payments, returns, cash flow, break-even points, and essential personal and business finance metrics.",
-  },
+  // {
+  //   key: "crypto",
+  //   label: "Crypto",
+  //   desc: "Calculate cryptocurrency profits, losses, returns, trading fees, break-even prices, position sizes, and performance.",
+  // },
+  // {
+  //   key: "finance",
+  //   label: "Finance",
+  //   desc: "Calculate interest, payments, returns, cash flow, break-even points, and essential personal and business finance metrics.",
+  // },
   {
     key: "restaurant",
     label: "Restaurant",
@@ -62,11 +62,11 @@ const categories: {
     label: "Retail",
     desc: "Calculate retail pricing, markup, product margins, inventory profitability, discounts, operating costs, and break-even points.",
   },
-  {
-    key: "investing",
-    label: "Investing",
-    desc: "Evaluate investments with ROI, compound growth, dividends, portfolio returns, capital gains, and investment profit calculators.",
-  },
+  // {
+  //   key: "investing",
+  //   label: "Investing",
+  //   desc: "Evaluate investments with ROI, compound growth, dividends, portfolio returns, capital gains, and investment profit calculators.",
+  // },
 ];
 
 export default function CalculatorsPage() {

@@ -8,14 +8,14 @@ import freelancerProfit from "./freelancer-profit";
 import profitMargin from "./profit-margin";
 import rentalPropertyRoi from "./rental-property-roi"; 
 import burnRateRunway from "./burn-rate-runway";
-import dividendYield from "./dividend-yield";
-import cryptoStakingRoi from "./crypto-staking-roi";
+// import dividendYield from "./dividend-yield";
+// import cryptoStakingRoi from "./crypto-staking-roi";
 import capRate from "./cap-rate";
-import compoundInterest from "./compound-interest";
+// import compoundInterest from "./compound-interest";
 import breakEvenPoint from "./break-even-point";
-import cryptoProfit from "./crypto-profit";
-import dollarCostAveraging from "./dollar-cost-averaging";
-import etfFeeImpact from "./etf-fee-impact";
+// import cryptoProfit from "./crypto-profit";
+// import dollarCostAveraging from "./dollar-cost-averaging";
+// import etfFeeImpact from "./etf-fee-impact";
 import foodCostPercentage from "./food-cost-percentage";
 import houseFlippingProfit from "./house-flipping-profit";
 import ltvCac from "./ltv-cac";
@@ -28,10 +28,10 @@ import retailMarkup from "./retail-markup";
 import saasChurnCost from "./saas-churn-cost";
 import saasMrr from "./saas-mrr";
 import saasPricingMargin from "./saas-pricing-margin";
-import stockProfit from "./stock-profit";
+// import stockProfit from "./stock-profit";
 import subscriptionBoxProfit from "./subscription-box-profit";
 import taxOnSale from "./tax-on-sale";
-import valuationMultiple from "./valuation-multiple";
+// import valuationMultiple from "./valuation-multiple";
 
 
 export const calculators: CalculatorConfig[] = [
@@ -44,14 +44,14 @@ export const calculators: CalculatorConfig[] = [
   profitMargin,
   rentalPropertyRoi,
   burnRateRunway,
-  dividendYield,
-  cryptoStakingRoi,
+  // dividendYield,
+  // cryptoStakingRoi,
   capRate,
-  compoundInterest,
+  // compoundInterest,
   breakEvenPoint,
-  cryptoProfit,
-  dollarCostAveraging,
-  etfFeeImpact,
+  // cryptoProfit,
+  // dollarCostAveraging,
+  // etfFeeImpact,
   foodCostPercentage,
   houseFlippingProfit,
   ltvCac,
@@ -64,10 +64,10 @@ export const calculators: CalculatorConfig[] = [
   saasChurnCost,
   saasMrr,
   saasPricingMargin,
-  stockProfit,
+  // stockProfit,
   subscriptionBoxProfit,
   taxOnSale,
-  valuationMultiple,
+  // valuationMultiple,
 ];
 
 export const calculatorMap: Record<string, CalculatorConfig> = Object.fromEntries(
