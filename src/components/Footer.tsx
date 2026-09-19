@@ -1,6 +1,9 @@
+'use client'
 import Link from "next/link";
 import Image from "next/image";
-
+import { usePWAInstall } from "@/hooks/use-pwa-install";
+import { FooterInstallButton } from "./pwa/footer-install-button";
+import { motion } from 'framer-motion';
 const productLinks = [
   { href: "/features",            label: "Features" },
   { href: "/pricing",             label: "Pricing" },
@@ -91,6 +94,9 @@ function FooterLinkList({ title, links }: { title: string; links: { href: string
 }
 
 export function Footer() {
+    const {
+    isInstalled,
+  } = usePWAInstall();
   return (
     <footer className="border-t border-[var(--color-border)] bg-[var(--color-muted)] mt-auto">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
@@ -141,6 +147,17 @@ export function Footer() {
               >
                 View all 33 free calculators →
               </Link>
+               {/* ── PWA Install Row ──────────────────────────────────────────────── */}
+          {!isInstalled &&  <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-50px' }}
+            transition={{ delay: 0.45, duration: 0.5 }}
+            className="mt-10 pt-8 border-t border-border/50 flex grid-cols-2 items-center justify-between gap-4"
+          >
+           
+            <FooterInstallButton />
+          </motion.div> }
             </div>
           </div>
         </div>
@@ -148,6 +165,17 @@ export function Footer() {
         <div className="pt-6 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--color-muted-foreground)]">
           <p>© {new Date().getFullYear()} GetProfitCalc. All rights reserved.</p>
           <p>For informational purposes only. Not financial or tax advice.</p>
+           <p className="text-[11px] text-foreground/40">
+                Crafted by{' '}
+                <a
+                  href="https://www.codexengr.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground/60 transition-colors"
+                >
+                  CodexEngr
+                </a>
+              </p>
         </div>
       </div>
     </footer>
