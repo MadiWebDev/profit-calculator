@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     creator: "@getprofitcalc",
   },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
-  verification: { google: "YOUR_GOOGLE_VERIFICATION_CODE" },
+  verification: { google: "google77fce3f57266cc5a" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
