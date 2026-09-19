@@ -42,6 +42,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <ArchivedWall
           trialEndedAt={trialInfo?.trialEndsAt}
           userName={user.name ?? undefined}
+          userEmail={user.email ?? undefined}
+          teamId={teamId || undefined}
         />
       </RoleProvider>
     );
@@ -64,7 +66,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           {/* Trial banner — sits above the mobile topbar */}
           {isTrialing && trialInfo && (
-            <TrialBanner daysLeft={trialInfo.daysLeft} />
+            <TrialBanner
+              daysLeft={trialInfo.daysLeft}
+              userEmail={user.email ?? undefined}
+              teamId={teamId || undefined}
+            />
           )}
 
           {/* Mobile topbar */}

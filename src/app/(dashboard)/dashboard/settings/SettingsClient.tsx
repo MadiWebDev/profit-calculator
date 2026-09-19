@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CreditCard, Store, Zap, Loader2, AlertTriangle, CheckCircle2,
   RefreshCw, Plus, User, Bell, Key, ExternalLink, Lock,
-  Globe, Clock, Shield, ArrowRight,
+  Globe, Clock, Shield, ArrowRight, Check, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,13 +14,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useRole } from "@/components/dashboard/RoleContext";
-import { PLAN_DISPLAY, INTERVAL_META, ALL_INTERVALS } from "@/lib/plans";
-// planDisplay is passed from the server page but we import PLAN_DISPLAY directly
-// for type safety — the two are always the same object.
-import type { BillingInterval, PlanKey } from "@/lib/billing";
-import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
+import { getTiers } from "@/lib/tiers";
+import type { PricingInterval } from "@/lib/tiers";
+import { usePaddlePricing } from "@/hooks/usePaddlePricing";
 
 // ── Static data ───────────────────────────────────────────────────────────────
+// TIERS is NOT loaded at module level — getTiers() reads env vars and would
+// throw during module evaluation if price IDs are missing. It's called lazily
+// inside the component via useMemo instead.
 
 const platformIcon: Record<string, string> = {
   shopify: "🛍️", woocommerce: "🔧", etsy: "🧶", csv_manual: "📄",
@@ -48,6 +49,14 @@ const CURRENCIES = [
   "CHF","SEK","NOK","DKK","PLN","CZK","HUF","AED","SAR","ZAR",
 ];
 
+// Interval toggle config — mirrors PricingClient exactly
+const INTERVALS: { iv: PricingInterval; label: string; saving: string | null }[] = [
+  { iv: "month",      label: "Monthly",    saving: null    },
+  { iv: "quarter",    label: "Quarterly",  saving: "−10%"  },
+  { iv: "semiannual", label: "Semiannual", saving: "−15%"  },
+  { iv: "year",       label: "Annual",     saving: "−20%"  },
+];
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface AdAccountRow {
@@ -72,7 +81,6 @@ interface SettingsData {
     syncStatus: string; lastSyncAt?: string; ordersCount: number; domain?: string;
   }[];
   adAccounts: AdAccountRow[];
-  planDisplay: typeof PLAN_DISPLAY;
   user: { name: string; email: string; image?: string };
 }
 
@@ -127,9 +135,13 @@ function Toggle({ checked, onChange, disabled }: {
 export function SettingsClient({
   data,
   userPlan,
+  userEmail,
+  teamId,
 }: {
   data: SettingsData;
   userPlan: string;
+  userEmail?: string;
+  teamId?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -138,12 +150,12 @@ export function SettingsClient({
   const defaultTab: Tab = canManageBilling ? "billing" : "profile";
   const [tab, setTab] = useState<Tab>(defaultTab);
 
-  // ── Ad accounts state — declared early so the useEffect below can use it ──
+  // ── Ad accounts state ─────────────────────────────────────────────────────
   const [connectingTikTok, setConnectingTikTok] = useState(false);
   const [syncingAdAccount, setSyncingAdAccount] = useState<string | null>(null);
   const [adAccountSuccess, setAdAccountSuccess] = useState<string | null>(null);
 
-  // ── Global feedback — declared early so the useEffect below can use it ────
+  // ── Global feedback ───────────────────────────────────────────────────────
   const [error,   setError]   = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -153,11 +165,11 @@ export function SettingsClient({
     setTimeout(() => { setSuccess(null); setError(null); }, 5000);
   };
 
-  // ── Handle ?tab= query param (e.g. from sidebar Upgrade CTA) ───────────
+  // ── ?tab= query param ─────────────────────────────────────────────────────
   useEffect(() => {
     const tabParam = searchParams.get("tab") as Tab | null;
-    const validTabs: Tab[] = ["profile", "billing", "stores", "ad-accounts", "notifications"];
-    if (tabParam && validTabs.includes(tabParam)) {
+    const valid: Tab[] = ["profile", "billing", "stores", "ad-accounts", "notifications"];
+    if (tabParam && valid.includes(tabParam)) {
       setTab(tabParam);
       const url = new URL(window.location.href);
       url.searchParams.delete("tab");
@@ -166,17 +178,15 @@ export function SettingsClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Handle OAuth redirect back with ?connected=tiktok ────────────────────
+  // ── OAuth redirect back ───────────────────────────────────────────────────
   useEffect(() => {
     const connected = searchParams.get("connected");
     const account   = searchParams.get("account");
     if (connected === "tiktok") {
       setTab("ad-accounts");
-      setAdAccountSuccess(
-        account
-          ? `TikTok Ads "${account}" connected successfully!`
-          : "TikTok Ads connected successfully!"
-      );
+      setAdAccountSuccess(account
+        ? `TikTok Ads "${account}" connected successfully!`
+        : "TikTok Ads connected successfully!");
       const url = new URL(window.location.href);
       url.searchParams.delete("connected");
       url.searchParams.delete("account");
@@ -193,15 +203,36 @@ export function SettingsClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Billing ───────────────────────────────────────────────────────────────
-  const [upgradeInterval, setUpgradeInterval] = useState<BillingInterval>("monthly");
+  // ── Billing — Paddle.js (mirrors PricingClient exactly) ──────────────────
+  const [upgradeInterval, setUpgradeInterval] = useState<PricingInterval>("month");
   const [cancelling,     setCancelling]     = useState(false);
   const [portalLoading,  setPortalLoading]  = useState(false);
 
+  // Lazy — avoids module-level getTiers() which runs before client env vars are inlined
+  const tiers = useMemo(() => getTiers(), []);
+
   const {
-    openCheckout, loading: checkoutLoading,
-    getPrice, getTotalPrice, getCurrency, pricesLoaded,
-  } = usePaddleCheckout();
+    paddleReady,
+    pricesLoaded,
+    openingTier,
+    checkoutError,
+    clearCheckoutError,
+    openCheckout,
+    getDisplayPrice,
+    getBillingLabel,
+  } = usePaddlePricing(tiers);
+
+  const anyOpening = openingTier !== null;
+
+  const handleSubscribe = (tierId: string) => {
+    const tier = tiers.find((t) => t.id === tierId);
+    if (!tier) return;
+    openCheckout(tier, upgradeInterval, {
+      userEmail,
+      teamId,
+      onComplete: () => router.refresh(),
+    });
+  };
 
   // ── Store state ───────────────────────────────────────────────────────────
   const [syncingStore, setSyncingStore] = useState<string | null>(null);
@@ -229,7 +260,6 @@ export function SettingsClient({
   const [savingNotifs,  setSavingNotifs]  = useState(false);
   const [notifsLoaded,  setNotifsLoaded]  = useState(false);
 
-  // Load notification prefs when tab becomes active
   useEffect(() => {
     if (tab !== "notifications" || notifsLoaded) return;
     (async () => {
@@ -293,10 +323,6 @@ export function SettingsClient({
     } finally { setSavingNotifs(false); }
   };
 
-  const upgrade = async (plan: PlanKey, interval: BillingInterval) => {
-    await openCheckout(plan, interval);
-  };
-
   const cancelSubscription = async () => {
     if (!confirm("Cancel subscription? You keep access until the end of your billing period.")) return;
     setCancelling(true); setError(null);
@@ -313,49 +339,35 @@ export function SettingsClient({
   };
 
   const openPortal = async () => {
-    setPortalLoading(true);
-    setError(null);
+    setPortalLoading(true); setError(null);
     try {
-      const base      = typeof window !== "undefined" ? window.location.origin : "";
-      const returnUrl = `${base}/dashboard/settings`;
-      const res       = await fetch("/api/billing/portal", {
-        method:  "POST",
+      const returnUrl = `${window.location.origin}/dashboard/settings`;
+      const res = await fetch("/api/billing/portal", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ returnUrl }),
+        body: JSON.stringify({ returnUrl }),
       });
       const json = await res.json();
-      if (!res.ok || !json.url) {
-        throw new Error(json.error ?? "Could not open billing portal.");
-      }
+      if (!res.ok || !json.url) throw new Error(json.error ?? "Could not open billing portal.");
       window.location.href = json.url;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not open billing portal.";
-      setFeedback("err", msg);
-    } finally {
-      setPortalLoading(false);
-    }
+      setFeedback("err", err instanceof Error ? err.message : "Could not open billing portal.");
+    } finally { setPortalLoading(false); }
   };
 
   const syncStore = async (storeId: string) => {
     setSyncingStore(storeId);
-    try {
-      await fetch(`/api/stores/${storeId}/sync`, { method: "POST" });
-      router.refresh();
-    } finally { setSyncingStore(null); }
+    try { await fetch(`/api/stores/${storeId}/sync`, { method: "POST" }); router.refresh(); }
+    finally { setSyncingStore(null); }
   };
 
   const connectTikTok = async () => {
-    setConnectingTikTok(true);
-    setError(null);
+    setConnectingTikTok(true); setError(null);
     try {
       const res = await fetch("/api/ad-accounts/tiktok/auth", { method: "POST" });
       const j   = await res.json();
-      if (j.oauthUrl) {
-        window.location.href = j.oauthUrl;
-      } else {
-        setFeedback("err", j.message ?? "TikTok OAuth not configured.");
-        setConnectingTikTok(false);
-      }
+      if (j.oauthUrl) { window.location.href = j.oauthUrl; }
+      else { setFeedback("err", j.message ?? "TikTok OAuth not configured."); setConnectingTikTok(false); }
     } catch {
       setFeedback("err", "Failed to initiate TikTok connection.");
       setConnectingTikTok(false);
@@ -366,9 +378,9 @@ export function SettingsClient({
     setSyncingAdAccount(adAccountId);
     try {
       await fetch("/api/ad-accounts/tiktok/sync", {
-        method:  "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ adAccountId }),
+        body: JSON.stringify({ adAccountId }),
       });
       router.refresh();
     } finally { setSyncingAdAccount(null); }
@@ -388,16 +400,17 @@ export function SettingsClient({
     } finally { setTestingSlack(false); }
   };
 
-  // ── Derived values ────────────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
 
   const sub        = data.subscription;
   const isTrialing = sub?.status === "trialing";
 
-  const fmtMoney = (n: number, currency = "USD") =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency", currency,
-      minimumFractionDigits: 2, maximumFractionDigits: 2,
-    }).format(n);
+  const intervalLabel: Record<string, string> = {
+    monthly:    "mo",
+    quarterly:  "3 mo",
+    semiannual: "6 mo",
+    annual:     "yr",
+  };
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "profile",       label: "Profile" },
@@ -501,19 +514,15 @@ export function SettingsClient({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs flex items-center gap-1"><Globe className="h-3 w-3" /> Currency</Label>
-                    <select
-                      value={wsCurrency} onChange={(e) => setWsCurrency(e.target.value)}
-                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm"
-                    >
+                    <select value={wsCurrency} onChange={(e) => setWsCurrency(e.target.value)}
+                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm">
                       {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs flex items-center gap-1"><Clock className="h-3 w-3" /> Timezone</Label>
-                    <select
-                      value={wsTimezone} onChange={(e) => setWsTimezone(e.target.value)}
-                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm"
-                    >
+                    <select value={wsTimezone} onChange={(e) => setWsTimezone(e.target.value)}
+                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm">
                       {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
                     </select>
                   </div>
@@ -532,7 +541,7 @@ export function SettingsClient({
       {tab === "billing" && canManageBilling && (
         <div className="space-y-4 w-full max-w-3xl">
 
-          {/* Current subscription */}
+          {/* ── Current subscription ─────────────────────────────────────── */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -542,15 +551,14 @@ export function SettingsClient({
             <CardContent>
               {sub ? (
                 <div className="space-y-4">
-                  {/* Plan summary row — stacks on mobile */}
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl bg-[var(--color-muted)] border border-[var(--color-border)]">
                     <div className="min-w-0">
-                      <p className="font-bold text-[var(--color-foreground)] capitalize text-lg leading-tight">{sub.plan} Plan</p>
+                      <p className="font-bold text-[var(--color-foreground)] capitalize text-lg leading-tight">
+                        {sub.plan} Plan
+                      </p>
                       <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5 leading-snug">
                         {formatCurrency(sub.amount / 100, sub.currency)}/
-                        {sub.interval === "annual"     ? "yr"  :
-                         sub.interval === "semiannual" ? "6mo" :
-                         sub.interval === "quarterly"  ? "3mo" : "mo"}
+                        {intervalLabel[sub.interval] ?? "mo"}
                         {" · "}
                         {sub.cancelAtPeriodEnd
                           ? `Cancels ${sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : ""}`
@@ -567,7 +575,6 @@ export function SettingsClient({
                     </Badge>
                   </div>
 
-                  {/* Feature grid — single col on mobile, 2 on sm+ */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {(PLAN_FEATURES[sub.plan] ?? []).map((f) => (
                       <div key={f} className="flex items-center gap-2 text-sm text-[var(--color-muted-foreground)]">
@@ -576,33 +583,23 @@ export function SettingsClient({
                     ))}
                   </div>
 
-                  {/* Action buttons — full width on mobile */}
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 pt-2 border-t border-[var(--color-border)]">
                     {sub.plan !== "pro" && !sub.cancelAtPeriodEnd && (
                       <Button
                         size="sm" className="w-full sm:w-auto gap-2"
-                        onClick={() => upgrade(sub.plan === "starter" ? "growth" : "pro", upgradeInterval)}
-                        disabled={checkoutLoading}
+                        onClick={() => setTab("billing")}
+                        disabled={anyOpening}
                       >
-                        {checkoutLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                        Upgrade
+                        <Zap className="h-3.5 w-3.5" /> Upgrade
                       </Button>
                     )}
-
                     <Button
-                      variant="outline" size="sm"
-                      onClick={openPortal}
-                      disabled={portalLoading}
+                      variant="outline" size="sm" onClick={openPortal} disabled={portalLoading}
                       className="w-full sm:w-auto gap-2"
-                      title="Update payment method, view invoices, and manage your subscription"
                     >
-                      {portalLoading
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <ExternalLink className="h-3.5 w-3.5" />
-                      }
+                      {portalLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
                       Billing Portal
                     </Button>
-
                     {!sub.cancelAtPeriodEnd && (
                       <Button
                         variant="outline" size="sm" onClick={cancelSubscription} disabled={cancelling}
@@ -615,12 +612,10 @@ export function SettingsClient({
                     {sub.cancelAtPeriodEnd && (
                       <p className="text-xs text-[var(--color-muted-foreground)]">
                         Your plan was cancelled. Access ends{" "}
-                        {sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : ""}.
-                        {" "}
+                        {sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : ""}.{" "}
                         <button
                           className="text-[var(--color-primary)] hover:underline"
-                          onClick={openPortal}
-                          disabled={portalLoading}
+                          onClick={openPortal} disabled={portalLoading}
                         >
                           {portalLoading ? "Opening…" : "Manage billing →"}
                         </button>
@@ -637,37 +632,53 @@ export function SettingsClient({
             </CardContent>
           </Card>
 
-          {/* Upgrade plan cards — shown when not on Pro */}
+          {/* ── Upgrade plan cards — exact PricingClient layout ───────────── */}
           {userPlan !== "pro" && (
             <Card>
               <CardHeader className="pb-3">
-                {/* Title + interval selector: stacked on mobile, row on sm+ */}
                 <div className="flex flex-col gap-3">
                   <CardTitle className="text-base">Upgrade Your Plan</CardTitle>
 
-                  {/* ── Billing interval selector — scrollable on very small screens */}
-                  <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-0.5 gap-0.5 overflow-x-auto">
-                    {ALL_INTERVALS.map((iv) => {
-                      const meta     = INTERVAL_META[iv];
+                  {/* Checkout error */}
+                  {checkoutError && (
+                    <div
+                      role="alert"
+                      className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-600"
+                    >
+                      {checkoutError}
+                      <button className="ml-auto shrink-0" onClick={clearCheckoutError} aria-label="Dismiss">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 4-option interval selector — matches PricingClient exactly */}
+                  <div
+                    role="group"
+                    aria-label="Billing interval"
+                    className="inline-flex items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-1 gap-1 flex-wrap"
+                  >
+                    {INTERVALS.map(({ iv, label, saving }) => {
                       const isActive = upgradeInterval === iv;
                       return (
                         <button
                           key={iv}
                           onClick={() => setUpgradeInterval(iv)}
+                          aria-pressed={isActive}
                           className={cn(
-                            "flex-1 min-w-0 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap",
+                            "px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
                             isActive
                               ? "bg-[var(--color-card)] text-[var(--color-foreground)] shadow-sm"
                               : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
                           )}
                         >
-                          {meta.label}
-                          {meta.discountPct > 0 && (
+                          {label}
+                          {saving && (
                             <span className={cn(
-                              "ml-1 text-[10px] font-bold",
+                              "ml-1.5 text-[10px] font-bold",
                               isActive ? "text-green-600 dark:text-green-400" : "text-green-500/60"
                             )}>
-                              −{meta.discountPct}%
+                              {saving}
                             </span>
                           )}
                         </button>
@@ -677,72 +688,75 @@ export function SettingsClient({
                 </div>
               </CardHeader>
               <CardContent>
-                {/* Plan cards: single col → 3 col on md+ */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {(["starter", "growth", "pro"] as PlanKey[]).map((plan) => {
-                    const isCurrentPlan = userPlan === plan;
-                    const isRecommended = plan === "growth";
-                    const perMonth      = getPrice(plan, upgradeInterval);
-                    const totalCharge   = getTotalPrice(plan, upgradeInterval);
-                    const currency      = getCurrency(plan, upgradeInterval);
-                    const meta          = INTERVAL_META[upgradeInterval];
+                  {tiers.map((tier) => {
+                    const isCurrentPlan  = userPlan === tier.id;
+                    const isHighlighted  = !!tier.highlighted;
+                    const isOpening      = openingTier === tier.id;
+                    const displayPrice   = getDisplayPrice(tier.id, upgradeInterval);
+                    const billingLabel   = getBillingLabel(tier.id, upgradeInterval);
 
                     return (
                       <div
-                        key={plan}
+                        key={tier.id}
                         className={cn(
-                          "relative rounded-xl border p-5 transition-all",
-                          /* extra top padding only when badge is present and stacked */
-                          isRecommended ? "pt-7 md:pt-8 border-[var(--color-primary)] shadow-sm" : "border-[var(--color-border)]",
-                          isCurrentPlan && "opacity-60"
+                          "relative rounded-2xl border-2 p-5 flex flex-col transition-all",
+                          isHighlighted
+                            ? "border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary)]/10"
+                            : "border-[var(--color-border)]",
+                          isCurrentPlan && "opacity-60",
+                          "bg-[var(--color-card)]"
                         )}
                       >
-                        {isRecommended && (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                            <span className="bg-[var(--color-primary)] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide whitespace-nowrap">
+                        {isHighlighted && (
+                          <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10">
+                            <Badge
+                              variant="success"
+                              className="text-[10px] font-bold px-3 py-1 uppercase tracking-wide"
+                            >
                               Most Popular
-                            </span>
+                            </Badge>
                           </div>
                         )}
 
-                        {/* Name + price */}
-                        <div className="mb-4">
-                          <p className="font-bold capitalize text-[var(--color-foreground)]">
-                            {PLAN_DISPLAY[plan].name}
-                          </p>
+                        {/* Name + description */}
+                        <h3 className="text-base font-bold text-[var(--color-foreground)] mb-0.5">
+                          {tier.name}
+                        </h3>
+                        <p className="text-xs text-[var(--color-muted-foreground)] mb-4">
+                          {tier.description}
+                        </p>
 
-                          <p className={cn(
-                            "text-2xl font-bold text-[var(--color-primary)] mt-1 transition-opacity",
-                            !pricesLoaded && "opacity-50"
-                          )}>
-                            {fmtMoney(perMonth, currency)}
-                            <span className="text-sm font-normal text-[var(--color-muted-foreground)]">/mo</span>
-                          </p>
-
-                          <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                            {upgradeInterval === "monthly" ? (
-                              "billed monthly"
-                            ) : (
-                              <>
-                                {fmtMoney(totalCharge, currency)} {meta.billedLabel}
-                                {meta.discountPct > 0 && (
-                                  <span className="ml-1 font-semibold text-green-600 dark:text-green-400">
-                                    · save {meta.discountPct}%
-                                  </span>
-                                )}
-                              </>
+                        {/* Price — Paddle-formatted, verbatim */}
+                        <div className="mb-1 flex items-end gap-1">
+                          <span
+                            className={cn(
+                              "text-3xl font-extrabold text-[var(--color-foreground)] transition-opacity",
+                              !pricesLoaded && "opacity-40 animate-pulse"
                             )}
-                          </p>
+                            aria-label={`${displayPrice} per month`}
+                          >
+                            {displayPrice}
+                          </span>
+                          <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/mo</span>
                         </div>
+
+                        {/* Billing cadence */}
+                        <p className={cn(
+                          "text-xs text-[var(--color-muted-foreground)] mb-5 transition-opacity",
+                          !pricesLoaded && "opacity-40"
+                        )}>
+                          {billingLabel}
+                        </p>
 
                         {/* Feature list */}
-                        <div className="space-y-1.5 mb-4">
-                          {PLAN_FEATURES[plan].map((f) => (
-                            <div key={f} className="flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]">
-                              <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />{f}
-                            </div>
+                        <ul className="space-y-1.5 flex-1 mb-4">
+                          {tier.features.map((f) => (
+                            <li key={f} className="flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]">
+                              <Check className="h-3 w-3 text-green-500 flex-shrink-0" />{f}
+                            </li>
                           ))}
-                        </div>
+                        </ul>
 
                         {/* CTA */}
                         {isCurrentPlan ? (
@@ -751,16 +765,16 @@ export function SettingsClient({
                           <Button
                             size="sm"
                             className="w-full gap-1.5"
-                            variant={isRecommended ? "default" : "outline"}
-                            disabled={checkoutLoading}
-                            onClick={() => upgrade(plan, upgradeInterval)}
+                            variant={isHighlighted ? "default" : "outline"}
+                            disabled={anyOpening || !paddleReady}
+                            onClick={() => handleSubscribe(tier.id)}
+                            aria-label={`Subscribe to ${tier.name}`}
                           >
-                            {checkoutLoading ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            {isOpening ? (
+                              <><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Opening…</>
                             ) : (
-                              <ArrowRight className="h-3.5 w-3.5" />
+                              <>Subscribe <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></>
                             )}
-                            Get {PLAN_DISPLAY[plan].name}
                           </Button>
                         )}
                       </div>
@@ -768,9 +782,9 @@ export function SettingsClient({
                   })}
                 </div>
 
-                {/* Paddle trust line */}
+                {/* Trust line */}
                 <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
-                  <Shield className="h-3.5 w-3.5" />
+                  <Shield className="h-3.5 w-3.5" aria-hidden="true" />
                   Payments processed securely via Paddle. Cancel anytime.
                 </p>
               </CardContent>
@@ -824,26 +838,18 @@ export function SettingsClient({
                             {" · "}{store.ordersCount.toLocaleString()} orders
                           </p>
                           <p className="text-xs text-[var(--color-muted-foreground)]">
-                            {store.lastSyncAt
-                              ? `Last synced ${new Date(store.lastSyncAt).toLocaleDateString()}`
-                              : "Never synced"}
+                            {store.lastSyncAt ? `Last synced ${new Date(store.lastSyncAt).toLocaleDateString()}` : "Never synced"}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge
-                          variant={
-                            store.syncStatus === "idle"    ? "success"     :
-                            store.syncStatus === "syncing" ? "outline"     :
-                            store.syncStatus === "error"   ? "destructive" : "outline"
-                          }
+                          variant={store.syncStatus === "idle" ? "success" : store.syncStatus === "syncing" ? "outline" : store.syncStatus === "error" ? "destructive" : "outline"}
                           className="text-xs capitalize"
                         >
-                          {store.syncStatus === "syncing" ? (
-                            <span className="flex items-center gap-1">
-                              <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing
-                            </span>
-                          ) : store.syncStatus}
+                          {store.syncStatus === "syncing"
+                            ? <span className="flex items-center gap-1"><Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing</span>
+                            : store.syncStatus}
                         </Badge>
                         <Button
                           variant="ghost" size="sm" className="h-8 w-8 p-0"
@@ -866,7 +872,6 @@ export function SettingsClient({
       {/* ── AD ACCOUNTS TAB ──────────────────────────────────────────────────── */}
       {tab === "ad-accounts" && (
         <div className="space-y-4 max-w-2xl">
-          {/* Success banner after OAuth redirect */}
           {adAccountSuccess && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 text-sm text-green-700 dark:text-green-300">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
@@ -874,23 +879,14 @@ export function SettingsClient({
             </div>
           )}
 
-          {/* TikTok Ads */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <span className="text-lg">🎵</span> TikTok Ads
                 </CardTitle>
-                <Button
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={connectTikTok}
-                  disabled={connectingTikTok}
-                >
-                  {connectingTikTok
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Plus className="h-3.5 w-3.5" />
-                  }
+                <Button size="sm" className="gap-1.5" onClick={connectTikTok} disabled={connectingTikTok}>
+                  {connectingTikTok ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                   Connect TikTok Ads
                 </Button>
               </div>
@@ -904,70 +900,52 @@ export function SettingsClient({
                     Connect your TikTok Ads account to pull spend data into your dashboard.
                   </p>
                   <Button size="sm" onClick={connectTikTok} disabled={connectingTikTok} className="gap-2 mt-2">
-                    {connectingTikTok
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Zap className="h-3.5 w-3.5" />
-                    }
+                    {connectingTikTok ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                     Connect Now
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {data.adAccounts
-                    .filter((a) => a.platform === "tiktok")
-                    .map((acc) => (
-                      <div
-                        key={acc.id}
-                        className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] hover:border-[var(--color-primary)]/30 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">🎵</span>
-                          <div>
-                            <p className="font-medium text-sm text-[var(--color-foreground)]">
-                              {acc.accountName}
-                            </p>
-                            <p className="text-xs text-[var(--color-muted-foreground)]">
-                              ID: {acc.accountId} · {acc.currency}
-                            </p>
-                            <p className="text-xs text-[var(--color-muted-foreground)]">
-                              {acc.lastSyncAt
-                                ? `Last synced ${new Date(acc.lastSyncAt).toLocaleDateString()}`
-                                : "Never synced"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              acc.syncStatus === "idle"    ? "success"     :
-                              acc.syncStatus === "syncing" ? "outline"     :
-                              acc.syncStatus === "error"   ? "destructive" : "outline"
-                            }
-                            className="text-xs capitalize"
-                          >
-                            {acc.syncStatus === "syncing" ? (
-                              <span className="flex items-center gap-1">
-                                <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing
-                              </span>
-                            ) : acc.syncStatus}
-                          </Badge>
-                          <Button
-                            variant="ghost" size="sm" className="h-8 w-8 p-0"
-                            onClick={() => syncAdAccount(acc.id)}
-                            disabled={syncingAdAccount === acc.id || acc.syncStatus === "syncing"}
-                            title="Sync now"
-                          >
-                            <RefreshCw className={cn("h-3.5 w-3.5", syncingAdAccount === acc.id && "animate-spin")} />
-                          </Button>
+                  {data.adAccounts.filter((a) => a.platform === "tiktok").map((acc) => (
+                    <div
+                      key={acc.id}
+                      className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] hover:border-[var(--color-primary)]/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🎵</span>
+                        <div>
+                          <p className="font-medium text-sm text-[var(--color-foreground)]">{acc.accountName}</p>
+                          <p className="text-xs text-[var(--color-muted-foreground)]">ID: {acc.accountId} · {acc.currency}</p>
+                          <p className="text-xs text-[var(--color-muted-foreground)]">
+                            {acc.lastSyncAt ? `Last synced ${new Date(acc.lastSyncAt).toLocaleDateString()}` : "Never synced"}
+                          </p>
                         </div>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={acc.syncStatus === "idle" ? "success" : acc.syncStatus === "syncing" ? "outline" : acc.syncStatus === "error" ? "destructive" : "outline"}
+                          className="text-xs capitalize"
+                        >
+                          {acc.syncStatus === "syncing"
+                            ? <span className="flex items-center gap-1"><Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing</span>
+                            : acc.syncStatus}
+                        </Badge>
+                        <Button
+                          variant="ghost" size="sm" className="h-8 w-8 p-0"
+                          onClick={() => syncAdAccount(acc.id)}
+                          disabled={syncingAdAccount === acc.id || acc.syncStatus === "syncing"}
+                          title="Sync now"
+                        >
+                          <RefreshCw className={cn("h-3.5 w-3.5", syncingAdAccount === acc.id && "animate-spin")} />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Coming soon placeholders */}
           {(["Meta Ads", "Google Ads"] as const).map((name) => (
             <Card key={name} className="opacity-60">
               <CardHeader className="pb-3">
@@ -975,9 +953,7 @@ export function SettingsClient({
                   <CardTitle className="text-base flex items-center gap-2">
                     <span className="text-lg">{name === "Meta Ads" ? "📘" : "🔴"}</span>
                     {name}
-                    <Badge variant="outline" className="text-xs text-[var(--color-muted-foreground)]">
-                      Coming soon
-                    </Badge>
+                    <Badge variant="outline" className="text-xs text-[var(--color-muted-foreground)]">Coming soon</Badge>
                   </CardTitle>
                 </div>
               </CardHeader>
@@ -994,7 +970,6 @@ export function SettingsClient({
       {/* ── NOTIFICATIONS TAB ────────────────────────────────────────────────── */}
       {tab === "notifications" && (
         <div className="space-y-4 max-w-xl">
-          {/* Email notifications */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -1018,7 +993,6 @@ export function SettingsClient({
             </CardContent>
           </Card>
 
-          {/* Slack — Growth/Pro only */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -1064,11 +1038,8 @@ export function SettingsClient({
                     </div>
                     <p className="text-xs text-[var(--color-muted-foreground)]">
                       Create an incoming webhook at{" "}
-                      <a
-                        href="https://api.slack.com/messaging/webhooks"
-                        target="_blank" rel="noopener noreferrer"
-                        className="text-[var(--color-primary)] hover:underline inline-flex items-center gap-0.5"
-                      >
+                      <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener noreferrer"
+                        className="text-[var(--color-primary)] hover:underline inline-flex items-center gap-0.5">
                         api.slack.com <ExternalLink className="h-2.5 w-2.5" />
                       </a>
                     </p>
@@ -1095,7 +1066,6 @@ export function SettingsClient({
             Save Notification Preferences
           </Button>
 
-          {/* API Keys shortcut */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">

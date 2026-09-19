@@ -86,19 +86,19 @@ export const INTERVAL_META: Record<BillingInterval, IntervalMeta> = {
   quarterly: {
     months: 3,
     discountPct: 10,
-    label: "3 Months",
+    label: "Quarterly",
     billedLabel: "billed every 3 months",
   },
   semiannual: {
     months: 6,
     discountPct: 15,
-    label: "6 Months",
+    label: "Semiannual",
     billedLabel: "billed every 6 months",
   },
   annual: {
     months: 12,
     discountPct: 20,
-    label: "1 Year",
+    label: "Annual",
     billedLabel: "billed annually",
   },
 };

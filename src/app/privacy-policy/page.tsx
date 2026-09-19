@@ -6,7 +6,7 @@ export const metadata = buildMetadata({
   path: "/privacy-policy",
 });
 
-const LAST_UPDATED = "August 1, 2026";
+const LAST_UPDATED = "September 19, 2026";
 const SITE_URL = "https://getprofitcalc.com";
 const CONTACT_EMAIL = "hello@getprofitcalc.com";
 
@@ -21,9 +21,20 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">1. Introduction</h2>
           <p>
-            Welcome to GetProfitCalc (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;). This Privacy Policy
+            Welcome to GetProfitCalc, operated by{" "}
+            <strong className="text-[var(--color-foreground)]">Muhammad Hammad - {" "}
+                <a
+                  href="https://www.codexengr.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground/60 transition-colors"
+                >
+                  CodexEngr
+                </a></strong>, a sole proprietor
+            based in Pakistan (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;). This Privacy Policy
             explains how we collect, use, disclose, and safeguard your information when you visit{" "}
-            <a href={SITE_URL} className="text-[var(--color-primary)] hover:underline">{SITE_URL}</a>.
+            <a href={SITE_URL} className="text-[var(--color-primary)] hover:underline">{SITE_URL}</a>{" "}
+            or use our paid SaaS platform.
             Please read this policy carefully. If you disagree with its terms, please discontinue use of our site.
           </p>
         </section>
@@ -35,6 +46,16 @@ export default function PrivacyPolicyPage() {
             All calculator inputs you enter (costs, prices, percentages) are processed entirely in your browser.
             We do not collect, store, or transmit your calculator data to our servers.
           </p>
+          <p className="mb-3">
+            If you create an account to use our paid SaaS platform, we collect:
+          </p>
+          <ul className="list-disc list-inside space-y-1.5 ml-2 mb-3">
+            <li>Email address and name (provided during registration)</li>
+            <li>Store connection credentials (Shopify, WooCommerce, or Etsy OAuth tokens — stored encrypted)</li>
+            <li>Order and sales data synced from your connected store(s)</li>
+            <li>COGS, ad spend, and other financial inputs you manually enter</li>
+            <li>Billing information (handled entirely by Paddle — see section 5; we never see your full card number)</li>
+          </ul>
           <h3 className="font-semibold text-[var(--color-foreground)] mb-2">Automatically Collected Information</h3>
           <p>
             When you visit our site, we may automatically collect certain information about your device, including
@@ -87,32 +108,60 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">5. How We Use Your Information</h2>
           <ul className="list-disc list-inside space-y-1.5 ml-2">
             <li>To operate and improve the website and calculators</li>
+            <li>To provide and maintain your SaaS dashboard account</li>
+            <li>To process subscription payments through Paddle (our Merchant of Record)</li>
+            <li>To generate profit reports, AI insights, and alerts within the platform</li>
             <li>To analyse usage patterns and improve user experience</li>
+            <li>To send transactional emails (receipts, alerts, account notifications)</li>
             <li>To serve relevant, non-intrusive advertisements</li>
             <li>To comply with legal obligations</li>
           </ul>
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">6. Third-Party Services</h2>
-          <p>
-            We may use third-party services including Google Analytics, Google AdSense, and Vercel (hosting).
-            These services may collect information about you in accordance with their own privacy policies.
-            We encourage you to review their policies.
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">6. Payment Processing — Paddle</h2>
+          <p className="mb-3">
+            All subscription payments for the GetProfitCalc SaaS platform are processed by{" "}
+            <a href="https://www.paddle.com" target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] hover:underline">
+              Paddle.com
+            </a>
+            , who acts as our Merchant of Record. When you subscribe to a paid plan, Paddle collects
+            and processes your payment information (name, email address, billing address, and payment
+            card details) directly. We do not receive or store your full card number.
+          </p>
+          <p className="mb-3">
+            Paddle may share your name and email address with us for the purpose of fulfilling your
+            subscription and providing customer support. Paddle is responsible for its own data
+            processing in accordance with its{" "}
+            <a href="https://www.paddle.com/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] hover:underline">
+              Privacy Policy
+            </a>.
           </p>
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">7. Data Retention</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">7. Third-Party Services</h2>
           <p>
-            We do not store personal data on our servers. Analytics data collected by Google Analytics is
-            retained in accordance with Google&apos;s data retention policies (typically 14 months by default).
-            Your cookie consent preference is stored in your browser&apos;s localStorage until you clear it.
+            We use third-party services including Google Analytics, Google AdSense, Vercel (hosting),
+            and Paddle (payment processing). These services may collect information about you in
+            accordance with their own privacy policies. We encourage you to review their policies.
           </p>
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">8. Your Rights (GDPR / CCPA)</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">8. Data Retention</h2>
+          <p>
+            We do not store personal data on our servers beyond what is required to operate your account.
+            If you cancel your subscription, your account data is retained for 30 days before being
+            permanently deleted, giving you time to export any reports. Analytics data collected by
+            Google Analytics is retained in accordance with Google&apos;s data retention policies
+            (typically 14 months by default). Your cookie consent preference is stored in your
+            browser&apos;s localStorage until you clear it.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">9. Your Rights (GDPR / CCPA)</h2>
           <p className="mb-3">
             Depending on your location, you may have the following rights regarding your personal data:
           </p>
@@ -130,7 +179,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">9. Children&apos;s Privacy</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">10. Children&apos;s Privacy</h2>
           <p>
             GetProfitCalc is not directed to children under the age of 13. We do not knowingly collect personal
             information from children. If you believe a child has provided personal information, contact us and
@@ -139,7 +188,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">10. Changes to This Policy</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">11. Changes to This Policy</h2>
           <p>
             We may update this Privacy Policy from time to time. Changes will be posted on this page with an
             updated &ldquo;Last updated&rdquo; date. Continued use of the site after changes constitutes acceptance
@@ -148,10 +197,12 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">11. Contact</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">12. Contact</h2>
           <p>
             For privacy-related questions, contact us at:{" "}
             <a href={`mailto:${CONTACT_EMAIL}`} className="text-[var(--color-primary)] hover:underline">{CONTACT_EMAIL}</a>
+            <br />
+            <span className="text-sm">Muhammad Hammad — GetProfitCalc, Pakistan</span>
           </p>
         </section>
 
