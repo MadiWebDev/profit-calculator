@@ -113,7 +113,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="mt-2 text-sm text-[var(--color-muted-foreground)] leading-relaxed">
-              Free profit calculators and real-time profit tracking for ecommerce sellers. Starts at $2/month.
+              Free profit calculators and real-time profit tracking for ecommerce sellers. Starts at $3/month.
             </p>
           </div>
 

@@ -21,7 +21,7 @@ interface CompRow {
 
 const ROWS: CompRow[] = [
   // Pricing
-  { category: "Pricing", feature: "Starting price",                   us: "$2/month",         them: "$39–$49/month" },
+  { category: "Pricing", feature: "Starting price",                   us: "$3/month",         them: "$39–$49/month" },
   { category: "Pricing", feature: "Free trial (no credit card)",       us: true,               them: false,             note: "Most require Shopify billing approval" },
   { category: "Pricing", feature: "Unlimited-order plan price",        us: "$25/month",        them: "$99–$249/month" },
   { category: "Pricing", feature: "Annual discount",                   us: "20%",              them: "Varies" },
@@ -141,7 +141,7 @@ export default function ComparePage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {[
-              { title: "Price shock",         body: "TrueProfit starts at $39. BeProfit at $25. GetProfitCalc starts at $2. For 90% of small sellers, you'll pay 90% less." },
+              { title: "Price shock",         body: "TrueProfit starts at $39. BeProfit at $25. GetProfitCalc starts at $3. For 90% of small sellers, you'll pay 90% less." },
               { title: "WooCommerce support", body: "Most profit trackers are Shopify-only. If you run WooCommerce or Etsy, you're left out. GetProfitCalc connects to all three." },
               { title: "AI insights",         body: "No competitor at this price point offers AI analysis. We use GPT-4 to proactively explain profit changes in plain English." },
               { title: "No credit card trial",body: "Most tools require Shopify billing or a credit card to start a trial. We don't — just your email." },
