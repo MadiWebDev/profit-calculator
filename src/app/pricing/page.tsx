@@ -120,7 +120,12 @@ export default function PricingPage() {
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[var(--color-foreground)] mb-4 leading-tight">
             Profit tracking that doesn&apos;t cost a fortune
           </h1>
-          <p className="text-base sm:text-lg text-[var(--color-muted-foreground)] mb-8">
+          <p className="text-base sm:text-lg text-[var(--color-muted-foreground)] mb-3">
+            GetProfitCalc is a <strong className="text-[var(--color-foreground)]">SaaS profit-tracking platform</strong> for ecommerce sellers.
+            Connect your Shopify, WooCommerce, or Etsy store and get real-time, order-level profit visibility —
+            including COGS, ad spend, platform fees, and AI-powered insights.
+          </p>
+          <p className="text-sm text-[var(--color-muted-foreground)] mb-8">
             All plans start with a 7-day free trial. No credit card required.
           </p>
 

@@ -1,12 +1,1 @@
-# ads.txt — Authorized Digital Sellers
-# Replace the placeholder below with your actual AdSense publisher ID
-# Format: <ad system domain>, <publisher ID>, <relationship>, <certification authority ID>
-
-google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
-
-# How to update this file:
-# 1. Sign in to your Google AdSense account
-# 2. Go to Account > Account information
-# 3. Find your Publisher ID (starts with "pub-")
-# 4. Replace pub-XXXXXXXXXXXXXXXX above with your real Publisher ID
-# 5. Redeploy to Vercel
+google.com, pub-4860681021797211, DIRECT, f08c47fec0942fa0

@@ -2,11 +2,11 @@ import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
   title: "Terms of Service",
-  description: "GetProfitCalc terms of service — rules for using our free profit and ROI calculators.",
+  description: "GetProfitCalc terms of service — rules for using our free profit calculators and paid SaaS profit-tracking platform.",
   path: "/terms-of-service",
 });
 
-const LAST_UPDATED = "August 1, 2026";
+const LAST_UPDATED = "September 19, 2026";
 const CONTACT_EMAIL = "hello@getprofitcalc.com";
 const SITE_URL = "https://getprofitcalc.com";
 
@@ -30,10 +30,29 @@ export default function TermsOfServicePage() {
 
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">2. Description of Service</h2>
+          <p className="mb-3">
+            GetProfitCalc offers two distinct services:
+          </p>
+          <ul className="list-disc list-inside space-y-2 ml-2 mb-3">
+            <li>
+              <strong className="text-[var(--color-foreground)]">Free Calculators:</strong>{" "}
+              Browser-based profit and ROI calculators for informational and educational purposes. These
+              are available to all visitors at no cost and require no account.
+            </li>
+            <li>
+              <strong className="text-[var(--color-foreground)]">SaaS Profit-Tracking Platform (paid):</strong>{" "}
+              A subscription-based software-as-a-service (SaaS) dashboard that connects to your ecommerce
+              store (Shopify, WooCommerce, Etsy, or via CSV import) and automatically tracks real-time
+              order-level profit, COGS, ad spend, and provides AI-powered insights. Paid plans are
+              available at Starter ($3/mo), Growth ($9/mo), and Pro ($25/mo), billed through our
+              Merchant of Record, <a href="https://www.paddle.com" target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] hover:underline">Paddle.com</a>.
+              All paid plans begin with a 7-day free trial requiring no credit card.
+            </li>
+          </ul>
           <p>
-            GetProfitCalc provides free, browser-based profit and ROI calculators for informational and educational
-            purposes. The calculators process data entered by users entirely within the browser and produce
-            estimated outputs based on provided formulas.
+            The calculator outputs are estimates based on user-provided inputs. Platform fees, tax
+            rates, and other variables change frequently — always verify critical financial figures
+            with official sources or a qualified professional.
           </p>
         </section>
 
@@ -71,7 +90,70 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">6. Acceptable Use</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">6. Accounts</h2>
+          <p className="mb-3">
+            To access the SaaS platform you must create an account. You are responsible for maintaining
+            the confidentiality of your credentials and for all activity under your account. You must
+            provide accurate and complete registration information and keep it up to date.
+          </p>
+          <p>
+            You must be at least 18 years old to create an account and subscribe to a paid plan.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">7. Subscriptions &amp; Billing</h2>
+          <p className="mb-3">
+            Paid subscriptions are billed in advance on a recurring basis (monthly, quarterly,
+            semi-annually, or annually depending on your chosen plan). All payments are processed by{" "}
+            <a
+              href="https://www.paddle.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--color-primary)] hover:underline"
+            >
+              Paddle.com
+            </a>
+            , our Merchant of Record, who is responsible for payment processing, invoicing, VAT/sales
+            tax collection, and issuing receipts.
+          </p>
+          <ul className="list-disc list-inside space-y-2 ml-2 mb-3">
+            <li>
+              <strong className="text-[var(--color-foreground)]">Free trial:</strong> All paid plans
+              include a 7-day free trial. No credit card is required during the trial. You will only
+              be charged if you explicitly choose to subscribe after the trial ends.
+            </li>
+            <li>
+              <strong className="text-[var(--color-foreground)]">Renewal:</strong> Subscriptions
+              renew automatically at the end of each billing period unless cancelled beforehand via
+              Dashboard → Settings → Billing &amp; Plan.
+            </li>
+            <li>
+              <strong className="text-[var(--color-foreground)]">Price changes:</strong> We will
+              notify you at least 14 days before any price increase takes effect on your existing
+              subscription.
+            </li>
+          </ul>
+          <p>
+            For refunds, see our{" "}
+            <a href={`${SITE_URL}/refund-policy`} className="text-[var(--color-primary)] hover:underline">
+              Refund Policy
+            </a>.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">8. Termination</h2>
+          <p className="mb-3">
+            You may cancel your subscription and close your account at any time. We reserve the right
+            to suspend or terminate accounts that violate these Terms, engage in fraudulent activity,
+            or abuse the platform. Upon termination, your access to the SaaS platform ceases at the
+            end of your current billing period.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">9. Acceptable Use</h2>
           <p className="mb-3">You agree not to:</p>
           <ul className="list-disc list-inside space-y-1.5 ml-2">
             <li>Use the site for any unlawful purpose</li>
@@ -83,7 +165,7 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">7. Intellectual Property</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">10. Intellectual Property</h2>
           <p>
             All content on GetProfitCalc — including text, formulas, design, code, and branding — is the
             intellectual property of GetProfitCalc or its content providers and is protected by copyright law.
@@ -92,7 +174,7 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">8. Third-Party Links and Advertising</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">11. Third-Party Links and Advertising</h2>
           <p>
             The Site may display third-party advertisements (Google AdSense) and contain links to external
             websites. We are not responsible for the content, privacy practices, or accuracy of third-party
@@ -101,7 +183,7 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">9. Modifications to Terms</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">12. Modifications to Terms</h2>
           <p>
             We reserve the right to modify these Terms at any time. Changes take effect immediately upon
             posting to the Site. Continued use after changes constitutes acceptance of the modified Terms.
@@ -109,7 +191,7 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">10. Governing Law</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">13. Governing Law</h2>
           <p>
             These Terms shall be governed by and construed in accordance with applicable law. Any disputes
             shall be resolved through good-faith negotiation, and failing that, through binding arbitration.
@@ -117,7 +199,7 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">11. Contact</h2>
+          <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">14. Contact</h2>
           <p>
             Questions about these Terms? Contact us at:{" "}
             <a href={`mailto:${CONTACT_EMAIL}`} className="text-[var(--color-primary)] hover:underline">{CONTACT_EMAIL}</a>
