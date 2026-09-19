@@ -153,6 +153,19 @@ export function SettingsClient({
     setTimeout(() => { setSuccess(null); setError(null); }, 5000);
   };
 
+  // ── Handle ?tab= query param (e.g. from sidebar Upgrade CTA) ───────────
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") as Tab | null;
+    const validTabs: Tab[] = ["profile", "billing", "stores", "ad-accounts", "notifications"];
+    if (tabParam && validTabs.includes(tabParam)) {
+      setTab(tabParam);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("tab");
+      window.history.replaceState({}, "", url.toString());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Handle OAuth redirect back with ?connected=tiktok ────────────────────
   useEffect(() => {
     const connected = searchParams.get("connected");
@@ -517,7 +530,7 @@ export function SettingsClient({
 
       {/* ── BILLING TAB ──────────────────────────────────────────────────────── */}
       {tab === "billing" && canManageBilling && (
-        <div className="space-y-4 max-w-3xl">
+        <div className="space-y-4 w-full max-w-3xl">
 
           {/* Current subscription */}
           <Card>
@@ -529,10 +542,11 @@ export function SettingsClient({
             <CardContent>
               {sub ? (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--color-muted)] border border-[var(--color-border)]">
-                    <div>
-                      <p className="font-bold text-[var(--color-foreground)] capitalize text-lg">{sub.plan} Plan</p>
-                      <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">
+                  {/* Plan summary row — stacks on mobile */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl bg-[var(--color-muted)] border border-[var(--color-border)]">
+                    <div className="min-w-0">
+                      <p className="font-bold text-[var(--color-foreground)] capitalize text-lg leading-tight">{sub.plan} Plan</p>
+                      <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5 leading-snug">
                         {formatCurrency(sub.amount / 100, sub.currency)}/
                         {sub.interval === "annual"     ? "yr"  :
                          sub.interval === "semiannual" ? "6mo" :
@@ -547,13 +561,14 @@ export function SettingsClient({
                     </div>
                     <Badge
                       variant={sub.status === "active" ? "success" : sub.status === "trialing" ? "warning" : "outline"}
-                      className="capitalize text-xs"
+                      className="capitalize text-xs self-start sm:self-center flex-shrink-0"
                     >
                       {sub.status}
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1.5">
+                  {/* Feature grid — single col on mobile, 2 on sm+ */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {(PLAN_FEATURES[sub.plan] ?? []).map((f) => (
                       <div key={f} className="flex items-center gap-2 text-sm text-[var(--color-muted-foreground)]">
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />{f}
@@ -561,10 +576,11 @@ export function SettingsClient({
                     ))}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[var(--color-border)]">
+                  {/* Action buttons — full width on mobile */}
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 pt-2 border-t border-[var(--color-border)]">
                     {sub.plan !== "pro" && !sub.cancelAtPeriodEnd && (
                       <Button
-                        size="sm" className="gap-2"
+                        size="sm" className="w-full sm:w-auto gap-2"
                         onClick={() => upgrade(sub.plan === "starter" ? "growth" : "pro", upgradeInterval)}
                         disabled={checkoutLoading}
                       >
@@ -573,12 +589,11 @@ export function SettingsClient({
                       </Button>
                     )}
 
-                    {/* Customer Portal — update payment method, view invoices, cancel */}
                     <Button
                       variant="outline" size="sm"
                       onClick={openPortal}
                       disabled={portalLoading}
-                      className="gap-2"
+                      className="w-full sm:w-auto gap-2"
                       title="Update payment method, view invoices, and manage your subscription"
                     >
                       {portalLoading
@@ -591,7 +606,7 @@ export function SettingsClient({
                     {!sub.cancelAtPeriodEnd && (
                       <Button
                         variant="outline" size="sm" onClick={cancelSubscription} disabled={cancelling}
-                        className="text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-950 gap-2"
+                        className="w-full sm:w-auto text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-950 gap-2"
                       >
                         {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                         Cancel Subscription
@@ -614,8 +629,8 @@ export function SettingsClient({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 text-sm text-yellow-700 dark:text-yellow-300">
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 text-sm text-yellow-700 dark:text-yellow-300">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                   You&apos;re on the Free plan with limited features.
                 </div>
               )}
@@ -626,11 +641,12 @@ export function SettingsClient({
           {userPlan !== "pro" && (
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                {/* Title + interval selector: stacked on mobile, row on sm+ */}
+                <div className="flex flex-col gap-3">
                   <CardTitle className="text-base">Upgrade Your Plan</CardTitle>
 
-                  {/* ── Billing interval selector ──────────────────────────── */}
-                  <div className="inline-flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-0.5 gap-0.5 sm:ml-auto">
+                  {/* ── Billing interval selector — scrollable on very small screens */}
+                  <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] p-0.5 gap-0.5 overflow-x-auto">
                     {ALL_INTERVALS.map((iv) => {
                       const meta     = INTERVAL_META[iv];
                       const isActive = upgradeInterval === iv;
@@ -639,7 +655,7 @@ export function SettingsClient({
                           key={iv}
                           onClick={() => setUpgradeInterval(iv)}
                           className={cn(
-                            "px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap",
+                            "flex-1 min-w-0 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap",
                             isActive
                               ? "bg-[var(--color-card)] text-[var(--color-foreground)] shadow-sm"
                               : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
@@ -661,7 +677,8 @@ export function SettingsClient({
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Plan cards: single col → 3 col on md+ */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {(["starter", "growth", "pro"] as PlanKey[]).map((plan) => {
                     const isCurrentPlan = userPlan === plan;
                     const isRecommended = plan === "growth";
@@ -674,25 +691,26 @@ export function SettingsClient({
                       <div
                         key={plan}
                         className={cn(
-                          "relative rounded-xl border p-5 space-y-4 transition-all",
-                          isRecommended ? "border-[var(--color-primary)] shadow-sm" : "border-[var(--color-border)]",
+                          "relative rounded-xl border p-5 transition-all",
+                          /* extra top padding only when badge is present and stacked */
+                          isRecommended ? "pt-7 md:pt-8 border-[var(--color-primary)] shadow-sm" : "border-[var(--color-border)]",
                           isCurrentPlan && "opacity-60"
                         )}
                       >
                         {isRecommended && (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                            <span className="bg-[var(--color-primary)] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                            <span className="bg-[var(--color-primary)] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide whitespace-nowrap">
                               Most Popular
                             </span>
                           </div>
                         )}
 
-                        <div>
+                        {/* Name + price */}
+                        <div className="mb-4">
                           <p className="font-bold capitalize text-[var(--color-foreground)]">
                             {PLAN_DISPLAY[plan].name}
                           </p>
 
-                          {/* Per-month price */}
                           <p className={cn(
                             "text-2xl font-bold text-[var(--color-primary)] mt-1 transition-opacity",
                             !pricesLoaded && "opacity-50"
@@ -701,7 +719,6 @@ export function SettingsClient({
                             <span className="text-sm font-normal text-[var(--color-muted-foreground)]">/mo</span>
                           </p>
 
-                          {/* Billing cadence */}
                           <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
                             {upgradeInterval === "monthly" ? (
                               "billed monthly"
@@ -719,7 +736,7 @@ export function SettingsClient({
                         </div>
 
                         {/* Feature list */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 mb-4">
                           {PLAN_FEATURES[plan].map((f) => (
                             <div key={f} className="flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]">
                               <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />{f}

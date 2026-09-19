@@ -146,7 +146,7 @@ export function DashboardSidebar({
       {plan !== "pro" && (
         <div className="px-3 pb-3">
           <Link
-            href="/pricing"
+            href="/dashboard/settings?tab=billing"
             className={cn(
               "block rounded-xl p-3 text-sm font-medium transition-colors",
               "bg-gradient-to-br from-[var(--color-primary)]/15 to-[var(--color-primary)]/5",
