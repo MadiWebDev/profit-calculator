@@ -19,11 +19,12 @@ const footerLinks = {
     { href: "/calculators/profit-margin",     label: "Profit Margin" },
   ],
   Company: [
-    { href: "/blog",           label: "Blog" },
-    { href: "/about",          label: "About" },
-    { href: "/contact",        label: "Contact" },
-    { href: "/privacy-policy", label: "Privacy Policy" },
+    { href: "/blog",            label: "Blog" },
+    { href: "/about",           label: "About" },
+    { href: "/contact",         label: "Contact" },
+    { href: "/privacy-policy",  label: "Privacy Policy" },
     { href: "/terms-of-service",label: "Terms of Service" },
+    { href: "/refund-policy",   label: "Refund Policy" },
   ],
 };
 
