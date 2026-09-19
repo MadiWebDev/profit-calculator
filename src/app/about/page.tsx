@@ -23,8 +23,8 @@ export default function AboutPage() {
           About GetProfitCalc
         </h1>
         <p className="text-xl text-[var(--color-muted-foreground)] max-w-2xl mx-auto leading-relaxed">
-          We built the calculators we always wished existed — ones that account for{" "}
-          <em>every</em> real cost, not just product and selling price.
+          Free profit calculators and a real-time profit-tracking dashboard — everything an ecommerce
+          seller needs to know their true margin.
         </p>
       </div>
 
@@ -50,12 +50,50 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* Two products */}
+      <section className="mb-14 grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* Free calculators */}
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 mb-4">
+            <Calculator className="h-5 w-5 text-[var(--color-primary)]" />
+          </div>
+          <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-2">Free Calculators</h3>
+          <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed mb-4">
+            {calculators.length}+ browser-based profit and ROI calculators covering ecommerce, ads,
+            investing, real estate, and more. No account required — instant results as you type.
+          </p>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/calculators">Browse Calculators →</Link>
+          </Button>
+        </div>
+
+        {/* SaaS platform */}
+        <div className="rounded-xl border border-[var(--color-primary)]/40 bg-[var(--color-card)] p-6 relative overflow-hidden">
+          <div className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider bg-[var(--color-primary)] text-white px-2 py-0.5 rounded-full">
+            Paid
+          </div>
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 mb-4">
+            <Target className="h-5 w-5 text-[var(--color-primary)]" />
+          </div>
+          <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-2">Profit-Tracking Dashboard</h3>
+          <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed mb-4">
+            A subscription SaaS dashboard that connects to your Shopify, WooCommerce, or Etsy store and
+            automatically tracks order-level profit, COGS, ad spend, and AI-powered insights — in real time.
+            Plans start at <strong className="text-[var(--color-foreground)]">$3 / month</strong> with a
+            7-day free trial, no credit card required.
+          </p>
+          <Button asChild size="sm">
+            <Link href="/pricing">See Plans & Pricing →</Link>
+          </Button>
+        </div>
+      </section>
+
       {/* Stats */}
       <section className="mb-14 grid grid-cols-1 sm:grid-cols-3 gap-6">
         {[
-          { icon: Calculator, value: `${calculators.length}`, label: "Free Calculators" },
-          { icon: Users,      value: "100%",                  label: "Free, No Sign-up" },
-          { icon: Target,     value: "Real-Time",             label: "Live Results as You Type" },
+          { icon: Calculator, value: `${calculators.length}+`, label: "Free Calculators" },
+          { icon: Users,      value: "$3/mo",                  label: "Starting Price" },
+          { icon: Target,     value: "Real-Time",              label: "Live Profit Tracking" },
         ].map(({ icon: Icon, value, label }) => (
           <div
             key={label}
@@ -80,6 +118,7 @@ export default function AboutPage() {
             "Amazon FBA net margin and fee breakdowns",
             "Freelancer and service business take-home pay",
             "General business profit margin and markup",
+            "Real-time order-level profit tracking (SaaS)",
           ].map((item) => (
             <div key={item} className="flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
@@ -87,6 +126,25 @@ export default function AboutPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Who we are */}
+      <section className="mb-14 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
+        <h2 className="text-lg font-bold text-[var(--color-foreground)] mb-3">Who We Are</h2>
+        <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed">
+          GetProfitCalc is built and operated by{" "}
+          <strong className="text-[var(--color-foreground)]">Muhammad Hammad - </strong>, an independent
+          developer based in Pakistan. Payments are processed securely by{" "}
+          <a
+            href="https://www.paddle.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--color-primary)] hover:underline"
+          >
+            Paddle.com
+          </a>
+          , our Merchant of Record.
+        </p>
       </section>
 
       {/* Disclaimer */}
@@ -103,11 +161,18 @@ export default function AboutPage() {
 
       {/* CTA */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-[var(--color-foreground)] mb-3">Ready to calculate your profit?</h2>
-        <p className="text-[var(--color-muted-foreground)] mb-6">All {calculators.length} calculators are free and ready to use.</p>
-        <Button asChild size="lg">
-          <Link href="/calculators">Browse All Calculators</Link>
-        </Button>
+        <h2 className="text-2xl font-bold text-[var(--color-foreground)] mb-3">Ready to get started?</h2>
+        <p className="text-[var(--color-muted-foreground)] mb-6">
+          Use the free calculators instantly, or try the profit-tracking dashboard free for 7 days.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Button asChild variant="outline" size="lg">
+            <Link href="/calculators">Browse Free Calculators</Link>
+          </Button>
+          <Button asChild size="lg">
+            <Link href="/pricing">Start Free Trial</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

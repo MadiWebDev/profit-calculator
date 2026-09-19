@@ -4,8 +4,9 @@
  * TrialBanner
  * ────────────
  * Slim top-of-page banner shown during the active trial window.
- * Dismissible per session (state lives in component, reappears on hard refresh).
- * Shows days remaining and an "Upgrade" button that opens PricingModal.
+ * Dismissible per session (reappears on hard refresh).
+ * "Upgrade now" opens PricingModal with the user's email/teamId pre-loaded
+ * so Paddle can prefill the checkout form and stamp customData.
  */
 
 import { useState } from "react";
@@ -14,12 +15,14 @@ import { PricingModal } from "@/components/billing/PricingModal";
 import { cn } from "@/lib/utils";
 
 interface TrialBannerProps {
-  daysLeft: number;
+  daysLeft:   number;
+  userEmail?: string;
+  teamId?:    string;
 }
 
-export function TrialBanner({ daysLeft }: TrialBannerProps) {
-  const [dismissed, setDismissed] = useState(false);
-  const [pricingOpen, setPricingOpen] = useState(false);
+export function TrialBanner({ daysLeft, userEmail, teamId }: TrialBannerProps) {
+  const [dismissed,    setDismissed]    = useState(false);
+  const [pricingOpen,  setPricingOpen]  = useState(false);
 
   if (dismissed) return null;
 
@@ -30,9 +33,7 @@ export function TrialBanner({ daysLeft }: TrialBannerProps) {
       <div
         className={cn(
           "relative flex items-center justify-center gap-3 px-4 py-2.5 text-sm font-medium",
-          urgent
-            ? "bg-amber-500 text-white"
-            : "bg-[var(--color-primary)] text-white"
+          urgent ? "bg-amber-500 text-white" : "bg-[var(--color-primary)] text-white"
         )}
       >
         <Clock className="h-4 w-4 flex-shrink-0" />
@@ -71,6 +72,8 @@ export function TrialBanner({ daysLeft }: TrialBannerProps) {
         open={pricingOpen}
         dismissible
         onClose={() => setPricingOpen(false)}
+        userEmail={userEmail}
+        teamId={teamId}
       />
     </>
   );

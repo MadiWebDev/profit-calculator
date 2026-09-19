@@ -9,6 +9,7 @@ export const metadata = buildMetadata({
 const LAST_UPDATED = "September 19, 2026";
 const CONTACT_EMAIL = "hello@getprofitcalc.com";
 const SITE_URL = "https://getprofitcalc.com";
+const LEGAL_NAME = "Muhammad Hammad - codexengr";
 
 export default function TermsOfServicePage() {
   return (
@@ -20,10 +21,15 @@ export default function TermsOfServicePage() {
 
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">1. Acceptance of Terms</h2>
+          <p className="mb-3">
+            GetProfitCalc is operated by{" "}
+            <strong className="text-[var(--color-foreground)]">{LEGAL_NAME}</strong>, a sole proprietor
+            based in Pakistan (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;).
+          </p>
           <p>
             By accessing and using GetProfitCalc at{" "}
             <a href={SITE_URL} className="text-[var(--color-primary)] hover:underline">{SITE_URL}</a>
-            {" "}("the Site"), you accept and agree to be bound by these Terms of Service and our
+            {" "}(&ldquo;the Site&rdquo;), you accept and agree to be bound by these Terms of Service and our
             Privacy Policy. If you do not agree, please do not use the Site.
           </p>
         </section>
@@ -193,8 +199,12 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-3">13. Governing Law</h2>
           <p>
-            These Terms shall be governed by and construed in accordance with applicable law. Any disputes
-            shall be resolved through good-faith negotiation, and failing that, through binding arbitration.
+            These Terms shall be governed by and construed in accordance with the laws of the
+            Islamic Republic of Pakistan. Any disputes arising from or relating to these Terms or
+            your use of the Site shall first be resolved through good-faith negotiation between
+            the parties, and failing that, through binding arbitration conducted under Pakistani
+            law. By using the Site, you consent to the personal jurisdiction of Pakistan for any
+            such proceedings.
           </p>
         </section>
 
@@ -203,6 +213,8 @@ export default function TermsOfServicePage() {
           <p>
             Questions about these Terms? Contact us at:{" "}
             <a href={`mailto:${CONTACT_EMAIL}`} className="text-[var(--color-primary)] hover:underline">{CONTACT_EMAIL}</a>
+            <br />
+            <span className="text-sm">{LEGAL_NAME} — GetProfitCalc, Pakistan</span>
           </p>
         </section>
 

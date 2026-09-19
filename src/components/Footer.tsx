@@ -164,9 +164,8 @@ export function Footer() {
 
         <div className="pt-6 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--color-muted-foreground)]">
           <p>© {new Date().getFullYear()} GetProfitCalc. All rights reserved.</p>
-          <p>For informational purposes only. Not financial or tax advice.</p>
-           <p className="text-[11px] text-foreground/40">
-                Crafted by{' '}
+         <p className="text-[11px] text-foreground/40">
+              Operated by Muhammad Hammad - {" "}
                 <a
                   href="https://www.codexengr.com"
                   target="_blank"
@@ -176,6 +175,7 @@ export function Footer() {
                   CodexEngr
                 </a>
               </p>
+          <p>For informational purposes only. Not financial or tax advice.</p>
         </div>
       </div>
     </footer>

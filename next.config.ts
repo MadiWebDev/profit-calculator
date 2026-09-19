@@ -10,20 +10,24 @@ const isDev = process.env.NODE_ENV === "development";
  */
 const cspDirectives = [
   "default-src 'self'",
-  // Scripts: allow self + Next.js inline bootstrap in dev only
+  // Scripts: allow self + Next.js inline bootstrap in dev only.
+  // https://cdn.paddle.com — Paddle.js is loaded from this CDN by @paddle/paddle-js.
   isDev
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline'",                   // Next.js RSC needs inline
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.paddle.com"
+    : "script-src 'self' 'unsafe-inline' https://cdn.paddle.com",
   // Styles: Recharts and Tailwind both inject inline styles
   "style-src 'self' 'unsafe-inline'",
-  // Images: self + data URIs + remote CDNs used by the app
-  "img-src 'self' data: blob: https://*.shopify.com https://*.cloudinary.com https://lh3.googleusercontent.com",
+  // Images: self + data URIs + remote CDNs used by the app.
+  // *.paddle.com — product images rendered inside the Paddle checkout overlay.
+  "img-src 'self' data: blob: https://*.shopify.com https://*.cloudinary.com https://lh3.googleusercontent.com https://*.paddle.com",
   // Fonts
   "font-src 'self' data:",
-  // Fetch / XHR: self + external APIs the client calls directly
-  "connect-src 'self' https://api.openai.com https://api.resend.com",
-  // Iframes — block entirely
-  "frame-src 'none'",
+  // Fetch / XHR: self + external APIs the client calls directly.
+  // api.paddle.com / sandbox-api.paddle.com — Paddle.PricePreview() and
+  //   Paddle.Checkout.open() make direct API calls from the browser.
+  "connect-src 'self' https://api.openai.com https://api.resend.com https://api.paddle.com https://sandbox-api.paddle.com",
+  // Iframes: Paddle checkout overlay renders inside an iframe from paddle.com.
+  "frame-src https://*.paddle.com",
   // Objects / embeds
   "object-src 'none'",
   // Upgrade insecure requests in production
