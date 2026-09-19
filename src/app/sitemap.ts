@@ -9,13 +9,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: BASE_URL,                                    lastModified: now, changeFrequency: "weekly",  priority: 1.0 },
     { url: `${BASE_URL}/pricing`,                       lastModified: now, changeFrequency: "weekly",  priority: 0.95 },
     { url: `${BASE_URL}/features`,                      lastModified: now, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${BASE_URL}/compare/getprofitcalc`,         lastModified: now, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${BASE_URL}/compare/profitcalc-io`,         lastModified: now, changeFrequency: "monthly", priority: 0.9 },
     { url: `${BASE_URL}/calculators`,                   lastModified: now, changeFrequency: "weekly",  priority: 0.85 },
     { url: `${BASE_URL}/blog`,                          lastModified: now, changeFrequency: "weekly",  priority: 0.8 },
     { url: `${BASE_URL}/about`,                         lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/contact`,                       lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${BASE_URL}/docs/api`,                      lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${BASE_URL}/privacy-policy`,                lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
     { url: `${BASE_URL}/terms-of-service`,              lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
+    { url: `${BASE_URL}/refund-policy`,                 lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
+    { url: `${BASE_URL}/data-deletion`,                 lastModified: now, changeFrequency: "yearly",  priority: 0.2 },
   ];
 
   const calculatorPages: MetadataRoute.Sitemap = calculators.map((c) => ({

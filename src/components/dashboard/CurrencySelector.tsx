@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { ChevronDown, Check, Search } from "lucide-react";
 import { CURRENCIES, useCurrency } from "@/components/dashboard/CurrencyContext";
 import { cn } from "@/lib/utils";
@@ -10,12 +10,41 @@ interface CurrencySelectorProps {
   size?: "sm" | "md";
 }
 
+const DROPDOWN_WIDTH = 256; // matches w-64
+const VIEWPORT_MARGIN = 12; // min gap kept between the dropdown and the screen edge
+
 export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
   const { currency, setCurrency, currencyDef } = useCurrency();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fixed-position coordinates for the dropdown, computed from the trigger's
+  // on-screen position. Using `position: fixed` (rather than absolute) means
+  // the dropdown is never clipped by an ancestor with overflow-hidden — e.g.
+  // when this selector is rendered inside the navbar's animated mobile menu.
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const updatePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+
+    // Clamp dropdown width so it never exceeds the viewport on very narrow phones.
+    const width = Math.min(DROPDOWN_WIDTH, viewportWidth - VIEWPORT_MARGIN * 2);
+
+    // Default: right-align the dropdown to the trigger's right edge.
+    let left = rect.right - width;
+    // Keep it from overflowing the left edge.
+    left = Math.max(VIEWPORT_MARGIN, left);
+    // Keep it from overflowing the right edge.
+    left = Math.min(left, viewportWidth - width - VIEWPORT_MARGIN);
+
+    setCoords({ top: rect.bottom + 6, left, width });
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -46,6 +75,19 @@ export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
     }
   }, [open]);
 
+  // Position the dropdown before paint, and keep it correct across resize,
+  // scroll, and orientation changes (e.g. rotating a phone while it's open).
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, updatePosition]);
+
   const filteredCurrencies = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return CURRENCIES;
@@ -69,6 +111,7 @@ export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
     <div ref={ref} className="relative">
       {/* ── Trigger button ─────────────────────────────────────────────── */}
       <button
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -78,7 +121,9 @@ export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
           "bg-[var(--color-card)] text-[var(--color-foreground)]",
           "hover:bg-[var(--color-muted)] transition-colors focus-visible:outline-none",
           "focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-1",
-          size === "sm" ? "h-8 px-2 text-xs" : "h-8 px-3 text-xs",
+          // A touch target of ~36-40px is easier to tap accurately than the
+          // original 32px on phones, while staying compact on desktop.
+          size === "sm" ? "h-9 sm:h-8 px-2.5 sm:px-2 text-xs" : "h-9 sm:h-8 px-3 text-xs",
         )}
       >
         {/* Symbol badge */}
@@ -107,15 +152,19 @@ export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
       </button>
 
       {/* ── Dropdown ───────────────────────────────────────────────────── */}
-      {open && (
+      {open && coords && (
         <div
           role="listbox"
           aria-label="Select currency"
+          style={{ top: coords.top, left: coords.left, width: coords.width }}
           className={cn(
-            "absolute z-50 mt-1.5 w-64 rounded-xl border border-[var(--color-border)]",
+            // position: fixed + viewport-relative coords computed above means
+            // this always renders above the page, unclipped by any ancestor
+            // (including the navbar's overflow-hidden mobile menu wrapper),
+            // and stays fully on-screen down to ~320px-wide phones.
+            "fixed z-50 rounded-xl border border-[var(--color-border)]",
             "bg-[var(--color-card)] shadow-xl overflow-hidden flex flex-col",
-            // Align right by default so it doesn't clip off screen
-            "right-0",
+            "max-h-[70vh]",
           )}
         >
           {/* Header */}
@@ -139,7 +188,7 @@ export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
                 placeholder="Search currency..."
                 aria-label="Search currency"
                 className={cn(
-                  "w-full h-8 pl-7 pr-2 rounded-md text-sm",
+                  "w-full h-9 sm:h-8 pl-7 pr-2 rounded-md text-sm",
                   "bg-[var(--color-muted)] text-[var(--color-foreground)]",
                   "placeholder:text-[var(--color-muted-foreground)]",
                   "border border-transparent focus:border-[var(--color-primary)]",
@@ -150,7 +199,7 @@ export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
           </div>
 
           {/* Options list */}
-          <div className="max-h-64 overflow-y-auto py-1 border-t border-[var(--color-border)]">
+          <div className="max-h-64 overflow-y-auto py-1 border-t border-[var(--color-border)] overscroll-contain">
             {filteredCurrencies.length === 0 ? (
               <p className="px-3 py-4 text-sm text-center text-[var(--color-muted-foreground)]">
                 No currencies found
@@ -168,7 +217,7 @@ export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
                       setOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center justify-between gap-3 px-3 py-2 text-sm",
+                      "w-full flex items-center justify-between gap-3 px-3 py-2.5 sm:py-2 text-sm",
                       "transition-colors text-left",
                       isActive
                         ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"

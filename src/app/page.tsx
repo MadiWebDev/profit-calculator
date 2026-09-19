@@ -10,7 +10,6 @@ import { AdSlot } from "@/components/AdSlot";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { buildMetadata } from "@/lib/seo";
-import { PLAN_DISPLAY } from "@/lib/plans";
 
 export const metadata = buildMetadata({
   title: "Free Profit Calculators + Real-Time Profit Tracking for Ecommerce",
@@ -80,46 +79,6 @@ function ComparisonCell({ value }: { value: string | boolean }) {
   if (value === true) return <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 mx-auto" />;
   if (value === false) return <X className="h-4 w-4 sm:h-5 sm:w-5 text-red-400 mx-auto" />;
   return <span className="text-xs sm:text-sm text-[var(--color-muted-foreground)] whitespace-nowrap">{value}</span>;
-}
-
-function PricingCard({
-  plan, monthlyPrice, features: feats, highlight,
-}: {
-  plan: string; monthlyPrice: number;
-  features: string[]; highlight?: boolean;
-}) {
-  return (
-    <div className={`rounded-2xl border-2 p-5 sm:p-6 flex flex-col ${highlight ? "border-[var(--color-primary)] shadow-lg shadow-green-500/10 mt-3 sm:mt-0" : "border-[var(--color-border)]"} bg-[var(--color-card)]`}>
-      {highlight && (
-        <div className="flex justify-center mb-4">
-          <Badge variant="success" className="text-xs font-semibold">Most Popular</Badge>
-        </div>
-      )}
-      <h3 className="text-lg font-bold text-[var(--color-foreground)] capitalize mb-1">{plan}</h3>
-      <div className="flex items-end gap-1 mb-1 flex-wrap">
-        <span className="text-3xl sm:text-4xl font-extrabold text-[var(--color-foreground)] break-all">${monthlyPrice.toFixed(2)}</span>
-        <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
-      </div>
-      <p className="text-xs text-[var(--color-muted-foreground)] mb-3">
-        Save up to 20% with longer billing periods
-      </p>
-      <ul className="space-y-2.5 mb-6 flex-1 mt-2">
-        {feats.map((f) => (
-          <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
-            <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
-            {f}
-          </li>
-        ))}
-      </ul>
-      <Button
-        asChild
-        variant={highlight ? "default" : "outline"}
-        className="w-full"
-      >
-        <Link href="/auth/register">Start Free Trial</Link>
-      </Button>
-    </div>
-  );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -272,39 +231,92 @@ export default function HomePage() {
       </section>
 
       {/* ── PRICING PREVIEW ───────────────────────────────────────────── */}
-      <section className="py-12 sm:py-20">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl">
           <div className="text-center mb-8 sm:mb-10">
+            <Badge variant="outline" className="mb-3">Simple Pricing</Badge>
             <h2 className="text-2xl sm:text-4xl font-bold text-[var(--color-foreground)] mb-3">
-              Pricing that doesn&apos;t punish small sellers
+              Starts at <span className="text-[var(--color-primary)]">$3/month</span>
             </h2>
             <p className="text-sm sm:text-base text-[var(--color-muted-foreground)] max-w-xl mx-auto">
-              All plans include a 7-day free trial. No credit card required. Cancel anytime.
+              No $39–$349/month price shock. All plans include a 7-day free trial with no credit card required.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6 mb-8">
-            <PricingCard
-              plan="starter"
-              monthlyPrice={PLAN_DISPLAY.starter.monthlyPrice}
-              features={["100 orders/month", "1 store", "1 ad platform", "CSV import", "Email support"]}
-            />
-            <PricingCard
-              plan="growth"
-              monthlyPrice={PLAN_DISPLAY.growth.monthlyPrice}
-              highlight
-              features={["1,000 orders/month", "2 stores", "3 ad platforms", "AI insights (weekly)", "PDF reports", "5 team members"]}
-            />
-            <PricingCard
-              plan="pro"
-              monthlyPrice={PLAN_DISPLAY.pro.monthlyPrice}
-              features={["Unlimited orders", "Unlimited stores", "All ad platforms", "AI insights (real-time)", "Public API + Zapier", "Priority support"]}
-            />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
+            {/* Starter */}
+            <div className="rounded-2xl border-2 border-[var(--color-border)] bg-[var(--color-card)] p-5 sm:p-6 flex flex-col">
+              <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-1">Starter</h3>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$3</span>
+                <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
+              </div>
+              <p className="text-xs text-[var(--color-muted-foreground)] mb-4">Perfect for side-hustlers and early-stage stores.</p>
+              <ul className="space-y-2 mb-6 flex-1">
+                {["100 orders/month", "1 store", "Shopify / WooCommerce / Etsy", "CSV import", "Order-level profit", "What-if simulator", "Profit goal tracking", "2 team members"].map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
+                    <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/auth/register">Start Free Trial</Link>
+              </Button>
+            </div>
+
+            {/* Growth — highlighted */}
+            <div className="rounded-2xl border-2 border-[var(--color-primary)] bg-[var(--color-card)] p-5 sm:p-6 flex flex-col relative shadow-xl shadow-green-500/10 mt-3 sm:mt-0">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                <Badge variant="success" className="text-xs font-bold px-3 py-1">Most Popular</Badge>
+              </div>
+              <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-1">Growth</h3>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$9</span>
+                <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
+              </div>
+              <p className="text-xs text-[var(--color-muted-foreground)] mb-4">For growing stores ready for real insights.</p>
+              <ul className="space-y-2 mb-6 flex-1">
+                {["1,000 orders/month", "2 stores", "Everything in Starter", "AI Profit Insights (weekly)", "Ad creative-level ROI", "3 ad platforms", "Slack alerts", "5 team members"].map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
+                    <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Button asChild className="w-full">
+                <Link href="/auth/register">Start Free Trial</Link>
+              </Button>
+            </div>
+
+            {/* Pro */}
+            <div className="rounded-2xl border-2 border-[var(--color-border)] bg-[var(--color-card)] p-5 sm:p-6 flex flex-col">
+              <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-1">Pro</h3>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$25</span>
+                <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
+              </div>
+              <p className="text-xs text-[var(--color-muted-foreground)] mb-4">For scaling brands with no limits.</p>
+              <ul className="space-y-2 mb-6 flex-1">
+                {["Unlimited orders", "Unlimited stores", "Everything in Growth", "Real-time AI Insights", "All ad platforms", "Public API + Zapier", "White-label reports", "Priority chat support"].map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
+                    <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/auth/register">Start Free Trial</Link>
+              </Button>
+            </div>
           </div>
-          <div className="text-center">
-            <Button asChild variant="outline">
-              <Link href="/pricing">See Full Pricing Details <ArrowRight className="h-4 w-4 ml-1" /></Link>
-            </Button>
-          </div>
+
+          <p className="text-center text-xs text-[var(--color-muted-foreground)] mt-5">
+            Save up to 20% with annual billing.{" "}
+            <Link href="/pricing" className="underline underline-offset-2 hover:text-[var(--color-foreground)]">
+              See full pricing details →
+            </Link>
+          </p>
         </div>
       </section>
 
@@ -397,7 +409,7 @@ export default function HomePage() {
                 Start Free Trial <ArrowRight className="h-5 w-5" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="font-semibold text-base border-white/40 text-white hover:bg-white/10 w-full sm:w-auto">
+            <Button asChild size="lg" variant="outline" className="font-semibold text-base border-white/40  w-full sm:w-auto">
               <Link href="/calculators">Use Free Calculators</Link>
             </Button>
           </div>
