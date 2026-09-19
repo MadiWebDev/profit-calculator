@@ -46,6 +46,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="GetProfitCalc" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        {/* Google AdSense verification */}
+        <meta name="google-adsense-account" content="ca-pub-4860681021797211" />
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4860681021797211"
+          crossOrigin="anonymous"
+        />
       </head>
       <body suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} min-h-screen flex flex-col bg-[var(--color-background)] text-[var(--color-foreground)] antialiased`}>
         <Providers>
