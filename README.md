@@ -71,7 +71,7 @@ Pluggable payment gateway layer — switch between **Dodo Payments** (default) a
 | Plan | Monthly | Annual | Orders/mo | Stores | Ad Platforms | AI Insights | Team Members | API Access |
 |------|--------:|-------:|:---------:|:------:|:------------:|:-----------:|:------------:|:----------:|
 | Free | $0 | $0 | 50 | 1 | — | ✗ | 1 | ✗ |
-| Starter | $2 | $1.60/mo | 100 | 1 | 1 | ✗ | 2 | ✗ |
+| Starter | $3 | $1.60/mo | 100 | 1 | 1 | ✗ | 2 | ✗ |
 | Growth | $9 | $7.20/mo | 1,000 | 2 | 3 | Weekly | 5 | ✗ |
 | Pro | $25 | $20/mo | Unlimited | Unlimited | Unlimited | Real-time | Unlimited | ✓ |
 

@@ -11,7 +11,7 @@ import Image from "next/image";
 const perks = [
   "7-day free trial — no credit card",
   "All 3 plans include CSV import",
-  "Starts at $2/month after trial",
+  "Starts at $3/month after trial",
 ];
 
 export default function RegisterPage() {

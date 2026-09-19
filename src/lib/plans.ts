@@ -108,7 +108,7 @@ export const INTERVAL_META: Record<BillingInterval, IntervalMeta> = {
  * cannot be fetched — the live Paddle price always takes precedence).
  */
 export const PLAN_BASE_PRICES: Record<Exclude<PlanId, "free">, number> = {
-  starter: 200,   // $2/mo
+  starter: 300,   // $2/mo
   growth:  900,   // $9/mo
   pro:     2500,  // $25/mo
 };
