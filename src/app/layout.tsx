@@ -46,6 +46,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="GetProfitCalc" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        {/* Google Analytics */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-NR4HM5ZR5X" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-NR4HM5ZR5X');`,
+          }}
+        />
         {/* Google AdSense verification */}
         <meta name="google-adsense-account" content="ca-pub-4860681021797211" />
         <script
