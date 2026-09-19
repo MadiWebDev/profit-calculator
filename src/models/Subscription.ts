@@ -9,8 +9,8 @@ export interface ISubscription extends Document {
   _id: mongoose.Types.ObjectId;
   teamId: mongoose.Types.ObjectId;
   gateway: BillingGateway;
-  externalId: string;       // Paddle subscription ID
-  customerId: string;       // Paddle customer ID
+  externalId: string;            // Paddle subscription ID
+  customerId: string;            // Paddle customer ID
   plan: PlanId;
   interval: BillingInterval;
   status: SubStatus;
@@ -21,8 +21,11 @@ export interface ISubscription extends Document {
   trialStart?: Date;
   trialEnd?: Date;
   priceId: string;
-  amount: number;           // in cents
+  amount: number;                // in cents
   currency: string;
+  // Paddle scheduled_change — set when a cancel/pause is pending
+  scheduledChangeAction?: string; // "cancel" | "pause" | "resume"
+  scheduledChangeAt?: Date;       // effective date of the scheduled change
   metadata?: Record<string, string>;
   createdAt: Date;
   updatedAt: Date;
@@ -54,6 +57,8 @@ const SubscriptionSchema = new Schema<ISubscription>(
     priceId: String,
     amount: { type: Number, default: 0 },
     currency: { type: String, default: "USD" },
+    scheduledChangeAction: { type: String },
+    scheduledChangeAt:     { type: Date },
     metadata: { type: Map, of: String },
   },
   { timestamps: true }

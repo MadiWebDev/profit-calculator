@@ -182,7 +182,8 @@ export function SettingsClient({
 
   // ── Billing ───────────────────────────────────────────────────────────────
   const [upgradeInterval, setUpgradeInterval] = useState<BillingInterval>("monthly");
-  const [cancelling, setCancelling] = useState(false);
+  const [cancelling,     setCancelling]     = useState(false);
+  const [portalLoading,  setPortalLoading]  = useState(false);
 
   const {
     openCheckout, loading: checkoutLoading,
@@ -296,6 +297,30 @@ export function SettingsClient({
         setFeedback("err", j.error ?? "Cancellation failed.");
       }
     } finally { setCancelling(false); }
+  };
+
+  const openPortal = async () => {
+    setPortalLoading(true);
+    setError(null);
+    try {
+      const base      = typeof window !== "undefined" ? window.location.origin : "";
+      const returnUrl = `${base}/dashboard/settings`;
+      const res       = await fetch("/api/billing/portal", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ returnUrl }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.url) {
+        throw new Error(json.error ?? "Could not open billing portal.");
+      }
+      window.location.href = json.url;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not open billing portal.";
+      setFeedback("err", msg);
+    } finally {
+      setPortalLoading(false);
+    }
   };
 
   const syncStore = async (storeId: string) => {
@@ -536,7 +561,7 @@ export function SettingsClient({
                     ))}
                   </div>
 
-                  <div className="flex items-center gap-3 pt-2 border-t border-[var(--color-border)]">
+                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[var(--color-border)]">
                     {sub.plan !== "pro" && !sub.cancelAtPeriodEnd && (
                       <Button
                         size="sm" className="gap-2"
@@ -547,6 +572,22 @@ export function SettingsClient({
                         Upgrade
                       </Button>
                     )}
+
+                    {/* Customer Portal — update payment method, view invoices, cancel */}
+                    <Button
+                      variant="outline" size="sm"
+                      onClick={openPortal}
+                      disabled={portalLoading}
+                      className="gap-2"
+                      title="Update payment method, view invoices, and manage your subscription"
+                    >
+                      {portalLoading
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <ExternalLink className="h-3.5 w-3.5" />
+                      }
+                      Billing Portal
+                    </Button>
+
                     {!sub.cancelAtPeriodEnd && (
                       <Button
                         variant="outline" size="sm" onClick={cancelSubscription} disabled={cancelling}
@@ -560,6 +601,14 @@ export function SettingsClient({
                       <p className="text-xs text-[var(--color-muted-foreground)]">
                         Your plan was cancelled. Access ends{" "}
                         {sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : ""}.
+                        {" "}
+                        <button
+                          className="text-[var(--color-primary)] hover:underline"
+                          onClick={openPortal}
+                          disabled={portalLoading}
+                        >
+                          {portalLoading ? "Opening…" : "Manage billing →"}
+                        </button>
                       </p>
                     )}
                   </div>

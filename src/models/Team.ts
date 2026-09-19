@@ -20,6 +20,7 @@ export interface ITeam extends Document {
   plan: "free" | "starter" | "growth" | "pro";
   trialEndsAt?: Date;
   subscriptionId?: string;
+  paddleCustomerId?: string; // Paddle customer ID — set by customer.created webhook
   currency: string;
   timezone: string;
   createdAt: Date;
@@ -46,6 +47,7 @@ const TeamSchema = new Schema<ITeam>(
     plan: { type: String, enum: ["free", "starter", "growth", "pro"], default: "free" },
     trialEndsAt: Date,
     subscriptionId: String,
+    paddleCustomerId: { type: String, index: true, sparse: true },
     currency: { type: String, default: "USD" },
     timezone: { type: String, default: "UTC" },
   },
