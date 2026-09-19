@@ -16,7 +16,7 @@ export const config = {
      * Match all routes except:
      * - _next/static  (static files)
      * - _next/image   (image optimisation)
-     * - favicon.ico
+     * - getprofitcalc.png
      * - public files (ads.txt, images, etc.)
      * - API routes that must remain public (og image, billing webhooks)
      * - Shopify OAuth callback — Shopify redirects back here; the browser
@@ -30,6 +30,6 @@ export const config = {
      * - TikTok Ads OAuth callback — same reason; TikTok redirects the browser
      *   back after OAuth and the session cookie may not be present on the Edge.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|csv)$|api/og|api/billing/webhook|api/stores/shopify/callback|api/stores/etsy/callback|api/ad-accounts/tiktok/callback).*)",
+    "/((?!_next/static|_next/image|getprofitcalc.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|csv)$|api/og|api/billing/webhook|api/stores/shopify/callback|api/stores/etsy/callback|api/ad-accounts/tiktok/callback).*)",
   ],
 };
