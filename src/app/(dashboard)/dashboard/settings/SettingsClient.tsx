@@ -445,7 +445,7 @@ export function SettingsClient({
       )}
 
       {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-[var(--color-border)] pb-5 mb-2 overflow-x-auto">
+      <div className="md:flex grid grid-cols-3 items-center gap-1 border-b border-[var(--color-border)] pb-5 mb-2 overflow-x-auto">
         {tabs.map((t) => (
           <TabButton key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
             {t.label}
