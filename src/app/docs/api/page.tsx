@@ -113,7 +113,7 @@ export default function ApiDocsPage() {
         {/* Authentication */}
         <section className="mb-10">
           <h2 className="text-xl font-bold text-[var(--color-foreground)] flex items-center gap-2 mb-4">
-            <Lock className="h-5 w-5 text-[var(--color-primary)]" /> Authentication
+            <Lock className="h-5 w-5 text-[var(--color-primary)]" /> Authentication 
           </h2>
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 space-y-4">
             <p className="text-sm text-[var(--color-muted-foreground)]">
@@ -148,7 +148,7 @@ export default function ApiDocsPage() {
             <div>
               <p className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-1">Base URL</p>
               <code className="font-mono text-sm bg-[var(--color-muted)] px-3 py-2 rounded-lg block">
-                https://getprofitcalc.com
+                https://www.getprofitcalc.com
               </code>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
