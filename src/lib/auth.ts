@@ -75,7 +75,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Email verification gate — checked AFTER password validation so an
         // attacker can't probe which addresses are registered-but-unverified.
-        if (!user.emailVerified) {
+        // In development, skip the gate so you can log in without email setup.
+        if (!user.emailVerified && process.env.NODE_ENV !== "development") {
           throw new Error("EMAIL_NOT_VERIFIED");
         }
 
