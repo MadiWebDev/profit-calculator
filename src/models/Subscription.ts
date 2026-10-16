@@ -1,0 +1,76 @@
+import mongoose, { Schema, Document, model, models } from "mongoose";
+
+export type BillingGateway = "paddle";
+export type PlanId = "starter" | "growth" | "pro";
+export type BillingInterval = "monthly" | "quarterly" | "semiannual" | "annual";
+export type SubStatus = "trialing" | "active" | "past_due" | "cancelled" | "paused";
+
+export interface ISubscription extends Document {
+  _id: mongoose.Types.ObjectId;
+  teamId: mongoose.Types.ObjectId;
+  gateway: BillingGateway;
+  externalId: string;            // Paddle subscription ID
+  customerId: string;            // Paddle customer ID
+  plan: PlanId;
+  interval: BillingInterval;
+  status: SubStatus;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  cancelledAt?: Date;
+  trialStart?: Date;
+  trialEnd?: Date;
+  priceId: string;
+  amount: number;                // in cents
+  currency: string;
+  // Paddle scheduled_change — set when a cancel/pause is pending
+  scheduledChangeAction?: string; // "cancel" | "pause" | "resume"
+  scheduledChangeAt?: Date;       // effective date of the scheduled change
+  /** Last Paddle event applied to this subscription (out-of-order guard). */
+  lastEventAt?: Date;
+  /** Last dunning email sent (24h cooldown between reminders). */
+  dunningLastSentAt?: Date;
+  /** How many dunning reminders have been sent for the current past_due episode. */
+  dunningCount?: number;
+  metadata?: Record<string, string>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const SubscriptionSchema = new Schema<ISubscription>(
+  {
+    teamId: { type: Schema.Types.ObjectId, ref: "Team", required: true, unique: true },
+    gateway: { type: String, enum: ["paddle"], required: true, default: "paddle" },
+    externalId: { type: String, required: true },
+    customerId: { type: String, required: true },
+    plan: { type: String, enum: ["starter", "growth", "pro"], required: true },
+    interval: {
+      type: String,
+      enum: ["monthly", "quarterly", "semiannual", "annual"],
+      default: "monthly",
+    },
+    status: {
+      type: String,
+      enum: ["trialing", "active", "past_due", "cancelled", "paused"],
+      default: "trialing",
+    },
+    currentPeriodStart: Date,
+    currentPeriodEnd: Date,
+    cancelAtPeriodEnd: { type: Boolean, default: false },
+    cancelledAt: Date,
+    trialStart: Date,
+    trialEnd: Date,
+    priceId: String,
+    amount: { type: Number, default: 0 },
+    currency: { type: String, default: "USD" },
+    scheduledChangeAction: { type: String },
+    scheduledChangeAt:     { type: Date },
+    lastEventAt:           { type: Date },
+    dunningLastSentAt:     { type: Date },
+    dunningCount:          { type: Number, default: 0 },
+    metadata: { type: Map, of: String },
+  },
+  { timestamps: true }
+);
+
+export default models.Subscription || model<ISubscription>("Subscription", SubscriptionSchema);
