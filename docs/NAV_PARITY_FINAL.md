@@ -63,13 +63,15 @@ and needs an explicit user decision (see Manual Steps §4).
   new pages and APIs listed in the build output (see
   `~/workspace/build-parity.log` on the build machine; the log itself
   is not committed).
-- Playwright: new `e2e/parity.spec.ts` added (unauthenticated
-  redirect/401 surface for every new page and API). Browser runs in
-  this VM remain UNVERIFIED for the pre-existing reason: the
-  installed Chromium (1187) does not match `@playwright/test`'s
-  expected build (1248) and the download fails here. Run
-  `npx playwright install chromium && npx playwright test` on a
-  machine with browser downloads.
+- Playwright: VERIFIED 2026-10-26 on retry — `e2e/parity.spec.ts`
+  **32 passed** and `e2e/smoke.spec.ts` **5 passed** against a local
+  dev server in a real browser (Chrome for Testing 156.0.8078.4).
+  Note on the workaround: the Chrome headless-shell download still
+  fails in this VM (connection closes at ~90%), so the run used the
+  already-installed full chromium-1248 binary via a temporary local
+  Playwright config (executablePath, since removed, not committed).
+  On a normal machine, `npx playwright install chromium && npx
+  playwright test` runs the same specs with the stock config.
 
 ## Honest gaps (not hidden)
 
@@ -85,5 +87,6 @@ and needs an explicit user decision (see Manual Steps §4).
    the remaining Phase 5 step before claiming the performance bar.
 4. **Accessibility/mobile:** pages use the existing Card/Input/Button
    primitives, semantic tables, aria labels on loading/error states,
-   and overflow-x tables for mobile; no axe/Lighthouse run was
-   possible in this VM (same browser-download blocker as Playwright).
+   and overflow-x tables for mobile; no axe/Lighthouse run has been
+   done yet (browser execution now works in this VM, but no axe or
+   Lighthouse run was configured or executed).
