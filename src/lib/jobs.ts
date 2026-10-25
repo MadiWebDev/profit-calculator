@@ -22,6 +22,8 @@ import { sendGoalAlertEmail, sendDunningEmail, sendProfitReportEmail } from "@/l
 import { calcDashboardMetrics } from "@/lib/profit-extended";
 import { logger, toLogError } from "@/lib/logger";
 import DailyRollupModel from "@/models/DailyRollup";
+import AlertRuleModel from "@/models/AlertRule";
+import { runAlertRulesForTeam } from "@/lib/alerts-server";
 import { aggregateDayOrders, dayKey } from "@/lib/rollups";
 import SubscriptionModel from "@/models/Subscription";
 import type { CronJobResult } from "@/lib/cron-runner";
@@ -361,6 +363,35 @@ export async function jobRollupDaily(): Promise<CronJobResult> {
   };
 }
 
+/**
+ * Guardrail alerts (advanced alerts slice): for every team with at
+ * least one enabled AlertRule, evaluate the rules over their windows
+ * and create at most one in-app Notification per rule per 24h when a
+ * rule breaches. One bad team never blocks the rest.
+ * Runs via GET /api/cron/alerts (CRON_SECRET).
+ */
+export async function jobGuardrailAlerts(): Promise<CronJobResult> {
+  await connectDB();
+  const teamIds = await AlertRuleModel.distinct("teamId", { enabled: true });
+  let triggered = 0;
+  let notified = 0;
+  let failed = 0;
+  for (const teamId of teamIds) {
+    try {
+      const r = await runAlertRulesForTeam(String(teamId));
+      triggered += r.triggered;
+      notified += r.notified;
+    } catch (e) {
+      failed++;
+      logger.error("guardrail alerts failed for team", toLogError(e), { teamId: String(teamId) });
+    }
+  }
+  return {
+    status: failed > 0 ? "partial" : "succeeded",
+    stats: { teams: teamIds.length, triggered, notified, failed },
+  };
+}
+
 /** Registry of runnable jobs — used by cron routes and the admin UI. */
 export const CRON_JOBS: Record<
   string,
@@ -404,6 +435,11 @@ export const CRON_JOBS: Record<
   "profit-report": {
     run: jobProfitReport,
     description: "Email yesterday's true-profit report to team owners",
+    schedule: "daily",
+  },
+  "guardrail-alerts": {
+    run: jobGuardrailAlerts,
+    description: "Evaluate user guardrail rules and notify on breaches",
     schedule: "daily",
   },
 };
