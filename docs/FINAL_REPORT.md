@@ -1,8 +1,15 @@
 # Final Report — Shopify-only rebuild (Phases 1–9)
 
 **Repo:** https://github.com/MadiWebDev/profit-calculator.git
-**Branch to merge:** `shopify-rebuild` (all phase commits below; remote `main` was never touched — it is the live site)
-**Base:** `58246bb` ("some setup") → 9 phase commits, local `main`
+**Branch to merge:** `shopify-rebuild` — **PUSHED 2026-10-25**, head
+`b1a3200` (remote `main` was never touched — it is the live site).
+Remote history is a squashed snapshot, not the local phase commits:
+branch created at base `58246bb`, one snapshot commit `1e2c841`
+(103 added/modified files, local commits `0cec11d..1de7468`),
+followed by 9 deletion commits for the Phase 1 removed files, so
+the branch content exactly mirrors the local tree. Merging the
+branch into `main` is a clean descendant merge from `58246bb`.
+**Base:** `58246bb` ("some setup") → 10 phase commits, local `main`
 **Date:** 2026-10-25
 
 ## What was built
@@ -162,12 +169,11 @@ not an embedded Shopify app); mock ad mode is dev/test only and
 refused in production.
 
 ## What needs your manual action (in order)
-1. **Push + merge:** this work is committed locally on `main` (9
-   phase commits). Push it to remote branch `shopify-rebuild` and
-   merge it yourself — remote `main` was deliberately never
-   touched (it is the live site). Then run
-   `scripts/migrate-shopify-only.ts` once against production data
-   to archive any legacy stores.
+1. **Merge:** the work is already pushed to remote branch
+   `shopify-rebuild` (head `b1a3200`); merge it yourself — remote
+   `main` was deliberately never touched (it is the live site).
+   Then run `scripts/migrate-shopify-only.ts` once against
+   production data to archive any legacy stores.
 2. **Courier list (question for you):** which couriers do you use?
    Only the generic adapter + CSV fallback exist today. Send the
    list (e.g. TCS, Leopard, M&P, DHL…) and whether you have API
