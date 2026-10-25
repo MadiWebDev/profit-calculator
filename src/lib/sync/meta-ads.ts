@@ -4,11 +4,31 @@
  * Called directly from the OAuth callback via `after()` (replacing the old
  * dead HTTP hop), the manual sync route, and the scheduled cron job.
  *
- * Pulls campaign-level daily insights for the last 30 days from
- * /act_{ad_account_id}/insights with time_increment=1 and upserts into
- * AdSpendDaily. Idempotent: upserts by (adAccountId, date, campaignId).
+ * Pulls campaign-level daily insights from /act_{ad_account_id}/insights
+ * with time_increment=1 and upserts into AdSpendDaily. Idempotent:
+ * upserts by (adAccountId, date, campaignId).
  *
- * When AD_MOCK_MODE=true, deterministic fixture rows are upserted instead.
+ * Hardening (Phase 5, see src/lib/meta-ads-hardening.ts):
+ * - Production guard: AD_MOCK_MODE is refused when NODE_ENV=production
+ *   (mock spend in production would silently fake the P&L).
+ * - Incremental window: a store that already synced re-pulls from
+ *   (lastSyncAt - 3 days) so Meta's delayed-reporting corrections land,
+ *   without re-pulling 30 days of history every run. An explicit
+ *   lookbackDays forces a full re-sync.
+ * - Token refresh: long-lived tokens are exchanged (fb_exchange_token)
+ *   when they expire within 7 days or when Meta returns error 190;
+ *   the new token is encrypted and stored before retrying once.
+ * - Rate limits: 429 / 5xx / Meta rate-limit codes back off
+ *   exponentially (Retry-After honoured, capped at 60s), max 3 retries.
+ * - Timezone: the time_range uses the ad account's timezone calendar
+ *   dates (fetched best-effort from Meta), not UTC dates.
+ * - Currency: rows are stored in the ad account's currency; conversion
+ *   to the store currency happens at attribution time
+ *   (/api/analytics/meta-attribution) with live FX rates, so a rate
+ *   change never rewrites history.
+ *
+ * When AD_MOCK_MODE=true (never in production), deterministic fixture
+ * rows are upserted instead.
  *
  * Meta Marketing API docs:
  * https://developers.facebook.com/docs/marketing-api/insights
@@ -17,7 +37,15 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import AdAccountModel from "@/models/AdAccount";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
-import { safeDecrypt } from "@/lib/encryption";
+import { safeDecrypt, encrypt } from "@/lib/encryption";
+import {
+  resolveSyncWindow,
+  dateInTimezone,
+  shouldRetryMetaError,
+  backoffMs,
+  buildTokenExchangeUrl,
+  parseTokenExchangeResponse,
+} from "@/lib/meta-ads-hardening";
 import { logger, toLogError } from "@/lib/logger";
 import { isAdMockMode, mockSpendRows } from "@/lib/ads/mock";
 
@@ -30,10 +58,13 @@ export interface MetaSyncResult {
   adAccountId: string;
   synced: number;
   pages: number;
+  /** "full" on first/manual sync, "incremental" on repeat runs. */
+  mode: SyncWindowMode;
 }
 
+type SyncWindowMode = "full" | "incremental";
+
 const API_VERSION = "v21.0";
-const DEFAULT_LOOKBACK_DAYS = 30;
 const DEFAULT_MAX_PAGES = 50;
 
 interface MetaInsightRow {
@@ -87,6 +118,50 @@ async function upsertRow(
   );
 }
 
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+interface MetaErrorBody {
+  error?: { message?: string; code?: number; error_subcode?: number };
+}
+
+/** Fetch with exponential backoff on retryable Meta failures. */
+async function metaFetch(url: string, attempt = 0): Promise<{ status: number; json: MetaErrorBody & Record<string, unknown> }> {
+  const res = await fetch(url);
+  const json = (await res.json().catch(() => ({}))) as MetaErrorBody & Record<string, unknown>;
+  if (!res.ok && attempt < 3 && shouldRetryMetaError({ status: res.status, code: json.error?.code })) {
+    const retryAfter = res.headers.get("Retry-After");
+    const retryAfterMs = retryAfter ? Math.min(parseInt(retryAfter, 10) * 1000 || 0, 60000) : 0;
+    await sleep(retryAfterMs || backoffMs(attempt));
+    return metaFetch(url, attempt + 1);
+  }
+  return { status: res.status, json };
+}
+
+/**
+ * Exchange the stored token for a fresh long-lived token and persist
+ * it encrypted. Returns null when the app credentials are missing
+ * (caller keeps using the existing token) — never throws for that case.
+ */
+async function refreshMetaToken(
+  adAccount: { _id: mongoose.Types.ObjectId; accessToken: string | null }
+): Promise<string | null> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  const current = safeDecrypt(adAccount.accessToken);
+  if (!appId || !appSecret || !current) return null;
+  const res = await fetch(buildTokenExchangeUrl(appId, appSecret, current));
+  const json = await res.json().catch(() => ({}));
+  const parsed = parseTokenExchangeResponse(json);
+  await AdAccountModel.findByIdAndUpdate(adAccount._id, {
+    accessToken: encrypt(parsed.accessToken),
+    tokenExpiresAt: parsed.expiresIn
+      ? new Date(Date.now() + parsed.expiresIn * 1000)
+      : undefined,
+  });
+  return parsed.accessToken;
+}
+
 export async function syncMetaAdSpend(
   adAccountId: string,
   teamId: string,
@@ -109,10 +184,15 @@ export async function syncMetaAdSpend(
   });
   if (!adAccount) throw new Error("Ad account not found");
 
+  const window = resolveSyncWindow({
+    lastSyncAt: adAccount.lastSyncAt ?? null,
+    lookbackDays: options.lookbackDays,
+  });
   const result: MetaSyncResult = {
     adAccountId: adAccount._id.toString(),
     synced: 0,
     pages: 0,
+    mode: window.mode,
   };
 
   await AdAccountModel.findByIdAndUpdate(adAccountId, {
@@ -121,6 +201,10 @@ export async function syncMetaAdSpend(
   });
 
   try {
+    // ── Production guard: mock spend must never reach production ────────
+    if (process.env.NODE_ENV === "production" && isAdMockMode()) {
+      throw new Error("AD_MOCK_MODE is not allowed in production");
+    }
     // ── Mock mode: deterministic fixtures, no provider calls ──────────────
     if (isAdMockMode()) {
       for (const row of mockSpendRows(adAccount.accountId)) {
@@ -139,18 +223,41 @@ export async function syncMetaAdSpend(
       return result;
     }
 
-    const accessToken = safeDecrypt(adAccount.accessToken);
+    let accessToken = safeDecrypt(adAccount.accessToken);
     if (!accessToken) throw new Error("Ad account is disconnected (no access token)");
 
-    const endDate = new Date();
-    const startDate = new Date(
-      Date.now() - (options.lookbackDays ?? DEFAULT_LOOKBACK_DAYS) * 864e5
-    );
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    // Proactive refresh when the token expires within 7 days.
+    const expiresSoon =
+      adAccount.tokenExpiresAt && adAccount.tokenExpiresAt.getTime() - Date.now() < 7 * 864e5;
+    if (expiresSoon) {
+      const refreshed = await refreshMetaToken(adAccount).catch(() => null);
+      if (refreshed) accessToken = refreshed;
+    }
+
+    // Ad account timezone, best-effort: one cheap call, cached on the
+    // account so repeat syncs don't pay for it again.
+    let timezone = adAccount.timezone ?? null;
+    if (!timezone) {
+      try {
+        const tzRes = await fetch(
+          `https://graph.facebook.com/${API_VERSION}/act_${adAccount.accountId}?fields=timezone_name&access_token=${encodeURIComponent(accessToken)}`
+        );
+        const tzJson = (await tzRes.json().catch(() => ({}))) as { timezone_name?: string };
+        if (tzJson.timezone_name) {
+          timezone = tzJson.timezone_name;
+          await AdAccountModel.findByIdAndUpdate(adAccount._id, { timezone });
+        }
+      } catch {
+        // Timezone stays null -> UTC dates (documented fallback).
+      }
+    }
 
     const params = new URLSearchParams({
       fields: "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values",
-      time_range: JSON.stringify({ since: fmt(startDate), until: fmt(endDate) }),
+      time_range: JSON.stringify({
+        since: dateInTimezone(window.startDate, timezone),
+        until: dateInTimezone(window.endDate, timezone),
+      }),
       time_increment: "1",
       limit: "100",
       access_token: accessToken,
@@ -160,19 +267,33 @@ export async function syncMetaAdSpend(
 
     const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
     let pages = 0;
+    let tokenRefreshedOnce = false;
 
     while (url && pages < maxPages) {
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`Meta insights API HTTP ${res.status}`);
-      }
-      const json = (await res.json()) as {
+      const { status, json: raw } = await metaFetch(url);
+      const json = raw as {
         data?: MetaInsightRow[];
         paging?: { next?: string };
         error?: { message?: string; code?: number };
       };
       if (json.error) {
+        // Expired token (190): refresh once and restart the sync from
+        // page one. Any other error is fatal for this run.
+        if (json.error.code === 190 && !tokenRefreshedOnce) {
+          const refreshed = await refreshMetaToken(adAccount).catch(() => null);
+          if (refreshed) {
+            tokenRefreshedOnce = true;
+            accessToken = refreshed;
+            const retryParams = new URLSearchParams(params);
+            retryParams.set("access_token", accessToken);
+            url = `https://graph.facebook.com/${API_VERSION}/act_${adAccount.accountId}/insights?${retryParams.toString()}`;
+            continue;
+          }
+        }
         throw new Error(`Meta insights API error: ${json.error.message ?? "unknown"}`);
+      }
+      if (status >= 400) {
+        throw new Error(`Meta insights API HTTP ${status}`);
       }
 
       pages++;

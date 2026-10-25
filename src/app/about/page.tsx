@@ -77,7 +77,7 @@ export default function AboutPage() {
           </div>
           <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-2">Profit-Tracking Dashboard</h3>
           <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed mb-4">
-            A subscription SaaS dashboard that connects to your Shopify, WooCommerce, or Etsy store and
+            A subscription SaaS dashboard that connects to your Shopify store and
             automatically tracks order-level profit, COGS, ad spend, and AI-powered insights — in real time.
             Plans start at <strong className="text-[var(--color-foreground)]">$3 / month</strong> with a
             7-day free trial, no credit card required.

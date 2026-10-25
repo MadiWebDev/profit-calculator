@@ -4,6 +4,9 @@ import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import StoreModel from "@/models/Store";
 import ProfitGoalModel from "@/models/ProfitGoal";
+import ProductModel from "@/models/Product";
+import AdAccountModel from "@/models/AdAccount";
+import CourierModel from "@/models/Courier";
 import { calcPeriodSummary } from "@/lib/profit-engine";
 import { OverviewClient } from "./OverviewClient";
 import mongoose from "mongoose";
@@ -57,6 +60,9 @@ async function getOverviewData(
     periodOrderCount,
     priorPeriodOrderCount,
     activeGoal,
+    productsWithCogs,
+    activeAdAccounts,
+    couriersOrShipments,
   ] = await Promise.all([
 
     // ── Current-period orders (non-cancelled only — for financial metrics) ──
@@ -207,6 +213,11 @@ async function getOverviewData(
       .select("month targetProfit targetRevenue currentProfit currentRevenue progressPercent")
       .lean()
       .catch(() => null),
+
+    // ── Onboarding checklist signals (Phase 7) ──────────────────────────
+    ProductModel.countDocuments({ teamId, cogs: { $gt: 0 } }),
+    AdAccountModel.countDocuments({ teamId, isActive: true }),
+    CourierModel.countDocuments({ teamId }),
   ]);
 
   // ── Build filled daily chart data ─────────────────────────────────────────
@@ -380,6 +391,9 @@ async function getOverviewData(
     })(),
     goalProgress,
     hasOrders: totalOrderCount > 0,
+    hasCogs: productsWithCogs > 0,
+    hasAds: activeAdAccounts > 0,
+    hasCouriers: couriersOrShipments > 0,
     dateRange: { from: isoDate(from), to: isoDate(to), label: dateLabel },
   };
 }

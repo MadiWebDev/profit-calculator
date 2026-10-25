@@ -29,37 +29,37 @@ beforeEach(() => {
 
 describe("oauth-state CSRF nonce", () => {
   it("round-trips: issue → encode → verify returns the payload", async () => {
-    const nonce = await issueOAuthNonce("etsy_oauth_nonce");
+    const nonce = await issueOAuthNonce("shopify_oauth_nonce");
     const state = encodeOAuthState({ teamId: "abc123" }, nonce);
-    const decoded = await verifyOAuthState<{ teamId: string }>("etsy_oauth_nonce", state);
+    const decoded = await verifyOAuthState<{ teamId: string }>("shopify_oauth_nonce", state);
     expect(decoded?.teamId).toBe("abc123");
   });
 
   it("rejects a state whose nonce does not match the cookie", async () => {
-    await issueOAuthNonce("etsy_oauth_nonce");
+    await issueOAuthNonce("shopify_oauth_nonce");
     const state = encodeOAuthState({ teamId: "abc123" }, "attacker-nonce");
-    const decoded = await verifyOAuthState("etsy_oauth_nonce", state);
+    const decoded = await verifyOAuthState("shopify_oauth_nonce", state);
     expect(decoded).toBeNull();
   });
 
   it("rejects when the cookie is missing entirely", async () => {
     const state = encodeOAuthState({ teamId: "abc123" }, "some-nonce");
-    const decoded = await verifyOAuthState("etsy_oauth_nonce", state);
+    const decoded = await verifyOAuthState("shopify_oauth_nonce", state);
     expect(decoded).toBeNull();
   });
 
   it("rejects malformed state", async () => {
-    await issueOAuthNonce("etsy_oauth_nonce");
-    expect(await verifyOAuthState("etsy_oauth_nonce", "not-base64!!")).toBeNull();
-    expect(await verifyOAuthState("etsy_oauth_nonce", null)).toBeNull();
+    await issueOAuthNonce("shopify_oauth_nonce");
+    expect(await verifyOAuthState("shopify_oauth_nonce", "not-base64!!")).toBeNull();
+    expect(await verifyOAuthState("shopify_oauth_nonce", null)).toBeNull();
   });
 
   it("is single-use: the cookie is deleted after verification", async () => {
-    const nonce = await issueOAuthNonce("etsy_oauth_nonce");
+    const nonce = await issueOAuthNonce("shopify_oauth_nonce");
     const state = encodeOAuthState({ teamId: "abc123" }, nonce);
-    expect(await verifyOAuthState("etsy_oauth_nonce", state)).not.toBeNull();
+    expect(await verifyOAuthState("shopify_oauth_nonce", state)).not.toBeNull();
     // Second use fails — replaying the state is rejected
-    expect(await verifyOAuthState("etsy_oauth_nonce", state)).toBeNull();
+    expect(await verifyOAuthState("shopify_oauth_nonce", state)).toBeNull();
   });
 
   it("issues unique nonces", async () => {

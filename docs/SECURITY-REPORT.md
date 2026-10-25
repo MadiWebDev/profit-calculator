@@ -1,3 +1,7 @@
+# Note (2026-10-25): this historical report was edited to remove references
+# to store platforms removed in Phase 1 (Shopify-only). The findings about
+# the remaining platforms are unchanged.
+
 # Phase 4 Security Report — GetProfitCalc
 
 Date: 2026-10-16. Covers the security-hardening pass over authentication,
@@ -6,27 +10,26 @@ API authorization, OAuth, sync pipelines, secrets handling, and headers.
 ## Findings fixed
 
 ### F1 — Unauthenticated internal HTTP sync hops (critical)
-`POST /api/stores/shopify/sync` (Phase 1), `/api/stores/etsy/sync`,
-`/api/stores/woocommerce/sync`, `/api/ad-accounts/tiktok/sync` accepted a
-**client-supplied `teamId`** with no session. The Shopify/Etsy OAuth
+`POST /api/stores/shopify/sync` (Phase 1) and `/api/ad-accounts/tiktok/sync` accepted a
+**client-supplied `teamId`** with no session. The Shopify OAuth
 callbacks and the `[storeId]/sync` dispatcher triggered them via
 unauthenticated `fetch()`.
 
 **Fix:** sync logic extracted into server-side libs
-(`src/lib/sync/shopify.ts`, `etsy.ts`, `woocommerce.ts`, `tiktok-ads.ts`).
+(`src/lib/sync/shopify.ts`, `tiktok-ads.ts`).
 Callbacks/dispatcher now call the libs directly via `after()` — no HTTP hop.
 Manual sync routes require a session (`requireAuth` + `write:data`
 permission), validate `storeId` with Zod, and scope the store to the
 caller's team. Client `teamId` is ignored everywhere.
 
 ### F2 — OAuth login-CSRF (high)
-Etsy/Meta/TikTok `state` params carried only the teamId (or an unverified
+Meta/TikTok `state` params carried only the teamId (or an unverified
 random nonce) with no server-side binding — an attacker could trick a victim
 into completing the attacker's OAuth flow against the victim's team.
 
 **Fix:** `src/lib/oauth-state.ts` — one-time nonce in an HttpOnly cookie,
 embedded in `state`, verified and deleted (single-use) by the callback.
-Applied to Etsy (PKCE retained), Meta, and TikTok.
+Applied to Meta and TikTok.
 
 ### F3 — Dead Meta spend-sync hop (medium)
 Meta callback fire-and-forget `fetch()`ed `/api/ad-accounts/meta/sync`,
@@ -111,7 +114,7 @@ jspdf v4 ships its own types; removed the v1-era `@types/jspdf`.
   **100 passed**.
 - ESLint on touched files: **0 errors** (3 pre-existing unused-var warnings
   on auth pages, unrelated).
-- New tests: `sync-mappers.test.ts` (Etsy/Woo status mapping incl.
+- New tests: `sync-mappers.test.ts` (status mapping incl.
   zero-divisor money), `oauth-state.test.ts` (round-trip, tamper, missing
   cookie, replay/single-use, uniqueness), `password.test.ts` (policy
   boundaries, HIBP hit/miss/fail-open with mocked fetch, k-anonymity
@@ -122,7 +125,7 @@ jspdf v4 ships its own types; removed the v1-era `@types/jspdf`.
 - **`npm audit` could not run** — the sandbox npm registry proxy denies the
   audit endpoint (403 `policy_denied`). Run `npm audit` / `npm audit fix`
   on a normal network before release.
-- **Live OAuth round-trips** (Shopify/Etsy/Meta/TikTok) not exercised —
+- **Live OAuth round-trips** (Shopify/Meta/TikTok) not exercised —
   needs provider apps + tunnel. The nonce cookie flow is unit-tested.
 - **Redis Lua path** not exercised against real Upstash (no credentials in
   this environment); in-memory fallback is what the tests cover.

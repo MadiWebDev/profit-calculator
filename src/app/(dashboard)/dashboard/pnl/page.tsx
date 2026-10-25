@@ -25,13 +25,17 @@ async function getPnlData(teamId: string, from: Date, to: Date) {
   ]);
 
   // ── Income Statement ──────────────────────────────────────────────────────
+  // Core money contract (profit-engine.ts): grossRevenue is already net
+  // of discounts and already includes shipping charged, so discounts and
+  // shippingRevenue are memos here — subtracting them again would
+  // double-count. Taxes are pass-through and never reduce profit.
   const grossRevenue    = orders.reduce((s, o) => s + o.grossRevenue, 0);
   const discounts       = orders.reduce((s, o) => s + o.discounts, 0);
   const refunds         = orders.reduce((s, o) => s + o.refundAmount, 0);
   const chargebacks     = orders.reduce((s, o) => s + o.chargebackAmount, 0);
-  const netRevenue      = grossRevenue - discounts - refunds - chargebacks;
+  const netRevenue      = grossRevenue - refunds - chargebacks;
   const shippingRevenue = orders.reduce((s, o) => s + o.shippingRevenue, 0);
-  const totalRevenue    = netRevenue + shippingRevenue;
+  const totalRevenue    = netRevenue;
 
   const cogs            = orders.reduce((s, o) => s + o.totalCogs, 0);
   const grossProfit     = totalRevenue - cogs;
@@ -47,7 +51,9 @@ async function getPnlData(teamId: string, from: Date, to: Date) {
   const operatingMargin   = totalRevenue > 0 ? (operatingProfit / totalRevenue) * 100 : 0;
 
   const taxes             = orders.reduce((s, o) => s + o.taxes, 0);
-  const netProfit         = operatingProfit - taxes;
+  // Taxes collected are pass-through to the government, not a cost:
+  // net profit equals operating profit. Taxes are still shown as a memo.
+  const netProfit         = operatingProfit;
   const netMargin         = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
   // Monthly breakdown for chart
@@ -55,7 +61,7 @@ async function getPnlData(teamId: string, from: Date, to: Date) {
   for (const o of orders) {
     const key = o.orderDate.toISOString().slice(0, 7);
     const cur = monthlyMap.get(key) ?? { revenue: 0, cogs: 0, opex: 0, netProfit: 0 };
-    const rev = o.grossRevenue - o.discounts - o.refundAmount - o.chargebackAmount + o.shippingRevenue;
+    const rev = o.grossRevenue - o.refundAmount - o.chargebackAmount;
     cur.revenue  += rev;
     cur.cogs     += o.totalCogs;
     cur.opex     += o.transactionFees + o.shippingCost + o.adSpendAllocated;

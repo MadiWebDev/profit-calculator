@@ -46,7 +46,6 @@ public issues for security reports.
   (INCR + conditional EXPIRE + TTL); in-process map is the fallback.
 - Same-origin CSRF check on cookie-authenticated mutations.
 - OAuth `state` uses a one-time HttpOnly-cookie nonce (login-CSRF protection);
-  Etsy additionally uses PKCE.
 
 ## Secrets & data protection
 

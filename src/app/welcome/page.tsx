@@ -50,7 +50,7 @@ export default function WelcomePage() {
           aria-label="Next steps"
         >
           {[
-            "Connect your Shopify, WooCommerce, or Etsy store",
+            "Connect your Shopify store",
             "Import your products and set COGS",
             "Link your ad platforms to track ROI",
             "Explore your real-time profit dashboard",

@@ -11,7 +11,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Features — AI Profit Tracking for Ecommerce & Ads",
   description:
-    "GetProfitCalc features: AI profit insights, multi-platform support (Shopify, WooCommerce, Etsy), what-if simulator, ad creative ROI, goal tracking, tax estimates, and more.",
+    "GetProfitCalc features: AI profit insights, Shopify-only support, what-if simulator, ad creative ROI, goal tracking, tax estimates, and more.",
   path: "/features",
 });
 
@@ -32,11 +32,11 @@ const FEATURES = [
     icon: Globe,
     title: "Multi-Platform Store Support",
     badge: "All Plans",
-    desc: "Most profit trackers are Shopify-only. GetProfitCalc supports Shopify, WooCommerce, and Etsy via native OAuth integrations — plus CSV import for any platform with no native integration yet.",
+    desc: "GetProfitCalc is Shopify-only by design: native Shopify OAuth plus CSV import for any platform with no native integration yet.",
     points: [
       "Shopify: OAuth connection, automatic order sync",
-      "WooCommerce: REST API key connection",
-      "Etsy: OAuth connection for shop orders",
+      "CSV import: historical orders",
+      "Shopify webhooks: real-time order updates",
       "CSV import: works with any platform — Amazon, BigCommerce, Ecwid, manual",
     ],
   },

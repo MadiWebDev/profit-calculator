@@ -6,7 +6,7 @@ export interface IWebhookEvent extends Document {
   _id: mongoose.Types.ObjectId;
   /** Provider's event id (Paddle `event_id`) — unique, used for dedup. */
   eventId: string;
-  source: "paddle";
+  source: "paddle" | "shopify";
   eventType: string;
   occurredAt?: Date;
   status: WebhookEventStatus;
@@ -21,7 +21,7 @@ export interface IWebhookEvent extends Document {
 const WebhookEventSchema = new Schema<IWebhookEvent>(
   {
     eventId:    { type: String, required: true, unique: true },
-    source:     { type: String, enum: ["paddle"], required: true, default: "paddle" },
+    source:     { type: String, enum: ["paddle", "shopify"], required: true, default: "paddle" },
     eventType:  { type: String, required: true, index: true },
     occurredAt: Date,
     status: {

@@ -14,9 +14,7 @@ Auth legend: **S** = session (`requireAuth`, team-scoped) · **K** = API key
 | `/api/stores/[storeId]` | GET, PATCH, DELETE | |
 | `/api/stores/[storeId]/sync` | POST | manual order sync |
 | `/api/stores/shopify/{auth,callback,sync}` | GET | OAuth + sync |
-| `/api/stores/etsy/{auth,callback,sync}` | GET | OAuth + sync |
-| `/api/stores/woocommerce/{sync,validate}` | POST/GET | token sync |
-| `/api/webhooks/shopify/[topic]` | POST | W: HMAC-verified topic fan-in |
+| `/api/webhooks/shopify/[topic]` | POST | W: HMAC-verified topic fan-in, deduped by webhook id; topics: GDPR + app/uninstalled + orders + refunds + fulfillments + products |
 
 ## Ad platforms (S unless noted)
 

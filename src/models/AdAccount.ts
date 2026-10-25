@@ -10,6 +10,7 @@ export interface IAdAccount extends Document {
   accountId: string;
   accountName: string;
   currency: string;
+  timezone?: string; // Meta ad account timezone (timezone_name), best-effort
   accessToken: string | null;   // AES-encrypted; null when disconnected
   refreshToken?: string | null; // AES-encrypted
   tokenExpiresAt?: Date;
@@ -33,6 +34,7 @@ const AdAccountSchema = new Schema<IAdAccount>(
     accountId: { type: String, required: true },
     accountName: String,
     currency: { type: String, default: "USD" },
+    timezone: String,
     accessToken: { type: String, default: null },
     refreshToken: String,
     tokenExpiresAt: Date,

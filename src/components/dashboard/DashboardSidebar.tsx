@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard, ShoppingCart, Package, Megaphone,
-  Sliders, Target, FileText, Settings, LogOut,
+  Sliders, Target, FileText, Settings, LogOut, TrendingUp, AlertTriangle, Truck, Bell,
   Calculator, ChevronRight, Users, Zap, Key, ClipboardList,
   Crown, Clock,
 } from "lucide-react";
@@ -27,6 +27,10 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/orders",    label: "Orders",       icon: ShoppingCart },
   { href: "/dashboard/products",  label: "Products",     icon: Package },
   { href: "/dashboard/pnl",       label: "P&L Report",   icon: FileText },
+  { href: "/dashboard/profit",    label: "True Profit",  icon: TrendingUp },
+  { href: "/dashboard/risk",      label: "Risk Review",  icon: AlertTriangle },
+  { href: "/dashboard/couriers",  label: "Couriers",     icon: Truck },
+  { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
   { href: "/dashboard/ad-spend",  label: "Ad Spend",     icon: Megaphone },
   { href: "/dashboard/ltv",       label: "LTV & Cohort", icon: Users },
   { href: "/dashboard/bundles",   label: "Bundles",      icon: Zap },

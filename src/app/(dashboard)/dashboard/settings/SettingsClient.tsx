@@ -24,7 +24,7 @@ import { usePaddlePricing } from "@/hooks/usePaddlePricing";
 // inside the component via useMemo instead.
 
 const platformIcon: Record<string, string> = {
-  shopify: "🛍️", woocommerce: "🔧", etsy: "🧶", csv_manual: "📄",
+  shopify: "🛍️", csv_manual: "📄",
 };
 
 const PLAN_FEATURES: Record<string, string[]> = {
@@ -152,7 +152,7 @@ export function SettingsClient({
 
   // ── Ad accounts state ─────────────────────────────────────────────────────
 
-  const [syncingAdAccount, setSyncingAdAccount] = useState<string | null>(null);
+  const [adSyncActive, updateAdSyncActive] = useState<string | null>(null);
   const [adAccountSuccess, setAdAccountSuccess] = useState<string | null>(null);
 
   // ── Global feedback ───────────────────────────────────────────────────────
@@ -240,7 +240,7 @@ export function SettingsClient({
   };
 
   // ── Store state ───────────────────────────────────────────────────────────
-  const [syncingStore, setSyncingStore] = useState<string | null>(null);
+  const [storeSyncActive, updateStoreSyncActive] = useState<string | null>(null);
 
   // ── Profile state ─────────────────────────────────────────────────────────
   const [displayName,   setDisplayName]   = useState(data.user.name);
@@ -361,9 +361,9 @@ export function SettingsClient({
   };
 
   const syncStore = async (storeId: string) => {
-    setSyncingStore(storeId);
+    updateStoreSyncActive(storeId);
     try { await fetch(`/api/stores/${storeId}/sync`, { method: "POST" }); router.refresh(); }
-    finally { setSyncingStore(null); }
+    finally { updateStoreSyncActive(null); }
   };
 
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
@@ -385,7 +385,7 @@ export function SettingsClient({
   const connectingTikTok = connectingPlatform === "tiktok";
 
   const syncAdAccount = async (adAccountId: string) => {
-    setSyncingAdAccount(adAccountId);
+    updateAdSyncActive(adAccountId);
     try {
       await fetch("/api/ad-accounts/sync", {
         method: "POST",
@@ -393,7 +393,7 @@ export function SettingsClient({
         body: JSON.stringify({ adAccountId }),
       });
       router.refresh();
-    } finally { setSyncingAdAccount(null); }
+    } finally { updateAdSyncActive(null); }
   };
 
   const testSlack = async () => {
@@ -824,7 +824,7 @@ export function SettingsClient({
                   <div>
                     <p className="text-sm font-medium text-[var(--color-foreground)]">No stores connected</p>
                     <p className="text-xs text-[var(--color-muted-foreground)]">
-                      Connect a Shopify, WooCommerce, or Etsy store to start syncing orders.
+                      Connect a Shopify store to start syncing orders.
                     </p>
                   </div>
                   <Button size="sm" onClick={() => router.push("/onboarding")} className="gap-2">
@@ -864,10 +864,10 @@ export function SettingsClient({
                         <Button
                           variant="ghost" size="sm" className="h-8 w-8 p-0"
                           onClick={() => syncStore(store.id)}
-                          disabled={syncingStore === store.id || store.syncStatus === "syncing"}
+                          disabled={storeSyncActive === store.id || store.syncStatus === "syncing"}
                           title="Sync now"
                         >
-                          <RefreshCw className={cn("h-3.5 w-3.5", syncingStore === store.id && "animate-spin")} />
+                          <RefreshCw className={cn("h-3.5 w-3.5", storeSyncActive === store.id && "animate-spin")} />
                         </Button>
                       </div>
                     </div>
@@ -943,10 +943,10 @@ export function SettingsClient({
                         <Button
                           variant="ghost" size="sm" className="h-8 w-8 p-0"
                           onClick={() => syncAdAccount(acc.id)}
-                          disabled={syncingAdAccount === acc.id || acc.syncStatus === "syncing"}
+                          disabled={adSyncActive === acc.id || acc.syncStatus === "syncing"}
                           title="Sync now"
                         >
-                          <RefreshCw className={cn("h-3.5 w-3.5", syncingAdAccount === acc.id && "animate-spin")} />
+                          <RefreshCw className={cn("h-3.5 w-3.5", adSyncActive === acc.id && "animate-spin")} />
                         </Button>
                       </div>
                     </div>
@@ -1020,10 +1020,10 @@ export function SettingsClient({
                           <Button
                             variant="ghost" size="sm" className="h-8 w-8 p-0"
                             onClick={() => syncAdAccount(acc.id)}
-                            disabled={syncingAdAccount === acc.id || acc.syncStatus === "syncing"}
+                            disabled={adSyncActive === acc.id || acc.syncStatus === "syncing"}
                             title="Sync now"
                           >
-                            <RefreshCw className={cn("h-3.5 w-3.5", syncingAdAccount === acc.id && "animate-spin")} />
+                            <RefreshCw className={cn("h-3.5 w-3.5", adSyncActive === acc.id && "animate-spin")} />
                           </Button>
                         </div>
                       </div>

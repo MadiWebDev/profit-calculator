@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Store, Upload, ShoppingBag, Globe, Package,
+  Upload, ShoppingBag,
   CheckCircle2, ArrowRight, ArrowLeft, Loader2,
   Calculator, AlertCircle,
 } from "lucide-react";
@@ -13,13 +13,21 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
-type Step = "choose" | "shopify" | "woocommerce" | "etsy" | "csv" | "done";
+type Step = "choose" | "shopify" | "csv" | "done";
+
+/** Onboarding checklist (Phase 1, Shopify-only): connect store, import
+ * data, set costs, connect ads, connect couriers. */
+const ONBOARDING_CHECKLIST = [
+  "1. Connect your Shopify store",
+  "2. Import your historical orders",
+  "3. Set product costs (COGS)",
+  "4. Connect your ad accounts",
+  "5. Connect your couriers",
+];
 
 const PLATFORMS = [
   { id: "shopify",     label: "Shopify",     icon: ShoppingBag, desc: "Connect via OAuth — orders sync automatically" },
-  { id: "woocommerce", label: "WooCommerce", icon: Globe,       desc: "Paste your API keys and site URL" },
-  { id: "etsy",        label: "Etsy",        icon: Package,     desc: "Connect via OAuth — orders sync automatically" },
-  { id: "csv",         label: "CSV Upload",  icon: Upload,      desc: "Upload a CSV export from any platform" },
+  { id: "csv",         label: "CSV Upload",  icon: Upload,      desc: "Upload a CSV export from your Shopify store" },
 ];
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -53,13 +61,6 @@ function OnboardingInner() {
   // Shopify
   const [shopDomain, setShopDomain] = useState("");
 
-  // WooCommerce
-  const [wooUrl,       setWooUrl]       = useState("");
-  const [wooKey,       setWooKey]       = useState("");
-  const [wooSecret,    setWooSecret]    = useState("");
-  const [storeName,    setStoreName]    = useState("");
-  const [wooValidated, setWooValidated] = useState(false);
-  const [wooValidating, setWooValidating] = useState(false);
 
   // CSV
   const [csvFile,    setCsvFile]    = useState<File | null>(null);
@@ -155,99 +156,6 @@ function OnboardingInner() {
     }
   };
 
-  /** Step 1 — ping the WC REST API to confirm credentials work */
-  const validateWoo = async () => {
-    if (!wooUrl || !wooKey || !wooSecret) {
-      setError("All three fields are required before testing the connection.");
-      return;
-    }
-    setWooValidating(true);
-    setError(null);
-    try {
-      const res  = await fetch("/api/stores/woocommerce/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteUrl: wooUrl, consumerKey: wooKey, consumerSecret: wooSecret }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "Connection test failed.");
-        setWooValidated(false);
-        return;
-      }
-      // Auto-fill store name from the API response when the user hasn't typed one
-      if (!storeName && json.storeName) setStoreName(json.storeName);
-      setWooValidated(true);
-    } catch {
-      setError("Network error — please check your connection and try again.");
-      setWooValidated(false);
-    } finally {
-      setWooValidating(false);
-    }
-  };
-
-  /** Step 2 — save the validated credentials to the database */
-  const connectWoo = async () => {
-    if (!wooUrl || !wooKey || !wooSecret) {
-      setError("All WooCommerce fields are required.");
-      return;
-    }
-    let hostname = "";
-    try { hostname = new URL(wooUrl).hostname; } catch {
-      setError("Enter a valid WordPress site URL (e.g. https://yourstore.com).");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/stores", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platform:     "woocommerce",
-          name:         storeName || hostname,
-          wooSiteUrl:   wooUrl,
-          accessToken:  wooKey,
-          refreshToken: wooSecret,
-          domain:       hostname,
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json();
-        setError(j.error ?? "Failed to connect WooCommerce store.");
-        return;
-      }
-      // Fire-and-forget initial sync
-      const { id: storeId } = await res.json().catch(() => ({}));
-      if (storeId) {
-        fetch(`/api/stores/${storeId}/sync`, { method: "POST" }).catch(() => null);
-      }
-      setStep("done");
-    } catch {
-      setError("Network error — please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const connectEtsy = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res  = await fetch("/api/stores/etsy/auth", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "Failed to start Etsy connection.");
-        return;
-      }
-      if (json.oauthUrl) window.location.href = json.oauthUrl;
-    } catch {
-      setError("Network error — please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const importCSV = async () => {
     if (!csvFile)              { setError("Select a CSV file to upload.");  return; }
     if (!csvStoreName.trim())  { setError("Enter a store name.");           return; }
@@ -277,8 +185,6 @@ function OnboardingInner() {
   const stepTitle: Record<Step, string> = {
     choose:      "Connect your first store",
     shopify:     "Connect Shopify",
-    woocommerce: "Connect WooCommerce",
-    etsy:        "Connect Etsy",
     csv:         "Import via CSV",
     done:        "You're all set! 🎉",
   };
@@ -299,7 +205,7 @@ function OnboardingInner() {
           </h1>
           {step === "choose" && (
             <p className="text-[var(--color-muted-foreground)] mt-1 text-sm">
-              Pick your platform or upload a CSV — takes less than 2 minutes.
+              Connect Shopify or upload a CSV — takes less than 2 minutes.
             </p>
           )}
           {step === "done" && (
@@ -392,128 +298,7 @@ function OnboardingInner() {
             </div>
           )}
 
-          {/* ── WooCommerce ── */}
-          {step === "woocommerce" && (
-            <div className="space-y-4">
-              <p className="text-sm text-[var(--color-muted-foreground)]">
-                Generate API keys in{" "}
-                <strong>WooCommerce → Settings → Advanced → REST API</strong>.
-                Set permissions to <em>Read/Write</em>.
-              </p>
 
-              {/* Instructions callout */}
-              <div className="flex items-start gap-3 rounded-lg bg-[var(--color-accent)] border border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-muted-foreground)]">
-                <Globe className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
-                <span>
-                  Make sure <strong>Pretty Permalinks</strong> are enabled in{" "}
-                  <strong>WordPress Settings → Permalinks</strong> — this is required for the REST API to work.
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="woo-url">WordPress Site URL</Label>
-                <Input
-                  id="woo-url"
-                  placeholder="https://yourstore.com"
-                  value={wooUrl}
-                  onChange={(e) => { setWooUrl(e.target.value); setWooValidated(false); setError(null); }}
-                  autoFocus
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="woo-key">Consumer Key</Label>
-                  <Input
-                    id="woo-key"
-                    placeholder="ck_xxxxxxxxxxxxxxxx"
-                    value={wooKey}
-                    onChange={(e) => { setWooKey(e.target.value); setWooValidated(false); setError(null); }}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="woo-secret">Consumer Secret</Label>
-                  <Input
-                    id="woo-secret"
-                    type="password"
-                    placeholder="cs_xxxxxxxxxxxxxxxx"
-                    value={wooSecret}
-                    onChange={(e) => { setWooSecret(e.target.value); setWooValidated(false); setError(null); }}
-                  />
-                </div>
-              </div>
-
-              {/* Store name — shown after successful validation */}
-              <div className="space-y-1.5">
-                <Label htmlFor="store-name">Store Name <span className="text-[var(--color-muted-foreground)] font-normal">(optional)</span></Label>
-                <Input
-                  id="store-name"
-                  placeholder="Auto-filled after testing connection"
-                  value={storeName}
-                  onChange={(e) => setStoreName(e.target.value)}
-                />
-              </div>
-
-              {/* Validated success banner */}
-              {wooValidated && (
-                <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
-                  <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-                  Connection verified — your API keys are working.
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                {/* Test connection first */}
-                {!wooValidated && (
-                  <Button
-                    variant="outline"
-                    onClick={validateWoo}
-                    disabled={wooValidating || !wooUrl || !wooKey || !wooSecret}
-                    className="gap-2 flex-1"
-                  >
-                    {wooValidating
-                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Testing…</>
-                      : "Test Connection"}
-                  </Button>
-                )}
-
-                {/* Save — enabled only after validation */}
-                <Button
-                  onClick={connectWoo}
-                  disabled={loading || !wooValidated}
-                  className="gap-2 flex-1"
-                >
-                  {loading
-                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Connecting…</>
-                    : <><Store className="h-4 w-4" /> Connect WooCommerce</>}
-                </Button>
-
-                <Button variant="outline" onClick={() => { setStep("choose"); setError(null); setWooValidated(false); }}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Etsy ── */}
-          {step === "etsy" && (
-            <div className="space-y-5">
-              <p className="text-sm text-[var(--color-muted-foreground)]">
-                We&apos;ll redirect you to Etsy to authorise access to your shop orders.
-                No data is shared without your permission.
-              </p>
-              <div className="flex gap-3">
-                <Button onClick={connectEtsy} disabled={loading} className="gap-2 flex-1">
-                  {loading
-                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Redirecting to Etsy…</>
-                    : <><ArrowRight className="h-4 w-4" /> Connect via Etsy OAuth</>}
-                </Button>
-                <Button variant="outline" onClick={() => { setStep("choose"); setError(null); }}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
 
           {/* ── CSV ── */}
           {step === "csv" && (
@@ -587,6 +372,15 @@ function OnboardingInner() {
                   </p>
                 </div>
               )}
+
+              <div className="rounded-lg bg-[var(--color-muted)] p-4 text-left text-sm">
+                <p className="font-semibold text-[var(--color-foreground)] mb-2">Next steps</p>
+                <ul className="space-y-1 text-[var(--color-muted-foreground)]">
+                  {ONBOARDING_CHECKLIST.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
 
               <div className="space-y-3">
                 <Button className="w-full gap-2" onClick={() => router.push("/dashboard")}>

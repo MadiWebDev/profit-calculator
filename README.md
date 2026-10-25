@@ -25,9 +25,41 @@ Track true net profit across orders, products, and ad spend — with AI-powered 
 
 GetProfitCalc helps e-commerce store owners understand whether they're actually making money. Most merchants know their revenue — few know their net profit after COGS, shipping, platform fees, ad spend, refunds, and chargebacks are accounted for. GetProfitCalc closes that gap.
 
-Merchants connect their Shopify or Etsy store (or import via CSV), set product COGS, and get a full income-statement-style breakdown in real time. Ad spend from Meta, Google, TikTok, Pinterest, and Snapchat is synced and attributed at the order level so ROAS is calculated against true profit, not just revenue.
+Merchants connect their Shopify store (or import via CSV), set product COGS, and get a full income-statement-style breakdown in real time. Ad spend from Meta, Google, TikTok, Pinterest, and Snapchat is synced and attributed at the order level so ROAS is calculated against true profit, not just revenue.
 
 ---
+
+## Shopify-only rebuild (Phases 1–9, 2026-10-25)
+
+This app is now Shopify-only. The rebuild (see `docs/FINAL_REPORT.md`
+for the full report, `docs/AUDIT.md` for the baseline audit and
+`docs/DECISIONS.md` for rationale) added, in phases:
+
+- **True profit engine** — packaging, COD fees, subscription share,
+  RTO loss and expense allocation on top of COGS, shipping, fees,
+  refunds and ad spend; multi-currency with FX at order time;
+  dashboard metrics (ROAS, MER, break-even ROAS, CAC, LTV, return /
+  RTO rates, COD collected vs pending); `/dashboard/profit`.
+- **Fake-order detection** — explainable 0–100 risk scores, review
+  queue, hashed tenant blocklist, merchant-feedback weight learning,
+  money-saved metric; `/dashboard/risk`.
+- **Meta ads hardening** — token refresh, rate-limit retries,
+  account-timezone dates, last-3-days repull, UTM-only per-campaign
+  true profit + break-even ROAS; `/api/analytics/meta-attribution`.
+- **Courier module** — generic tracking adapter + CSV import,
+  per-courier / per-city / per-region metrics, best-courier ranking
+  (20-shipment minimum sample), switching profit impact, stuck /
+  settlement alerts, profit write-back to linked orders;
+  `/dashboard/couriers`.
+- **Order notifications** — WhatsApp (Meta Cloud API) + email
+  (Resend) per order event, with a COD tracking-ID rule and
+  send-dedup; `/dashboard/notifications`.
+- **Daily profit rollups** — pre-computed cache via the
+  `rollup-daily` cron job; live orders remain the source of truth.
+
+Run the one-time legacy archive after deploying this branch:
+`npx tsx scripts/migrate-shopify-only.ts`. Run deploy-time indexes:
+`npx tsx scripts/ensure-indexes.ts`.
 
 ## Features
 
@@ -129,7 +161,7 @@ src/
 │   ├── api/
 │   │   ├── auth/                 # [...nextauth], register, forgot/reset-password
 │   │   ├── billing/              # checkout, cancel, webhook
-│   │   ├── stores/               # CRUD + Shopify & Etsy OAuth
+│   │   ├── stores/               # CRUD + Shopify OAuth
 │   │   ├── orders/               # CSV import
 │   │   ├── products/ + cogs/     # COGS management
 │   │   ├── goals/
@@ -249,9 +281,6 @@ OPENAI_MODEL=gpt-4o-mini              # or gpt-4o, gpt-3.5-turbo
 # ── E-commerce Integrations ───────────────────────────────────────────────────
 SHOPIFY_CLIENT_ID=
 SHOPIFY_CLIENT_SECRET=
-ETSY_CLIENT_ID=
-ETSY_CLIENT_SECRET=
-ETSY_REDIRECT_URI=http://localhost:3000/api/stores/etsy/callback
 
 # ── Ad Platform Integrations ──────────────────────────────────────────────────
 META_APP_ID=
@@ -331,6 +360,14 @@ All dashboard API routes require a valid NextAuth session. Key endpoints:
 | `POST` | `/api/billing/webhook` | HMAC-verified billing event handler |
 | `POST` | `/api/team/invite` | Invite a team member by email |
 | `GET`/`POST`/`DELETE` | `/api/keys` | Manage scoped API keys (owner only) |
+| `GET` | `/api/analytics/profit` | True-profit metrics, deltas, daily series, winners/losers (`?format=csv` for export) |
+| `GET` | `/api/analytics/meta-attribution` | UTM-only per-campaign true profit, break-even ROAS, alerts |
+| `GET` | `/api/risk/review` / `/api/risk/stats` | Risk review queue and precision / money-saved stats |
+| `POST` | `/api/risk/review` | Merchant verdict (fake / genuine) with feedback learning |
+| `GET`/`POST` | `/api/couriers` | Courier CRUD (API keys encrypted, never returned) |
+| `POST` | `/api/couriers/import-csv` | Shipment/tracking CSV import |
+| `GET` | `/api/couriers/metrics` / `/api/couriers/recommend` / `/api/couriers/alerts` | Courier performance, best-courier ranking, alerts |
+| `GET`/`POST` | `/api/notify-rules` | Order notification rules per event |
 
 ### Public REST API (Pro plan)
 
@@ -358,7 +395,7 @@ GetProfitCalc verifies webhook signatures to prevent replay attacks (timestamps 
 - **Passwords** — bcrypt hashed (never stored in plain text).
 - **OAuth tokens** — AES-256 encrypted at rest before writing to MongoDB. Decrypted only on the server when needed for API calls.
 - **API keys** — SHA-256 hashed on creation. The plaintext key is returned only once; only the hash and a short prefix are stored.
-- **CSRF** — CSRF tokens required on all mutating requests.
+- **CSRF** — Same-origin session-cookie model via NextAuth (httpOnly, SameSite cookies); mutating routes require a session and a team permission.
 - **Rate limiting** — Sliding-window rate limiter on all API routes (100 req/min by default). Distributed mode via Upstash Redis.
 - **Webhook verification** — HMAC-SHA256 with replay attack prevention on all billing webhooks.
 - **Session isolation** — All data queries are scoped to `teamId` from the authenticated session. No cross-tenant data leakage by design.
@@ -388,6 +425,8 @@ npm run dev       # Start development server (Next.js)
 npm run build     # Production build
 npm start         # Start production server
 npm run lint      # ESLint
+npm test          # Vitest unit + integration tests
+npx playwright test  # Smoke tests (needs a dev server on :3000; browsers via `npx playwright install chromium`)
 ```
 
 ---

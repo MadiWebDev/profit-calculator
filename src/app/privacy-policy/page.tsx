@@ -51,7 +51,7 @@ export default function PrivacyPolicyPage() {
           </p>
           <ul className="list-disc list-inside space-y-1.5 ml-2 mb-3">
             <li>Email address and name (provided during registration)</li>
-            <li>Store connection credentials (Shopify, WooCommerce, or Etsy OAuth tokens — stored encrypted)</li>
+            <li>Store connection credentials (Shopify OAuth tokens — stored encrypted)</li>
             <li>Order and sales data synced from your connected store(s)</li>
             <li>COGS, ad spend, and other financial inputs you manually enter</li>
             <li>Billing information (handled entirely by Paddle — see section 5; we never see your full card number)</li>

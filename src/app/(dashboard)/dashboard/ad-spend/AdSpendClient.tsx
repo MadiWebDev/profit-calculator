@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -23,6 +23,15 @@ interface PlatformRow {
 interface CampaignRow {
   _id: { platform: string; campaignId: string; campaignName: string };
   spend: number; revenue: number; conversions: number; profitAttributed: number;
+}
+
+interface MetaCampaign {
+  campaignId: string; spend: number; attributedRevenue: number;
+  attributedOrders: number; profit: number; roas: number; breakEvenRoas: number;
+}
+interface MetaAlert { type: string; campaignId: string; message: string; severity: string }
+interface MetaAttribution {
+  campaigns: MetaCampaign[]; unattributedSpend: number; alerts: MetaAlert[];
 }
 
 interface AdData {
@@ -71,6 +80,17 @@ export function AdSpendClient({ data }: { data: AdData }) {
   const { currency } = useCurrency();
 
   const adjustedPlatforms = useMemo(() => applyAttribution(byPlatform, attribution), [byPlatform, attribution]);
+
+  // Phase 5: true per-campaign Meta profit (UTM-attributed, break-even
+  // ROAS, alerts). Loaded client-side; a failure only hides this
+  // section, never the rest of the page.
+  const [metaAttr, setMetaAttr] = useState<MetaAttribution | null>(null);
+  useEffect(() => {
+    fetch("/api/analytics/meta-attribution")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j && setMetaAttr(j))
+      .catch(() => undefined);
+  }, []);
 
   const hasData = byPlatform.length > 0;
 
@@ -239,6 +259,50 @@ export function AdSpendClient({ data }: { data: AdData }) {
               </CardContent>
             </Card>
           </div>
+
+          {/* Phase 5: Meta true profit (UTM-attributed, not Meta-reported) */}
+          {metaAttr && metaAttr.campaigns.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Meta True Profit per Campaign</CardTitle>
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  Spend attributed to orders by UTM only. Profit = attributed revenue − COGS − fees − spend.
+                  Unattributed spend: {formatCurrency(metaAttr.unattributedSpend, currency)}.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {metaAttr.alerts.map((a, i) => (
+                  <p key={i} className={cn("text-xs rounded-lg px-3 py-2", a.severity === "critical" ? "bg-red-500/10 text-red-600" : "bg-yellow-500/10 text-yellow-700")}>
+                    {a.message}
+                  </p>
+                ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[var(--color-muted)] border-b border-[var(--color-border)]">
+                      <tr>
+                        {["Campaign", "Spend", "Attributed revenue", "Orders", "True profit", "ROAS", "Break-even ROAS"].map((h) => (
+                          <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-muted-foreground)]">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-border)]">
+                      {metaAttr.campaigns.map((c) => (
+                        <tr key={c.campaignId} className="hover:bg-[var(--color-muted)]/30">
+                          <td className="px-4 py-2.5 max-w-[200px] truncate font-medium">{c.campaignId}</td>
+                          <td className="px-4 py-2.5">{formatCurrency(c.spend, currency)}</td>
+                          <td className="px-4 py-2.5">{formatCurrency(c.attributedRevenue, currency)}</td>
+                          <td className="px-4 py-2.5">{c.attributedOrders}</td>
+                          <td className={cn("px-4 py-2.5 font-semibold", c.profit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>{formatCurrency(c.profit, currency)}</td>
+                          <td className="px-4 py-2.5">{c.roas.toFixed(2)}x</td>
+                          <td className="px-4 py-2.5">{c.breakEvenRoas.toFixed(2)}x</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Campaign breakdown */}
           {byCampaign.length > 0 && (

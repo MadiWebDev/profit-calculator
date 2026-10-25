@@ -8,11 +8,11 @@
  * where an attacker tricks a victim into completing the attacker's OAuth flow.
  *
  * Usage (auth route):
- *   const nonce = await issueOAuthNonce("etsy_oauth_nonce");
+ *   const nonce = await issueOAuthNonce("shopify_oauth_nonce");
  *   const state = encodeOAuthState({ teamId }, nonce);
  *
  * Usage (callback route):
- *   const data = await verifyOAuthState<{ teamId: string }>("etsy_oauth_nonce", state);
+ *   const data = await verifyOAuthState<{ teamId: string }>("shopify_oauth_nonce", state);
  *   if (!data) return redirect("/onboarding?error=csrf_mismatch");
  */
 import { cookies } from "next/headers";

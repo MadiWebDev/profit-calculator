@@ -11,10 +11,9 @@ import { logger, toLogError } from "@/lib/logger";
 
 const CreateStoreSchema = z
   .object({
-    platform: z.enum(["shopify", "woocommerce", "etsy", "csv_manual"]),
+    platform: z.enum(["shopify", "csv_manual"]),
     name: z.string().trim().min(1).max(120),
     domain: z.string().trim().max(255).optional(),
-    wooSiteUrl: z.string().trim().url().max(255).optional(),
     accessToken: z.string().max(2048).optional(),
     refreshToken: z.string().max(2048).optional(),
   })
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
 
   const parsed = await parseBody(req, CreateStoreSchema);
   if ("response" in parsed) return parsed.response;
-  const { platform, name, domain, wooSiteUrl, accessToken, refreshToken } = parsed.data;
+  const { platform, name, domain, accessToken, refreshToken } = parsed.data;
 
   // Plan limit: connected stores
   const ent = await checkEntitlement(session.teamId, "stores.connect");
@@ -60,7 +59,6 @@ export async function POST(req: Request) {
       name,
       platform,
       domain,
-      wooSiteUrl,
       accessToken: accessToken ? encrypt(accessToken) : undefined,
       refreshToken: refreshToken ? encrypt(refreshToken) : undefined,
       syncStatus: "never",

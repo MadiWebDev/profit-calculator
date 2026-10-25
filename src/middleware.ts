@@ -24,7 +24,6 @@ export const config = {
      *   middleware running before the route handler can sometimes fail to
      *   read the cookie on the Edge when the redirect has no cookie header.
      *   We validate the session inside the route handler instead.
-     * - Etsy OAuth callback — same reason as Shopify above; Etsy redirects
      *   the browser back after OAuth and the session cookie may not be
      *   forwarded through the Edge middleware on the initial redirect hop.
      * - TikTok Ads OAuth callback — same reason; TikTok redirects the browser
@@ -32,6 +31,6 @@ export const config = {
      * - Shopify webhooks — verified by HMAC-SHA256 of the raw body inside the
      *   route handler (never by session cookie).
      */
-    "/((?!_next/static|_next/image|getprofitcalc.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|csv)$|api/og|api/billing/webhook|api/webhooks/shopify|api/stores/shopify/callback|api/stores/etsy/callback|api/ad-accounts/tiktok/callback).*)",
+    "/((?!_next/static|_next/image|getprofitcalc.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|csv)$|api/og|api/billing/webhook|api/webhooks/shopify|api/stores/shopify/callback|api/ad-accounts/tiktok/callback).*)",
   ],
 };
