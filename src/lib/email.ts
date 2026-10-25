@@ -106,6 +106,54 @@ export async function sendProfitReportEmail(
   });
 }
 
+/**
+ * Scheduled report delivery: period summary email with a real
+ * attachment — CSV text for csv reports, or a generated PDF for pdf
+ * reports (jsPDF, server-side). Attachment content is built from the
+ * same totals the email body shows, so body and file cannot diverge.
+ */
+export async function sendScheduledReportEmail(
+  to: string,
+  periodLabel: string,
+  metrics: { revenue: number; netProfit: number; netMargin: number; orderCount: number; aov: number },
+  format: "csv" | "pdf",
+) {
+  const f = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const csv = [
+    "metric,value",
+    `revenue,${metrics.revenue}`,
+    `netProfit,${metrics.netProfit}`,
+    `netMargin,${metrics.netMargin}`,
+    `orders,${metrics.orderCount}`,
+    `aov,${metrics.aov}`,
+  ].join("\n");
+  let attachment: { filename: string; content: string } | null = null;
+  if (format === "csv") {
+    attachment = { filename: `profit-report-${periodLabel}.csv`, content: Buffer.from(csv, "utf8").toString("base64") };
+  } else {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("GetProfitCalc — Profit Report", 14, 20);
+    doc.setFontSize(11);
+    doc.text(`Period: ${periodLabel}`, 14, 30);
+    doc.text(`Revenue: ${f(metrics.revenue)}`, 14, 42);
+    doc.text(`Net profit: ${f(metrics.netProfit)}`, 14, 52);
+    doc.text(`Net margin: ${metrics.netMargin}%`, 14, 62);
+    doc.text(`Orders: ${metrics.orderCount}`, 14, 72);
+    doc.text(`AOV: ${f(metrics.aov)}`, 14, 82);
+    const pdf = doc.output("arraybuffer");
+    attachment = { filename: `profit-report-${periodLabel}.pdf`, content: Buffer.from(pdf).toString("base64") };
+  }
+  return sendEmail({
+    from: FROM,
+    to,
+    subject: `Profit report (${periodLabel}): ${f(metrics.netProfit)} net profit`,
+    html: `<p>Profit report for ${periodLabel}: revenue ${f(metrics.revenue)}, net profit ${f(metrics.netProfit)} (${metrics.netMargin}%), ${metrics.orderCount} orders, AOV ${f(metrics.aov)}. Full numbers are in the attached ${format.toUpperCase()}.</p>`,
+    attachments: attachment ? [attachment] : undefined,
+  });
+}
+
 export async function sendTeamInviteEmail(
   to: string,
   inviterName: string,
