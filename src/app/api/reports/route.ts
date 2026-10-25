@@ -8,6 +8,7 @@ import OrderModel from "@/models/Order";
 import ProductModel from "@/models/Product";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
 import { calcTaxSetAside } from "@/lib/profit-engine";
+import { neutralizeCsvCell } from "@/lib/csv-injection";
 import { normalizeReportOrders } from "@/lib/reporting";
 
 const ReportsQuerySchema = z
@@ -19,7 +20,9 @@ const ReportsQuerySchema = z
   .strict();
 
 function toCSV(rows: string[][]): string {
-  return rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  // S3/R7: neutralize formula cells before quoting, so a merchant/order
+  // value starting with =, +, - or @ cannot execute in Excel/Sheets.
+  return rows.map((r) => r.map((c) => `"${neutralizeCsvCell(c).replace(/"/g, '""')}"`).join(",")).join("\n");
 }
 
 export async function GET(req: NextRequest) {

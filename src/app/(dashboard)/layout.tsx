@@ -12,6 +12,11 @@ import { TrialBanner } from "@/components/billing/TrialBanner";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/auth/login");
+  // S1: a session that has not completed 2FA cannot render any dashboard
+  // page — send it to the verify step instead (API routes enforce this too).
+  if ((session.user as { twoFactorPending?: boolean }).twoFactorPending) {
+    redirect("/auth/2fa-verify");
+  }
 
   const user = session.user as {
     name?: string | null;

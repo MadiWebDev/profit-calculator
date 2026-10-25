@@ -15,6 +15,7 @@ import { connectDB } from "@/lib/db";
 import CogsRuleModel from "@/models/CogsRule";
 import mongoose from "mongoose";
 import { logger } from "@/lib/logger";
+import { getIdempotentResponse, storeIdempotentResponse } from "@/lib/idempotency";
 
 // ─── Auth helper ────────────────────────────────────────────────────────────
 // API key → scope → subscription → plan entitlement (Pro feature).
@@ -91,6 +92,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { session, err } = await auth(req);
   if (err) return err;
+
+  // F1.10 idempotency: same Idempotency-Key + team replays the stored
+  // response instead of creating a second history entry.
+  const idemKey = req.headers.get("Idempotency-Key")?.slice(0, 128);
+  if (idemKey) {
+    const cached = await getIdempotentResponse(session!.teamId, idemKey);
+    if (cached) return NextResponse.json(cached.body, { status: cached.status });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -182,15 +191,14 @@ export async function POST(req: NextRequest) {
       { upsert: true, new: true }
     );
 
-    return NextResponse.json(
-      {
-        id:   rule._id.toString(),
-        cogs,
-        productId,
-        variantId: variantId ?? null,
-      },
-      { status: 201 }
-    );
+    const body = {
+      id:   rule._id.toString(),
+      cogs,
+      productId,
+      variantId: variantId ?? null,
+    };
+    if (idemKey) await storeIdempotentResponse(session!.teamId, idemKey, 201, body);
+    return NextResponse.json(body, { status: 201 });
   } catch (e) {
     logger.error("[v1/cogs POST]", e);
     return NextResponse.json({ error: "Failed to save COGS rule" }, { status: 500 });

@@ -8,6 +8,15 @@ export interface IApiKey extends Document {
   keyHash: string;       // SHA-256 hash of the key
   keyPrefix: string;     // first 8 chars for display (e.g. "pc_live_a1b2")
   scopes: ("read:orders" | "read:products" | "read:reports" | "write:cogs")[];
+  /** "read" keys can never mutate, even if a write scope is listed. */
+  accessLevel: "read" | "write";
+  /** CIDR / IP allowlist; empty = any IP (logged as a warning on create). */
+  ipAllowlist: string[];
+  /** Rotation reminder: days before expiry to warn the owner. */
+  rotationReminderDays: number;
+  lastUsedIpTruncated?: string;
+  /** Anomaly tracking: count of uses in the last hour (reset by job). */
+  recentUseCount: number;
   lastUsedAt?: Date;
   usageCount: number;
   expiresAt?: Date;
@@ -23,6 +32,11 @@ const ApiKeySchema = new Schema<IApiKey>(
     keyHash:   { type: String, required: true, unique: true },
     keyPrefix: { type: String, required: true },
     scopes:    [{ type: String, enum: ["read:orders", "read:products", "read:reports", "write:cogs"] }],
+    accessLevel: { type: String, enum: ["read", "write"], default: "read" },
+    ipAllowlist: [{ type: String }],
+    rotationReminderDays: { type: Number, default: 7 },
+    lastUsedIpTruncated: String,
+    recentUseCount: { type: Number, default: 0 },
     lastUsedAt:  Date,
     usageCount:  { type: Number, default: 0 },
     expiresAt:   Date,

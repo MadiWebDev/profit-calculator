@@ -53,7 +53,13 @@ export async function requireAuth(
 
   const user = session.user as {
     id?: string; teamId?: string; plan?: string; role?: string; teamRole?: TeamRole; email?: string;
+    twoFactorPending?: boolean;
   };
+  // S1: a session that has not completed 2FA cannot call any API route
+  // (the 2FA verify route itself uses auth() directly, not requireAuth).
+  if (user.twoFactorPending) {
+    return NextResponse.json({ error: "Two-factor verification required", code: "TWO_FACTOR_REQUIRED" }, { status: 403 });
+  }
   if (!user.teamId || !user.id) {
     return NextResponse.json({ error: "Incomplete session — complete onboarding" }, { status: 403 });
   }

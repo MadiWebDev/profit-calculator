@@ -18,6 +18,10 @@ const CreateKeySchema = z
     scopes: z.array(z.enum(API_KEY_SCOPES)).min(1).max(4).default(["read:orders", "read:reports"]),
     // Expiry in days, 1–365. Omitted = no expiry (discouraged in UI).
     expiresInDays: z.number().int().min(1).max(365).optional(),
+    // S1.5: IP allowlist, read/write split, rotation reminder window.
+    ipAllowlist: z.array(z.string().max(45)).max(20).optional().default([]),
+    accessLevel: z.enum(["read", "write"]).optional().default("read"),
+    rotationReminderDays: z.number().int().min(1).max(90).optional().default(7),
   })
   .strict();
 
@@ -62,7 +66,9 @@ export async function POST(req: Request) {
 
   const parsed = await parseBody(req, CreateKeySchema);
   if ("response" in parsed) return parsed.response;
-  const { name, scopes, expiresInDays } = parsed.data;
+  const { name, scopes, expiresInDays, ipAllowlist, accessLevel, rotationReminderDays } = parsed.data;
+  // Read-only keys can never carry a write scope, even if requested.
+  const effectiveScopes = accessLevel === "read" ? scopes.filter((s) => s !== "write:cogs") : scopes;
 
   await connectDB();
 
@@ -82,7 +88,10 @@ export async function POST(req: Request) {
     name,
     keyHash,
     keyPrefix: prefix,
-    scopes,
+    scopes: effectiveScopes,
+    accessLevel,
+    ipAllowlist,
+    rotationReminderDays,
     expiresAt: expiresInDays ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000) : undefined,
   });
 
@@ -101,7 +110,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json(
-    { id: apiKey._id.toString(), name, key: rawKey, prefix, scopes },
+    { id: apiKey._id.toString(), name, key: rawKey, prefix, scopes: effectiveScopes, accessLevel, ipAllowlist },
     { status: 201 }
   );
 }

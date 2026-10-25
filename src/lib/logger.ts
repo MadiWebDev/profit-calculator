@@ -48,8 +48,16 @@ const REDACTED = "[REDACTED]";
 export function redact(value: unknown, seen = new WeakSet()): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value === "string") {
-    // Redact long hex/base64-looking strings that smell like secrets
-    return value;
+    // S2/R11: redact secret-shaped values even in free text (not just
+    // under sensitive key names). ObjectIds (24 hex) and short tokens
+    // are left alone; 64+ hex, sk-/pk_ keys, bearer tokens, and
+    // provider token prefixes are not.
+    return value
+      .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [REDACTED]")
+      .replace(/\b(sk_live|sk_test|pk_live|pk_test)_[A-Za-z0-9]{8,}\b/g, "[REDACTED]")
+      .replace(/\b(ghp|gho|github_pat)_[A-Za-z0-9_]{16,}\b/g, "[REDACTED]")
+      .replace(/\bxox[baprs]-[A-Za-z0-9-]{8,}\b/g, "[REDACTED]")
+      .replace(/\b[0-9a-fA-F]{64}\b/g, "[REDACTED]");
   }
   if (value instanceof Error) {
     return {
