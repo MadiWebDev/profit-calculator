@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, model, models } from "mongoose";
 
-export type StorePlatform = "shopify" | "woocommerce" | "etsy" | "csv_manual";
+export type StorePlatform = "shopify" | "csv_manual";
 
 export interface IStore extends Document {
   _id: mongoose.Types.ObjectId;
@@ -15,10 +15,11 @@ export interface IStore extends Document {
   refreshToken?: string | null;
   tokenExpiresAt?: Date;
   shopifyShopId?: string;
-  wooSiteUrl?: string;
-  etsyShopId?: string;
   // Sync state
   lastSyncAt?: Date;
+  syncPages?: number;
+  syncSyncedCount?: number;
+  syncStartedAt?: Date;
   syncStatus: "idle" | "syncing" | "error" | "never" | "disconnected";
   syncError?: string;
   ordersCount: number;
@@ -33,7 +34,7 @@ const StoreSchema = new Schema<IStore>(
     name: { type: String, required: true, trim: true },
     platform: {
       type: String,
-      enum: ["shopify", "woocommerce", "etsy", "csv_manual"],
+      enum: ["shopify", "csv_manual"],
       required: true,
     },
     domain: String,
@@ -43,9 +44,10 @@ const StoreSchema = new Schema<IStore>(
     refreshToken: String,  // AES-encrypted before write
     tokenExpiresAt: Date,
     shopifyShopId: String,
-    wooSiteUrl: String,
-    etsyShopId: String,
     lastSyncAt: Date,
+    syncPages: Number,
+    syncSyncedCount: Number,
+    syncStartedAt: Date,
     syncStatus: {
       type: String,
       enum: ["idle", "syncing", "error", "never", "disconnected"],

@@ -9,8 +9,7 @@
  * OrderCosts field semantics (all providers normalized to this):
  * - grossRevenue:    TAX-EXCLUSIVE total charged to the customer =
  *                    merchandise after discounts + shipping charged.
- *                    (Shopify total_price − total_tax, Etsy grandtotal − taxes,
- *                    WooCommerce total − total_tax.)
+ *                    (Shopify total_price − total_tax.)
  * - discounts:       INFORMATIONAL memo — discount amount granted. It is
  *                    ALREADY reflected in grossRevenue; never subtract it again.
  * - shippingRevenue: INFORMATIONAL memo — shipping portion already included
@@ -68,6 +67,10 @@ export interface SimulatorInput {
   quantity: number;
   refundRatePercent: number;
   taxRatePercent?: number;
+  /** Phase 3: packaging + handling cost per unit (default 0). */
+  packagingCost?: number;
+  /** Phase 3: expected RTO rate %; each RTO loses shipping + packaging. */
+  rtoRatePercent?: number;
 }
 
 export interface AdSpendInput {
@@ -337,6 +340,8 @@ export function calcSimulator(input: SimulatorInput): SimulatorResult {
   const sellingPrice      = toMoney(input.sellingPrice);
   const cogs              = toMoney(input.cogs);
   const shippingCost      = toMoney(input.shippingCost);
+  const packagingCost     = toMoney(input.packagingCost ?? 0);
+  const rtoRatePercent    = Math.min(100, Math.max(0, toMoney(input.rtoRatePercent ?? 0)));
   const adSpendPerUnit    = toMoney(input.adSpendPerUnit);
   const quantity          = Math.max(0, Math.floor(toMoney(input.quantity)));
   // Clamp refund rate to [0, 100) — at 100% break-even is unreachable and
@@ -350,12 +355,16 @@ export function calcSimulator(input: SimulatorInput): SimulatorResult {
     input.transactionFeeFixed
   );
   const refundCostPerUnit = (refundRatePercent / 100) * sellingPrice;
+  // Expected RTO loss per unit: RTO rate x (shipping + packaging lost).
+  const rtoCostPerUnit = (rtoRatePercent / 100) * (shippingCost + packagingCost);
   const effectiveCostPerUnit =
     cogs +
     shippingCost +
+    packagingCost +
     fees +
     adSpendPerUnit +
-    refundCostPerUnit;
+    refundCostPerUnit +
+    rtoCostPerUnit;
 
   const profitPerUnit = sellingPrice - effectiveCostPerUnit;
   const profitMargin = sellingPrice > 0
@@ -369,7 +378,7 @@ export function calcSimulator(input: SimulatorInput): SimulatorResult {
   const totalFees = fees * quantity;
 
   // Break-even: units where the contribution margin covers total ad spend
-  const fixedCostPerUnit = cogs + shippingCost + fees;
+  const fixedCostPerUnit = cogs + shippingCost + packagingCost + fees;
   const marginContrib = sellingPrice - fixedCostPerUnit;
   const breakEvenUnits = marginContrib > 0
     ? Math.ceil((adSpendPerUnit * quantity) / marginContrib)

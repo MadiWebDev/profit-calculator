@@ -13,7 +13,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
  * TikTok Marketing API OAuth docs:
  *  https://business-api.tiktok.com/portal/docs?id=1738373164380162
  *
- * Unlike Etsy (PKCE), TikTok uses a classic authorization_code flow
+ * Unlike the PKCE-based flows, TikTok uses a classic authorization_code flow
  * with app_id + secret. We embed teamId in the state param so the
  * callback can recover it without a session.
  */

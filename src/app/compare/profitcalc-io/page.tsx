@@ -28,8 +28,8 @@ const ROWS: CompRow[] = [
 
   // Integrations
   { category: "Integrations", feature: "Shopify",                     us: true,               them: true },
-  { category: "Integrations", feature: "WooCommerce",                 us: true,               them: false },
-  { category: "Integrations", feature: "Etsy",                        us: true,               them: false },
+  { category: "Integrations", feature: "CSV import",                 us: true,               them: false },
+  { category: "Integrations", feature: "Shopify webhooks",                        us: true,               them: false },
   { category: "Integrations", feature: "CSV import (any platform)",   us: true,               them: false },
   { category: "Integrations", feature: "Meta Ads",                    us: true,               them: true },
   { category: "Integrations", feature: "Google Ads",                  us: true,               them: true },
@@ -142,7 +142,7 @@ export default function ComparePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {[
               { title: "Price shock",         body: "TrueProfit starts at $39. BeProfit at $25. GetProfitCalc starts at $3. For 90% of small sellers, you'll pay 90% less." },
-              { title: "WooCommerce support", body: "Most profit trackers are Shopify-only. If you run WooCommerce or Etsy, you're left out. GetProfitCalc connects to all three." },
+              { title: "CSV import support", body: "Most profit trackers stop at a dashboard. GetProfitCalc adds CSV import, live webhooks and courier analytics in one place." },
               { title: "AI insights",         body: "No competitor at this price point offers AI analysis. We use GPT-4 to proactively explain profit changes in plain English." },
               { title: "No credit card trial",body: "Most tools require Shopify billing or a credit card to start a trial. We don't — just your email." },
             ].map(({ title, body }) => (

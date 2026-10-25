@@ -35,8 +35,8 @@ const comparisonRows: {
   { feature: "Starting price",              us: "$3/month",   them: "$39/month" },
   { feature: "Free trial (no credit card)", us: true,         them: false },
   { feature: "Shopify integration",         us: true,         them: true },
-  { feature: "WooCommerce integration",     us: true,         them: false },
-  { feature: "Etsy integration",            us: true,         them: false },
+  { feature: "Shopify-only integration",     us: true,         them: false },
+  { feature: "CSV import",            us: true,         them: false },
   { feature: "CSV import (any platform)",   us: true,         them: false },
   { feature: "AI profit insights",          us: true,         them: false },
   { feature: "What-if simulator",           us: true,         them: false },
@@ -49,7 +49,7 @@ const comparisonRows: {
 
 const features = [
   { icon: Sparkles,   title: "AI Profit Insights",       desc: "GPT-4 reads your data and tells you exactly why your margin dropped and what to fix. No other profit tracker has this." },
-  { icon: BarChart2,  title: "Multi-Platform Tracking",  desc: "Shopify, WooCommerce, Etsy, or any platform via CSV. Not locked to one ecosystem." },
+  { icon: BarChart2,  title: "Shopify Profit Tracking",  desc: "Your Shopify store, plus CSV import for historical data. Built for one ecosystem, done properly." },
   { icon: TrendingUp, title: "What-If Simulator",        desc: "Drag a slider to simulate a price increase, COGS change, or ad spend cut — see projected profit before you commit." },
   { icon: ShoppingBag,title: "Ad Creative Profitability",desc: "See which specific ad creative is actually profitable after COGS, not just which has the best ROAS." },
   { icon: Package,    title: "Tax Set-Aside Estimator",  desc: "Rough quarterly tax estimate based on net profit. Stop being surprised at tax time." },
@@ -61,14 +61,14 @@ const features = [
 const testimonials = [
   { name: "Sarah K.", role: "Shopify Store Owner", avatar: "SK", text: "Finally a calculator that includes Shopify fees AND ad spend. I discovered my 'profitable' product was losing me $3 per sale.", stars: 5 },
   { name: "Marcus T.", role: "Dropshipping Entrepreneur", avatar: "MT", text: "The monthly profit projector is a game-changer. Scaled from 50 to 400 orders/month using the break-even price as my floor.", stars: 5 },
-  { name: "Priya M.", role: "WooCommerce Seller", avatar: "PM", text: "The AI insights feature caught a 18% margin drop before I even noticed. Turned out my supplier raised prices and I didn't re-check COGS.", stars: 5 },
+  { name: "Priya M.", role: "Shopify Seller", avatar: "PM", text: "The AI insights feature caught a 18% margin drop before I even noticed. Turned out my supplier raised prices and I didn't re-check COGS.", stars: 5 },
 ];
 
 const faqs = [
   { q: "Are the calculators really free?", a: "Yes — every calculator on GetProfitCalc is completely free, forever. No account needed, no limits, no credit card." },
   { q: "What's the difference between the free calculators and the SaaS platform?", a: "The free calculators are one-off tools you use manually. The SaaS platform connects to your actual store and automatically tracks every order's real profit in real time, with AI insights, goal tracking, and reports." },
   { q: "Do I need a credit card to start the 7-day trial?", a: "No. Sign up with just your email. No credit card is required until you choose to upgrade after your trial ends." },
-  { q: "Which platforms does the profit tracker support?", a: "Shopify (OAuth), WooCommerce (API keys), Etsy (OAuth), and any other platform via CSV import. More native integrations are being added regularly." },
+  { q: "Which platforms does the profit tracker support?", a: "Shopify (OAuth), plus CSV import for historical orders. More native integrations are being added regularly." },
   { q: "How does AI Insights work?", a: "We send your aggregated profit data (no personal customer info) to OpenAI's GPT-4, which generates 3 proactive insights about your business. Available on Growth and Pro plans." },
   { q: "Can I import historical orders?", a: "Yes. Use our CSV import on any plan to upload historical order data. We provide a template with all the columns we expect." },
 ];
@@ -253,7 +253,7 @@ export default function HomePage() {
               </div>
               <p className="text-xs text-[var(--color-muted-foreground)] mb-4">Perfect for side-hustlers and early-stage stores.</p>
               <ul className="space-y-2 mb-6 flex-1">
-                {["100 orders/month", "1 store", "Shopify / WooCommerce / Etsy", "CSV import", "Order-level profit", "What-if simulator", "Profit goal tracking", "2 team members"].map((f) => (
+                {["100 orders/month", "1 store", "Shopify", "CSV import", "Order-level profit", "What-if simulator", "Profit goal tracking", "2 team members"].map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
                     <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
                     {f}

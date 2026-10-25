@@ -255,7 +255,7 @@ describe("getUsage", () => {
     const team = await makeTeam();
     await seedOrders(team._id, 3);
     await StoreModel.create({ teamId: team._id, name: "S1", platform: "shopify", isActive: true });
-    await StoreModel.create({ teamId: team._id, name: "S2", platform: "etsy", isActive: false });
+    await StoreModel.create({ teamId: team._id, name: "S2", platform: "csv_manual", isActive: false });
 
     const usage = await getUsage(team._id.toString());
     expect(usage.ordersThisMonth).toBe(3);

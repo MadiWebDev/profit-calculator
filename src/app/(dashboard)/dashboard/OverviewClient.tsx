@@ -106,6 +106,9 @@ interface OverviewData {
   stores: StoreInfo[];
   goalProgress: GoalProgress | null;
   hasOrders: boolean;
+  hasCogs?: boolean;
+  hasAds?: boolean;
+  hasCouriers?: boolean;
   totalOrdersInPeriod: number;
   dateRange?: { from: string; to: string; label: string };
   /** Most common store currency — aggregates are summed in this currency */
@@ -115,7 +118,7 @@ interface OverviewData {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PLATFORM_ICON: Record<string, string> = {
-  shopify: "🛍️", woocommerce: "🔧", etsy: "🧶", csv_manual: "📄",
+  shopify: "🛍️", csv_manual: "📄",
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -237,17 +240,20 @@ function DateRangePicker({ from, to, onApply }: {
 
 // ─── Onboarding Checklist ─────────────────────────────────────────────────────
 
-function OnboardingChecklist({ hasOrders, storesConnected, hasGoals, hasCogs }: {
+function OnboardingChecklist({ hasOrders, storesConnected, hasGoals, hasCogs, hasAds, hasCouriers }: {
   hasOrders: boolean; storesConnected: boolean; hasGoals: boolean; hasCogs: boolean;
+  hasAds: boolean; hasCouriers: boolean;
 }) {
   const [dismissed, setDismissed] = useState(() =>
     typeof window !== "undefined" && localStorage.getItem("overview_checklist_dismissed") === "1"
   );
 
   const items = [
-    { id: "store",  label: "Connect a store",          desc: "Sync Shopify, WooCommerce, or Etsy", href: "/onboarding",          done: storesConnected },
+    { id: "store",  label: "Connect a store",          desc: "Sync your Shopify store", href: "/onboarding",          done: storesConnected },
     { id: "orders", label: "Import your first orders", desc: "Upload CSV or sync from your store", href: "/dashboard/orders",    done: hasOrders },
     { id: "cogs",   label: "Set product COGS",          desc: "Accurate margins need accurate costs", href: "/dashboard/products", done: hasCogs },
+    { id: "ads",    label: "Connect ad accounts",       desc: "Attribute spend to profit",            href: "/dashboard/ad-spend", done: hasAds },
+    { id: "couriers", label: "Connect couriers",        desc: "Track delivery performance",           href: "/dashboard/couriers", done: hasCouriers },
     { id: "goals",  label: "Set a profit goal",         desc: "Track monthly progress at a glance",  href: "/dashboard/goals",    done: hasGoals },
   ];
 
@@ -275,7 +281,7 @@ function OnboardingChecklist({ hasOrders, storesConnected, hasGoals, hasCogs }: 
         </div>
       </CardHeader>
       <CardContent className="pt-1">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {items.map(({ id, label, desc, href, done: d }) => (
             <Link key={id} href={d ? "#" : href} onClick={d ? (e) => e.preventDefault() : undefined}
               className={cn("flex items-start gap-2 p-2.5 rounded-lg border text-xs transition-all",
@@ -418,6 +424,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
   const {
     current, changes, chartData, costBreakdown: cb,
     statusMap, recentOrders, stores, goalProgress, hasOrders,
+    hasCogs, hasAds, hasCouriers,
     totalOrdersInPeriod, baseCurrency,
   } = data;
 
@@ -465,17 +472,17 @@ export function OverviewClient({ data }: { data: OverviewData }) {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // ── Sync ───────────────────────────────────────────────────────────────────
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [syncActive, updateSyncActive] = useState(false);
+  const [syncNotice, updateSyncNotice] = useState<string | null>(null);
 
   const syncAll = async () => {
     if (!stores.length) return;
-    setSyncing(true); setSyncMsg(null);
+    updateSyncActive(true); updateSyncNotice(null);
     try {
       await Promise.all(stores.map((s) => fetch(`/api/stores/${s.id}/sync`, { method: "POST" }).catch(() => null)));
-      setSyncMsg("Sync started — data will update within a minute.");
-      setTimeout(() => { setSyncMsg(null); router.refresh(); }, 3500);
-    } catch { setSyncMsg("Sync failed. Please try again."); } finally { setSyncing(false); }
+      updateSyncNotice("Sync started — data will update within a minute.");
+      setTimeout(() => { updateSyncNotice(null); router.refresh(); }, 3500);
+    } catch { updateSyncNotice("Sync failed. Please try again."); } finally { updateSyncActive(false); }
   };
 
   const storesConnected = stores.length > 0;
@@ -499,10 +506,10 @@ export function OverviewClient({ data }: { data: OverviewData }) {
             Welcome — connect a store or import orders to get started.
           </p>
         </div>
-        <OnboardingChecklist hasOrders={false} storesConnected={false} hasGoals={false} hasCogs={false} />
+        <OnboardingChecklist hasOrders={false} storesConnected={false} hasGoals={false} hasCogs={false} hasAds={false} hasCouriers={false} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { step: "1", title: "Connect a Store",   desc: "Pull orders automatically from Shopify, WooCommerce, or Etsy.", href: "/onboarding",       cta: "Connect now",   primary: true  },
+            { step: "1", title: "Connect a Store",   desc: "Pull orders automatically from your Shopify store.", href: "/onboarding",       cta: "Connect now",   primary: true  },
             { step: "2", title: "Import via CSV",     desc: "Upload any order export file and start seeing profit data.",    href: "/dashboard/orders", cta: "Import CSV",    primary: false },
             { step: "3", title: "Set Profit Goals",   desc: "Define monthly targets and track progress against them.",       href: "/dashboard/goals",  cta: "Set goals",     primary: false },
           ].map(({ step, title, desc, href, cta, primary }) => (
@@ -531,16 +538,16 @@ export function OverviewClient({ data }: { data: OverviewData }) {
     <div className="space-y-6">
 
       {/* Sync toast */}
-      {syncMsg && (
+      {syncNotice && (
         <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
-          <RefreshCw className="h-4 w-4 flex-shrink-0" />{syncMsg}
+          <RefreshCw className="h-4 w-4 flex-shrink-0" />{syncNotice}
         </div>
       )}
 
       {/* Onboarding checklist */}
       <OnboardingChecklist
         hasOrders={hasOrders} storesConnected={storesConnected}
-        hasGoals={!!goalProgress} hasCogs={false}
+        hasGoals={!!goalProgress} hasCogs={!!hasCogs} hasAds={!!hasAds} hasCouriers={!!hasCouriers}
       />
 
       {/* ── Header ── */}
@@ -561,9 +568,9 @@ export function OverviewClient({ data }: { data: OverviewData }) {
             </Button>
           )}
           {storesConnected && (
-            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={syncAll} disabled={syncing}>
-              <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
-              {syncing ? "Syncing…" : "Sync"}
+            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={syncAll} disabled={syncActive}>
+              <RefreshCw className={cn("h-3.5 w-3.5", syncActive && "animate-spin")} />
+              {syncActive ? "Syncing…" : "Sync"}
             </Button>
           )}
           {canManageBilling && plan !== "pro" && (
@@ -1009,7 +1016,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                       </div>
                     </div>
                     {s.syncStatus === "idle"    && <Badge variant="success"     className="text-xs flex-shrink-0">Synced</Badge>}
-                    {s.syncStatus === "syncing" && <Badge variant="outline"     className="text-xs flex-shrink-0 animate-pulse">Syncing</Badge>}
+                    {s.syncStatus === "syncActive" && <Badge variant="outline"     className="text-xs flex-shrink-0 animate-pulse">Syncing</Badge>}
                     {s.syncStatus === "error"   && <Badge variant="destructive" className="text-xs flex-shrink-0">Error</Badge>}
                     {s.syncStatus === "never"   && <Badge variant="outline"     className="text-xs flex-shrink-0">Never synced</Badge>}
                   </div>

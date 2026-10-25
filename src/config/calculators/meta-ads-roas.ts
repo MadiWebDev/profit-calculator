@@ -47,7 +47,7 @@ const config: CalculatorConfig = {
       "Enter your **total ad spend** — the amount you spent on Facebook and Instagram ads in the period.",
       "Enter **revenue generated** — the total sales revenue you can attribute to these campaigns.",
       "Add your **COGS** (cost of goods sold) — the total product cost for all units sold from these ads.",
-      "Add **platform fees** — payment processing, Shopify/WooCommerce fees, etc.",
+      "Add **platform fees** — payment processing, Shopify fees, etc.",
       "Enter the **number of conversions** (purchases) to calculate your cost per acquisition.",
       "Add any **other variable costs** like shipping, packaging, and returns.",
       "Your ROAS, net profit, CPA, and break-even ROAS appear instantly.",

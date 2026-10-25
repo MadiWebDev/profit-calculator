@@ -92,7 +92,7 @@ const PLAN_FEATURES: PlanFeature[] = [
   { label: "Stores",                       starter: "1",             growth: "2",             pro: "Unlimited" },
   { label: "Ad platforms",                 starter: "1",             growth: "3",             pro: "All" },
   { label: "CSV import",                   starter: true,            growth: true,            pro: true },
-  { label: "Shopify / WooCommerce / Etsy", starter: true,            growth: true,            pro: true },
+  { label: "Shopify", starter: true,            growth: true,            pro: true },
   { label: "Order-level profit",           starter: true,            growth: true,            pro: true },
   { label: "Product margin view",          starter: true,            growth: true,            pro: true },
   { label: "What-if simulator",            starter: true,            growth: true,            pro: true },
@@ -384,7 +384,7 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId }: Pricing
             <strong className="text-[var(--color-foreground)]">
               SaaS profit-tracking platform
             </strong>{" "}
-            for ecommerce sellers. Connect your Shopify, WooCommerce, or Etsy
+            for ecommerce sellers. Connect your Shopify
             store and get real-time, order-level profit visibility — including
             COGS, ad spend, platform fees, and AI-powered insights.
           </p>

@@ -19,8 +19,11 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import StoreModel from "@/models/Store";
 import OrderModel from "@/models/Order";
+import ProductModel from "@/models/Product";
+import { fetchVariantCostsSafe } from "@/lib/shopify-graphql";
 import { safeDecrypt } from "@/lib/encryption";
 import { calcOrderProfit } from "@/lib/profit-engine";
+import { parseUtmFromLandingSite } from "@/lib/meta-ads-hardening";
 import { logger, toLogError } from "@/lib/logger";
 import {
   SHOPIFY_API_VERSION,
@@ -64,6 +67,7 @@ export interface ShopifyOrder {
   total_shipping_price_set?: { shop_money?: { amount?: string } };
   total_tax: string;
   financial_status: string;
+  cancelled_at?: string | null;
   refunds?: { transactions?: { amount?: string }[] }[];
   line_items?: {
     product_id?: number;
@@ -75,6 +79,12 @@ export interface ShopifyOrder {
   }[];
   customer?: { id?: number; email?: string; orders_count?: number };
   email?: string;
+  phone?: string;
+  shipping_address?: { name?: string; address1?: string; city?: string; zip?: string; country_code?: string };
+  billing_address?: { city?: string; zip?: string };
+  payment_gateway_names?: string[];
+  client_details?: { browser_ip?: string };
+  landing_site?: string;
 }
 
 // ─── Webhook registration ───────────────────────────────────────────────────
@@ -94,11 +104,17 @@ export async function registerShopifyWebhooks(
     "customers/data_request",
     "customers/redact",
     "shop/redact",
+    // App lifecycle
+    "app/uninstalled",
     // Order lifecycle for near-real-time profit data
     "orders/create",
     "orders/updated",
     "orders/cancelled",
     "refunds/create",
+    // Fulfillment + catalogue (Phase 2)
+    "fulfillments/create",
+    "fulfillments/update",
+    "products/update",
   ];
 
   for (const topic of topics) {
@@ -155,6 +171,9 @@ export async function syncShopifyStore(
   await StoreModel.findByIdAndUpdate(storeId, {
     syncStatus: "syncing",
     syncError: null,
+    syncStartedAt: new Date(),
+    syncPages: 0,
+    syncSyncedCount: 0,
   });
 
   const result: SyncResult = {
@@ -194,6 +213,28 @@ export async function syncShopifyStore(
       });
     }
 
+    // COGS fallback (Phase 2): Shopify variant "cost per item" via GraphQL,
+    // merged over any merchant-entered variant COGS already in the DB.
+    // Best-effort: a GraphQL failure leaves COGS at the DB values (or 0),
+    // and the COGS editor / backfill job can still fill them later.
+    const cogsByVariant = new Map<string, number>();
+    try {
+      const products = await ProductModel.find({ storeId: store._id, teamId: store.teamId })
+        .select("variantCogs defaultCogs")
+        .lean();
+      for (const prod of products) {
+        for (const v of prod.variantCogs ?? []) cogsByVariant.set(v.variantId, v.cogs);
+      }
+    } catch (e) {
+      logger.warn("shopify cogs map from DB failed (continuing with GraphQL only)", {}, toLogError(e));
+    }
+    if (store.domain) {
+      const gqlCosts = await fetchVariantCostsSafe(store.domain, accessToken);
+      for (const [variantId, cost] of gqlCosts) {
+        if (!cogsByVariant.has(variantId)) cogsByVariant.set(variantId, cost);
+      }
+    }
+
     while (page && result.pages < maxPages) {
       const res = await shopifyFetch(page, accessToken);
       result.pages++;
@@ -212,7 +253,8 @@ export async function syncShopifyStore(
             order,
             store._id.toString(),
             teamId,
-            store.currency ?? "USD"
+            store.currency ?? "USD",
+            cogsByVariant
           );
           result.synced++;
           if (orderCap > 0) monthlyCount++;
@@ -222,14 +264,27 @@ export async function syncShopifyStore(
         }
       }
 
+      // Sync progress (polled by the dashboard): resumable because a
+      // re-run restarts from lastSyncAt and upserts are idempotent.
+      await StoreModel.findByIdAndUpdate(storeId, {
+        syncPages: result.pages,
+        syncSyncedCount: result.synced,
+      }).catch(() => undefined);
+
       const links = parseLinkHeader(res.headers.get("link"));
       page = links.next ?? null;
     }
 
+    const totalOrders = await OrderModel.countDocuments({
+      teamId: store.teamId,
+      storeId: store._id,
+    });
     await StoreModel.findByIdAndUpdate(storeId, {
       syncStatus: "idle",
       lastSyncAt: new Date(),
-      ordersCount: result.synced,
+      ordersCount: totalOrders,
+      syncPages: result.pages,
+      syncSyncedCount: result.synced,
       syncError: null,
     });
 
@@ -285,7 +340,8 @@ export async function upsertShopifyOrder(
   order: ShopifyOrder,
   storeId: string,
   teamId: string,
-  storeCurrency: string
+  storeCurrency: string,
+  cogsByVariant: Map<string, number> = new Map()
 ): Promise<void> {
   // Money contract (see profit-engine.ts): grossRevenue is tax-exclusive and
   // already net of discounts; discounts/shippingRevenue/taxes are memos.
@@ -301,23 +357,31 @@ export async function upsertShopifyOrder(
     0
   );
 
-  const lineItems = (order.line_items ?? []).map((li) => ({
-    productId: li.product_id ? String(li.product_id) : undefined,
-    sku: li.sku ?? undefined,
-    name: li.title,
-    quantity: li.quantity,
-    price: p(li.price),
-    cogs: 0, // updated by the COGS editor
-    totalRevenue: p(li.price) * li.quantity,
-    totalCogs: 0,
-  }));
+  // COGS fallback chain: merchant variant COGS / Shopify variant cost
+  // (passed in) → 0, which the COGS editor and backfill job can fix later.
+  // Never invent a cost: an unknown variant honestly reports 0.
+  const lineItems = (order.line_items ?? []).map((li) => {
+    const variantKey = li.variant_id ? String(li.variant_id) : "";
+    const cogs = variantKey ? (cogsByVariant.get(variantKey) ?? 0) : 0;
+    return {
+      productId: li.product_id ? String(li.product_id) : undefined,
+      sku: li.sku ?? undefined,
+      name: li.title,
+      quantity: li.quantity,
+      price: p(li.price),
+      cogs,
+      totalRevenue: p(li.price) * li.quantity,
+      totalCogs: cogs * li.quantity,
+    };
+  });
+  const totalCogs = lineItems.reduce((sum, li) => sum + li.totalCogs, 0);
 
   const profit = calcOrderProfit({
     grossRevenue,
     discounts,
     shippingRevenue,
     shippingCost: 0,
-    totalCogs: 0,
+    totalCogs,
     transactionFees: 0,
     taxes,
     refundAmount,
@@ -341,7 +405,7 @@ export async function upsertShopifyOrder(
         grossRevenue,
         discounts,
         netRevenue: profit.netRevenue,
-        totalCogs: 0,
+        totalCogs,
         shippingCost: 0,
         shippingRevenue,
         transactionFees: 0,
@@ -354,8 +418,21 @@ export async function upsertShopifyOrder(
         lineItems,
         customerId: order.customer?.id ? String(order.customer.id) : undefined,
         customerEmail: order.email ?? order.customer?.email,
+        customerName: order.shipping_address?.name,
+        customerPhone: order.phone,
+        shippingCity: order.shipping_address?.city,
+        shippingPostalCode: order.shipping_address?.zip,
+        shippingCountry: order.shipping_address?.country_code,
+        billingCity: order.billing_address?.city,
+        billingPostalCode: order.billing_address?.zip,
+        browserIp: order.client_details?.browser_ip,
+        landingSite: order.landing_site ?? undefined,
+        source: parseUtmFromLandingSite(order.landing_site).utmSource ?? undefined,
+        utmCampaign: parseUtmFromLandingSite(order.landing_site).utmCampaign ?? undefined,
+        paymentMethod: order.payment_gateway_names?.[0],
         isFirstOrder: (order.customer?.orders_count ?? 1) <= 1,
-        status: mapShopifyStatus(order.financial_status),
+        // A cancelled order is cancelled regardless of financial status.
+        status: order.cancelled_at ? "cancelled" : mapShopifyStatus(order.financial_status),
         importedFrom: "api",
       },
     },

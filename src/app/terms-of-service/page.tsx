@@ -48,7 +48,7 @@ export default function TermsOfServicePage() {
             <li>
               <strong className="text-[var(--color-foreground)]">SaaS Profit-Tracking Platform (paid):</strong>{" "}
               A subscription-based software-as-a-service (SaaS) dashboard that connects to your ecommerce
-              store (Shopify, WooCommerce, Etsy, or via CSV import) and automatically tracks real-time
+              store (Shopify, or via CSV import) and automatically tracks real-time
               order-level profit, COGS, ad spend, and provides AI-powered insights. Paid plans are
               available at Starter ($3/mo), Growth ($9/mo), and Pro ($25/mo), billed through our
               Merchant of Record, <a href="https://www.paddle.com" target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] hover:underline">Paddle.com</a>.

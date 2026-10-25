@@ -40,9 +40,6 @@ const EnvSchema = z
     SHOPIFY_CLIENT_ID: z.string().min(1).optional(),
     SHOPIFY_CLIENT_SECRET: z.string().min(1).optional(),
 
-    // ── Etsy ───────────────────────────────────────────────────────────────
-    ETSY_CLIENT_ID: z.string().min(1).optional(),
-    ETSY_CLIENT_SECRET: z.string().min(1).optional(),
 
     // ── Meta Ads ───────────────────────────────────────────────────────────
     META_APP_ID: z.string().min(1).optional(),
@@ -87,7 +84,6 @@ const RECOMMENDED_VARS: Array<{ key: string; description: string }> = [
   { key: "OPENAI_API_KEY", description: "AI insights (Growth/Pro feature)" },
   { key: "NEXT_PUBLIC_SITE_URL", description: "Public site URL — used in emails and checkout success URLs" },
   { key: "SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET", description: "Shopify store OAuth" },
-  { key: "ETSY_CLIENT_ID / ETSY_CLIENT_SECRET", description: "Etsy store OAuth" },
   { key: "META_APP_ID / META_APP_SECRET", description: "Meta Ads OAuth" },
   { key: "TIKTOK_APP_ID / TIKTOK_APP_SECRET", description: "TikTok Ads OAuth" },
   { key: "GOOGLE_ADS_CLIENT_ID / GOOGLE_ADS_CLIENT_SECRET / GOOGLE_ADS_DEVELOPER_TOKEN", description: "Google Ads OAuth (requires approved developer token)" },

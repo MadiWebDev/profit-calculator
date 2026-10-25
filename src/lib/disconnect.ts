@@ -85,9 +85,8 @@ export async function revokeSnapchatToken(accessToken: string | null): Promise<v
 
 /**
  * Revoke whatever provider tokens a Store holds, then return the DB update
- * that clears them. Shopify offline tokens and WooCommerce keys have no
- * server-side revocation endpoint available to us — they die on app uninstall
- * / key deletion at the store; clearing our encrypted copies is what matters.
+ * that clears them. Shopify offline tokens have no server-side revocation endpoint available
+ * to us — they die on app uninstall; clearing our encrypted copies is what matters.
  */
 export async function revokeStoreTokens(store: {
   platform: string;
@@ -112,7 +111,7 @@ export async function revokeStoreTokens(store: {
       await revokeSnapchatToken(token);
       break;
     default:
-      // shopify / etsy / woocommerce: no revoke endpoint — just clear locally.
+      // shopify: no revoke endpoint — just clear locally.
       break;
   }
 }

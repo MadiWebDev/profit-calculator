@@ -35,6 +35,8 @@ const DEFAULTS = {
   adSpendPerUnit:         8.00,
   quantity:             100,
   refundRatePercent:      3.00,
+  packagingCost:          1.00,
+  rtoRatePercent:         0.00,
 };
 
 type Vals = typeof DEFAULTS;
@@ -57,6 +59,8 @@ const FIELDS: FieldDef[] = [
   { key: "refundRatePercent",     label: "Refund Rate",          min: 0,   max: 50,   step: 0.5,  suffix: "%", icon: RotateCcw,    group: "pricing",   tooltip: "Expected % of orders that get refunded." },
   { key: "cogs",                  label: "Product Cost (COGS)",  min: 0,   max: 500,  step: 0.5,  icon: Package,      group: "costs",     tooltip: "Cost to manufacture or source one unit." },
   { key: "shippingCost",          label: "Shipping Cost",        min: 0,   max: 100,  step: 0.5,  icon: Truck,        group: "costs",     tooltip: "Your cost to ship one unit to the customer." },
+  { key: "packagingCost",         label: "Packaging Cost",       min: 0,   max: 50,   step: 0.5,  icon: Package,      group: "costs",     tooltip: "Packaging + handling cost per unit." },
+  { key: "rtoRatePercent",        label: "RTO Rate",           min: 0,   max: 50,   step: 0.5,  suffix: "%", icon: RotateCcw,    group: "costs",     tooltip: "Expected % of orders returned to origin; each RTO loses shipping + packaging." },
   { key: "transactionFeePercent", label: "Transaction Fee %",    min: 0,   max: 10,   step: 0.1,  suffix: "%", icon: CreditCard,   group: "costs",     tooltip: "Payment processor % fee (e.g. Stripe 2.9%)." },
   { key: "platformFeePercent",    label: "Platform Fee %",       min: 0,   max: 10,   step: 0.1,  suffix: "%", icon: ShoppingCart, group: "costs",     tooltip: "Marketplace platform % fee (e.g. Shopify 0.5%)." },
   { key: "adSpendPerUnit",        label: "Ad Spend / Unit",      min: 0,   max: 200,  step: 0.5,  icon: Megaphone,    group: "marketing", tooltip: "Allocated ad cost per unit sold." },

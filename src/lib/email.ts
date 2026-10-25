@@ -78,6 +78,34 @@ export async function sendGoalAlertEmail(
   });
 }
 
+export async function sendProfitReportEmail(
+  to: string,
+  teamName: string,
+  periodLabel: string,
+  metrics: { revenue: number; netProfit: number; netMargin: number; orderCount: number; aov: number; roas: number; rtoRate: number }
+) {
+  const f = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return sendEmail({
+    from: FROM,
+    to,
+    subject: `Profit report (${periodLabel}): ${f(metrics.netProfit)} net profit`,
+    html: `
+      <h2>Profit report — ${teamName}</h2>
+      <p>Period: <strong>${periodLabel}</strong></p>
+      <table>
+        <tr><td>Revenue</td><td><strong>${f(metrics.revenue)}</strong></td></tr>
+        <tr><td>Net profit</td><td><strong>${f(metrics.netProfit)}</strong></td></tr>
+        <tr><td>Margin</td><td><strong>${metrics.netMargin}%</strong></td></tr>
+        <tr><td>Orders</td><td><strong>${metrics.orderCount}</strong></td></tr>
+        <tr><td>AOV</td><td><strong>${f(metrics.aov)}</strong></td></tr>
+        <tr><td>ROAS</td><td><strong>${metrics.roas}x</strong></td></tr>
+        <tr><td>RTO rate</td><td><strong>${metrics.rtoRate}%</strong></td></tr>
+      </table>
+      <p><a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/profit">View the full True Profit dashboard</a></p>
+    `,
+  });
+}
+
 export async function sendTeamInviteEmail(
   to: string,
   inviterName: string,
@@ -184,5 +212,28 @@ export async function sendVerificationEmail(to: string, name: string, verifyToke
         This link expires in <strong>24 hours</strong>. If you didn't create an account, you can safely ignore this email.
       </p>
     `,
+  });
+}
+
+/** Escape HTML so a plain-text order message renders safely as email. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Phase 9a: generic order-notification email (WhatsApp fallback /
+ * email channel). The subject/body come from whatsapp.ts templates;
+ * this function only delivers them via Resend.
+ */
+export async function sendOrderNotificationEmail(to: string, subject: string, body: string) {
+  return sendEmail({
+    from: FROM,
+    to,
+    subject,
+    html: `<p>${escapeHtml(body).replace(/\n/g, "<br/>")}</p>`,
   });
 }

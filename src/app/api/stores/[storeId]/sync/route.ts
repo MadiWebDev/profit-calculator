@@ -7,8 +7,6 @@ import { checkEntitlement } from "@/lib/entitlements";
 import { connectDB } from "@/lib/db";
 import StoreModel from "@/models/Store";
 import { syncShopifyStore } from "@/lib/sync/shopify";
-import { syncEtsyStore } from "@/lib/sync/etsy";
-import { syncWooCommerceStore } from "@/lib/sync/woocommerce";
 import { logger, toLogError } from "@/lib/logger";
 
 /**
@@ -56,7 +54,7 @@ export async function POST(
     );
   }
 
-  if (!["shopify", "etsy", "woocommerce"].includes(store.platform)) {
+  if (store.platform !== "shopify") {
     return NextResponse.json(
       { error: `Sync not supported for platform: ${store.platform}`, code: "UNSUPPORTED" },
       { status: 400 }
@@ -73,9 +71,7 @@ export async function POST(
 
   after(async () => {
     try {
-      if (platform === "shopify") await syncShopifyStore(sid, teamId, { orderCap });
-      else if (platform === "etsy") await syncEtsyStore(sid, teamId, { orderCap });
-      else if (platform === "woocommerce") await syncWooCommerceStore(sid, teamId, { orderCap });
+      await syncShopifyStore(sid, teamId, { orderCap });
     } catch (e) {
       logger.error("store sync dispatch failed", toLogError(e), { storeId: sid, platform });
     }

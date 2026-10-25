@@ -33,6 +33,18 @@ export interface IOrder extends Document {
   refundAmount: number;
   chargebackAmount: number;
   adSpendAllocated: number; // allocated ad spend for this order
+  // Phase 3 extended costs (all default 0; see profit-extended.ts)
+  packagingCost?: number;
+  codFee?: number;
+  subscriptionShare?: number;
+  rtoLoss?: number;
+  expenseAllocation?: number;
+  otherCosts?: number;
+  taxMode?: "exclusive" | "inclusive";
+  fxRateAtOrder?: number;
+  paymentMethod?: string;
+  codCollected?: number;
+  codPending?: number;
   // Computed
   netProfit: number;
   profitMargin: number;  // %
@@ -41,10 +53,33 @@ export interface IOrder extends Document {
   // Customer info
   customerId?: string;
   customerEmail?: string;
+  customerName?: string;
+  customerPhone?: string;
+  shippingCity?: string;
+  shippingPostalCode?: string;
+  shippingCountry?: string;
+  billingCity?: string;
+  billingPostalCode?: string;
+  browserIp?: string;
+  // Phase 4 risk scoring (see src/lib/risk-engine.ts + risk-scoring.ts)
+  riskScore?: number;
+  riskBand?: "low" | "medium" | "high" | "critical";
+  riskReasons?: { code: string; label: string; points: number; detail: string }[];
+  riskStatus?: "unreviewed" | "genuine" | "fake";
+  riskAutoTag?: string;
+  riskHoldFulfillment?: boolean;
+  riskScoredAt?: Date;
+  moneySaved?: number;
   isFirstOrder: boolean;
+  // Fulfillment (from fulfillments webhooks / courier module)
+  fulfillmentStatus?: string;
+  trackingNumber?: string;
+  trackingCompany?: string;
   // Status
   status: "pending" | "fulfilled" | "refunded" | "cancelled";
   source?: string; // utm_source or referral
+  utmCampaign?: string; // utm_campaign from the landing page URL
+  landingSite?: string; // full landing page URL (UTM source of truth)
   importedFrom?: "api" | "csv" | "webhook";
   createdAt: Date;
   updatedAt: Date;
@@ -82,18 +117,50 @@ const OrderSchema = new Schema<IOrder>(
     refundAmount: { type: Number, default: 0 },
     chargebackAmount: { type: Number, default: 0 },
     adSpendAllocated: { type: Number, default: 0 },
+    packagingCost: { type: Number, default: 0 },
+    codFee: { type: Number, default: 0 },
+    subscriptionShare: { type: Number, default: 0 },
+    rtoLoss: { type: Number, default: 0 },
+    expenseAllocation: { type: Number, default: 0 },
+    otherCosts: { type: Number, default: 0 },
+    taxMode: { type: String, enum: ["exclusive", "inclusive"], default: "exclusive" },
+    fxRateAtOrder: Number,
+    paymentMethod: String,
+    codCollected: { type: Number, default: 0 },
+    codPending: { type: Number, default: 0 },
     netProfit: { type: Number, default: 0 },
     profitMargin: { type: Number, default: 0 },
     lineItems: [LineItemSchema],
     customerId: String,
     customerEmail: String,
+    customerName: String,
+    customerPhone: String,
+    shippingCity: String,
+    shippingPostalCode: String,
+    shippingCountry: String,
+    billingCity: String,
+    billingPostalCode: String,
+    browserIp: String,
+    riskScore: Number,
+    riskBand: { type: String, enum: ["low", "medium", "high", "critical"] },
+    riskReasons: [{ code: String, label: String, points: Number, detail: String }],
+    riskStatus: { type: String, enum: ["unreviewed", "genuine", "fake"], default: "unreviewed" },
+    riskAutoTag: String,
+    riskHoldFulfillment: Boolean,
+    riskScoredAt: Date,
+    moneySaved: { type: Number, default: 0 },
     isFirstOrder: { type: Boolean, default: false },
+    fulfillmentStatus: String,
+    trackingNumber: String,
+    trackingCompany: String,
     status: {
       type: String,
       enum: ["pending", "fulfilled", "refunded", "cancelled"],
       default: "fulfilled",
     },
     source: String,
+    utmCampaign: String,
+    landingSite: String,
     importedFrom: { type: String, enum: ["api", "csv", "webhook"] },
   },
   { timestamps: true }
@@ -104,5 +171,7 @@ OrderSchema.index({ storeId: 1, externalId: 1 }, { unique: true });
 OrderSchema.index({ teamId: 1, storeId: 1, externalId: 1 }, { unique: true });
 OrderSchema.index({ teamId: 1, orderDate: -1 });
 OrderSchema.index({ teamId: 1, customerId: 1 });
+OrderSchema.index({ teamId: 1, riskBand: 1, riskStatus: 1 });
+OrderSchema.index({ teamId: 1, customerPhone: 1 });
 
 export default models.Order || model<IOrder>("Order", OrderSchema);

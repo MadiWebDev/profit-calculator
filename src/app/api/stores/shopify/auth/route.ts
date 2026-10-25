@@ -68,7 +68,7 @@ export async function POST(req: Request) {
   });
 
   const scopes =
-    "read_orders,read_products,read_inventory,read_customers,read_fulfillments";
+    "read_orders,read_products,read_inventory,read_customers,read_fulfillments,read_shipping";
   const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/stores/shopify/callback`;
 
   // Encode teamId + nonce in state so the callback can verify both

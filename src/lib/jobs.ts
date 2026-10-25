@@ -12,20 +12,21 @@ import ProfitGoalModel from "@/models/ProfitGoal";
 import TeamModel from "@/models/Team";
 import UserModel from "@/models/User";
 import { syncShopifyStore } from "@/lib/sync/shopify";
-import { syncEtsyStore } from "@/lib/sync/etsy";
-import { syncWooCommerceStore } from "@/lib/sync/woocommerce";
 import { syncMetaAdSpend } from "@/lib/sync/meta-ads";
 import { syncTikTokAdSpend } from "@/lib/sync/tiktok-ads";
 import { syncGoogleAdSpend } from "@/lib/sync/google-ads";
 import { syncPinterestAdSpend } from "@/lib/sync/pinterest-ads";
 import { syncSnapchatAdSpend } from "@/lib/sync/snapchat-ads";
 import { checkEntitlement } from "@/lib/entitlements";
-import { sendGoalAlertEmail, sendDunningEmail } from "@/lib/email";
+import { sendGoalAlertEmail, sendDunningEmail, sendProfitReportEmail } from "@/lib/email";
+import { calcDashboardMetrics } from "@/lib/profit-extended";
 import { logger, toLogError } from "@/lib/logger";
+import DailyRollupModel from "@/models/DailyRollup";
+import { aggregateDayOrders, dayKey } from "@/lib/rollups";
 import SubscriptionModel from "@/models/Subscription";
 import type { CronJobResult } from "@/lib/cron-runner";
 
-const SYNC_PLATFORMS = ["shopify", "etsy", "woocommerce"] as const;
+const SYNC_PLATFORMS = ["shopify"] as const;
 
 async function syncOneStore(
   store: { _id: mongoose.Types.ObjectId; platform: string; teamId: mongoose.Types.ObjectId }
@@ -43,12 +44,6 @@ async function syncOneStore(
     let orders = 0;
     if (store.platform === "shopify") {
       const r = await syncShopifyStore(storeId, teamId, {});
-      orders = r.synced ?? 0;
-    } else if (store.platform === "etsy") {
-      const r = await syncEtsyStore(storeId, teamId, {});
-      orders = r.synced ?? 0;
-    } else if (store.platform === "woocommerce") {
-      const r = await syncWooCommerceStore(storeId, teamId, {});
       orders = r.synced ?? 0;
     } else {
       return { ok: true, orders: 0 };
@@ -248,6 +243,124 @@ export async function jobGoalAlerts(): Promise<CronJobResult> {
   };
 }
 
+
+/**
+ * Daily profit report (Phase 3): for every team with orders yesterday,
+ * email the team owner yesterday's true-profit metrics. Teams with no
+ * orders and teams whose owner has no email are skipped (counted, not
+ * failed) so one bad team never blocks the rest. Runs via
+ * GET /api/cron/profit-report (CRON_SECRET).
+ */
+export async function jobProfitReport(): Promise<CronJobResult> {
+  await connectDB();
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end.getTime() - 864e5);
+  const teams = await TeamModel.find({}).select("_id name ownerId").lean();
+  let sent = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+  for (const team of teams) {
+    try {
+      const orders = await OrderModel.find({
+        teamId: team._id,
+        orderDate: { $gte: start, $lt: end },
+      }).lean();
+      if (orders.length === 0) { skipped++; continue; }
+      const owner = team.ownerId ? await UserModel.findById(team.ownerId).select("email name").lean() : null;
+      if (!owner?.email) { skipped++; continue; }
+      const metrics = calcDashboardMetrics(
+        orders.map((o) => {
+          const r = o as unknown as Record<string, unknown>;
+          const n = (k: string) => (typeof r[k] === "number" ? (r[k] as number) : 0);
+          return {
+            grossRevenue: n("grossRevenue"), discounts: n("discounts"), shippingRevenue: n("shippingRevenue"),
+            shippingCost: n("shippingCost"), totalCogs: n("totalCogs"), transactionFees: n("transactionFees"),
+            taxes: n("taxes"), refundAmount: n("refundAmount"), chargebackAmount: n("chargebackAmount"),
+            adSpendAllocated: n("adSpendAllocated"), packagingCost: n("packagingCost"), codFee: n("codFee"),
+            subscriptionShare: n("subscriptionShare"), rtoLoss: n("rtoLoss"), expenseAllocation: n("expenseAllocation"),
+            otherCosts: n("otherCosts"), status: r.status as string | undefined,
+            customerKey: (r.customerId as string | undefined) ?? (r.customerEmail as string | undefined),
+            isFirstOrder: r.isFirstOrder === true,
+          };
+        })
+      );
+      await sendProfitReportEmail(owner.email, team.name, start.toISOString().slice(0, 10), metrics);
+      sent++;
+    } catch (e) {
+      errors.push(`${team._id}: ${e instanceof Error ? e.message.slice(0, 120) : "failed"}`);
+    }
+  }
+  return {
+    status: errors.length === 0 ? "succeeded" : "partial",
+    stats: { teams: teams.length, sent, skipped, failed: errors.length },
+    ...(errors.length > 0 ? { error: errors.slice(0, 5).join("; ") } : {}),
+  };
+}
+
+/**
+ * Daily profit rollups (Phase 8): for every team with orders in the
+ * last 7 days, upsert one rollup row per UTC day. The 7-day window
+ * re-computes recent days so late refunds/cancellations correct
+ * history; older days are stable and skipped by the window. One bad
+ * team never blocks the rest (counted as failed, not thrown).
+ * Runs via GET /api/cron/rollup-daily (CRON_SECRET).
+ */
+export async function jobRollupDaily(): Promise<CronJobResult> {
+  await connectDB();
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end.getTime() - 7 * 864e5);
+  const teamIds = await OrderModel.distinct("teamId", {
+    orderDate: { $gte: start, $lt: end },
+  });
+  let rows = 0;
+  let failed = 0;
+  for (const teamId of teamIds) {
+    try {
+      const orders = await OrderModel.find({
+        teamId,
+        orderDate: { $gte: start, $lt: end },
+      })
+        .select("orderDate grossRevenue netProfit refundAmount totalCogs shippingCost transactionFees status")
+        .lean();
+      const byDay = new Map<string, typeof orders>();
+      for (const o of orders) {
+        const key = dayKey(new Date(o.orderDate));
+        const list = byDay.get(key) ?? [];
+        list.push(o);
+        byDay.set(key, list);
+      }
+      for (const [key, dayOrders] of byDay) {
+        const agg = aggregateDayOrders(
+          dayOrders.map((o) => ({
+            grossRevenue: o.grossRevenue ?? 0,
+            netProfit: o.netProfit ?? 0,
+            refundAmount: o.refundAmount ?? 0,
+            totalCogs: o.totalCogs ?? 0,
+            shippingCost: o.shippingCost ?? 0,
+            transactionFees: o.transactionFees ?? 0,
+            status: o.status,
+          }))
+        );
+        await DailyRollupModel.findOneAndUpdate(
+          { teamId, date: new Date(`${key}T00:00:00.000Z`) },
+          { teamId, date: new Date(`${key}T00:00:00.000Z`), ...agg },
+          { upsert: true, new: true }
+        );
+        rows++;
+      }
+    } catch (e) {
+      failed++;
+      logger.error("rollup daily failed for team", toLogError(e), { teamId: String(teamId) });
+    }
+  }
+  return {
+    status: failed > 0 ? "partial" : "succeeded",
+    stats: { teams: teamIds.length, rows, failed },
+  };
+}
+
 /** Registry of runnable jobs — used by cron routes and the admin UI. */
 export const CRON_JOBS: Record<
   string,
@@ -282,6 +395,16 @@ export const CRON_JOBS: Record<
     run: jobBackfillCogs,
     description: "Apply COGS rules to orders missing cost data",
     schedule: "weekly",
+  },
+  "rollup-daily": {
+    run: jobRollupDaily,
+    description: "Pre-compute daily profit rollups for the last 7 days",
+    schedule: "daily",
+  },
+  "profit-report": {
+    run: jobProfitReport,
+    description: "Email yesterday's true-profit report to team owners",
+    schedule: "daily",
   },
 };
 
