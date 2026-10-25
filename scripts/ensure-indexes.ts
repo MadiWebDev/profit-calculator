@@ -18,6 +18,7 @@ const DRY_RUN = process.argv.includes("--dry-run");
 
 // Import every model so its schema indexes are registered
 import "../src/models/AdAccount";
+import "../src/models/AlertRule";
 import "../src/models/Blocklist";
 import "../src/models/Courier";
 import "../src/models/DailyRollup";
