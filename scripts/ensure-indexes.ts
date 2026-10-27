@@ -42,6 +42,13 @@ import "../src/models/Team";
 import "../src/models/User";
 import "../src/models/WebhookEvent";
 import "../src/models/WebhookSubscription";
+import "../src/models/ConversionEvent";
+import "../src/models/MonthlyExpense";
+import "../src/models/OtherFeeRule";
+import "../src/models/GatewayFee";
+import "../src/models/SavedView";
+import "../src/models/ScheduledReport";
+import "../src/models/WorkspaceSettings";
 
 async function main() {
   const uri = process.env.MONGODB_URI;

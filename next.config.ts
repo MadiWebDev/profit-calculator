@@ -106,6 +106,30 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
 
+  // Parity phase 0: old / renamed URLs keep working via redirects.
+  // Nothing here points at main — the live site is untouched.
+  async redirects() {
+    return [
+      { source: "/dashboard/shipments", destination: "/dashboard/couriers", permanent: false },
+      { source: "/dashboard/true-profit", destination: "/dashboard/profit", permanent: false },
+      { source: "/dashboard/order-profitability", destination: "/dashboard/orders", permanent: false },
+      { source: "/dashboard/product-profitability", destination: "/dashboard/product-intel", permanent: false },
+      { source: "/dashboard/lifetime-value", destination: "/dashboard/ltv", permanent: false },
+      { source: "/dashboard/cod-cash-flow", destination: "/dashboard/profit", permanent: false },
+      { source: "/dashboard/expenses", destination: "/dashboard/monthly-expenses", permanent: false },
+      { source: "/dashboard/fees", destination: "/dashboard/other-fees", permanent: false },
+      { source: "/dashboard/advertising", destination: "/dashboard/ad-platforms", permanent: false },
+      { source: "/dashboard/ai-copilot", destination: "/dashboard/copilot", permanent: false },
+      { source: "/dashboard/mission", destination: "/dashboard/mission-control", permanent: false },
+      { source: "/dashboard/guide", destination: "/dashboard/report-guide", permanent: false },
+      { source: "/dashboard/settings/general", destination: "/dashboard/general", permanent: false },
+      { source: "/dashboard/settings/stores", destination: "/dashboard/stores", permanent: false },
+      { source: "/dashboard/settings/gateways", destination: "/dashboard/gateways", permanent: false },
+      { source: "/dashboard/settings/currency", destination: "/dashboard/currency", permanent: false },
+      { source: "/dashboard/settings/tax", destination: "/dashboard/tax", permanent: false },
+    ];
+  },
+
   async headers() {
     return [
       {
