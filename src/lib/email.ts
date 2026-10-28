@@ -154,6 +154,28 @@ export async function sendScheduledReportEmail(
   });
 }
 
+/**
+ * Shopify GDPR data-request fulfilment: email the compiled customer
+ * export (JSON attachment) to the store owner, who forwards it to the
+ * requester. The attachment contains the customer's own order records
+ * only — no merchant analytics, no other customers' rows.
+ */
+export async function sendGdprExportEmail(
+  to: string,
+  shopDomain: string,
+  customerLabel: string,
+  data: import("@/lib/gdpr-export").CustomerDataExport,
+) {
+  const json = JSON.stringify(data, null, 2);
+  return sendEmail({
+    from: FROM,
+    to,
+    subject: `GDPR data request — ${shopDomain} (${customerLabel})`,
+    html: `<p>Shopify GDPR data request for ${shopDomain}, customer ${customerLabel}. The attached JSON contains the ${data.orders.length} order record(s) GetProfitCalc holds for this customer. Please forward it to the requester within Shopify's 30-day window.</p>`,
+    attachments: [{ filename: `gdpr-export-${shopDomain}-${Date.now()}.json`, content: Buffer.from(json, "utf8").toString("base64") }],
+  });
+}
+
 export async function sendTeamInviteEmail(
   to: string,
   inviterName: string,

@@ -26,6 +26,8 @@ import AlertRuleModel from "@/models/AlertRule";
 import { runAlertRulesForTeam } from "@/lib/alerts-server";
 import { aggregateDayOrders, dayKey } from "@/lib/rollups";
 import SubscriptionModel from "@/models/Subscription";
+import ApiKeyModel from "@/models/ApiKey";
+import ProductModel from "@/models/Product";
 import type { CronJobResult } from "@/lib/cron-runner";
 
 const SYNC_PLATFORMS = ["shopify"] as const;
@@ -393,6 +395,46 @@ export async function jobGuardrailAlerts(): Promise<CronJobResult> {
 }
 
 /** Registry of runnable jobs — used by cron routes and the admin UI. */
+/**
+ * Purge job (cron version of scripts/purge-deleted-accounts.ts, which
+ * stays as the manual/dry-run tool). Hard-deletes accounts whose 14-day
+ * grace period has expired. Order matters: tokens are wiped first so a
+ * partial failure cannot leave a usable credential, then orders →
+ * products → stores → team → user.
+ */
+export async function jobPurgeDeletedAccounts(): Promise<CronJobResult> {
+  await connectDB();
+  const due = await UserModel.find({ deletionScheduledAt: { $lt: new Date() } }).lean();
+  let purged = 0;
+  for (const user of due) {
+    const teamId = user.teamId;
+    if (teamId) {
+      await StoreModel.updateMany({ teamId }, { $unset: { accessToken: "", refreshToken: "" } });
+      await OrderModel.deleteMany({ teamId });
+      await ProductModel.deleteMany({ teamId });
+      await StoreModel.deleteMany({ teamId });
+      await TeamModel.deleteOne({ _id: teamId });
+    }
+    await UserModel.deleteOne({ _id: user._id });
+    purged++;
+  }
+  logger.info("purge-deleted-accounts finished", { due: due.length, purged });
+  return { status: "succeeded", stats: { due: due.length, purged } };
+}
+
+/**
+ * ApiKey counter reset. recentUseCount is a rolling-window counter
+ * (used for abuse detection); without a reset it grows forever and
+ * stops meaning anything. Monthly reset keeps the window honest.
+ */
+export async function jobApiKeyReset(): Promise<CronJobResult> {
+  await connectDB();
+  const res = await ApiKeyModel.updateMany({}, { $set: { recentUseCount: 0 } });
+  const keys = (res as { modifiedCount?: number }).modifiedCount ?? 0;
+  logger.info("apikey-reset finished", { keys });
+  return { status: "succeeded", stats: { keys } };
+}
+
 export const CRON_JOBS: Record<
   string,
   { run: () => Promise<CronJobResult>; description: string; schedule: string }
@@ -436,6 +478,16 @@ export const CRON_JOBS: Record<
     run: jobProfitReport,
     description: "Email yesterday's true-profit report to team owners",
     schedule: "daily",
+  },
+  "purge-deleted-accounts": {
+    run: jobPurgeDeletedAccounts,
+    description: "Hard-delete accounts past the 14-day deletion grace period",
+    schedule: "daily",
+  },
+  "apikey-reset": {
+    run: jobApiKeyReset,
+    description: "Reset ApiKey.recentUseCount counters (monthly window)",
+    schedule: "monthly",
   },
   "guardrail-alerts": {
     run: jobGuardrailAlerts,
