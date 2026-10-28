@@ -103,11 +103,14 @@ export async function POST(req: Request) {
     );
   }
 
-  // 3. Parse optional subscriptionId from request body for a deep link
+  // 3. Parse optional subscriptionId from request body for a deep link.
+  // Only honour it when it matches this team's own subscription in our DB —
+  // a client-supplied id must never deep-link the portal to someone else's
+  // subscription (Paddle would reject it, but we do not rely on that).
   let subscriptionIds: string[] = [];
   try {
     const body = await req.json().catch(() => ({}));
-    if (typeof body.subscriptionId === "string" && body.subscriptionId) {
+    if (typeof body.subscriptionId === "string" && body.subscriptionId && body.subscriptionId === sub?.externalId) {
       subscriptionIds = [body.subscriptionId];
     }
   } catch {

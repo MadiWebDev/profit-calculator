@@ -298,6 +298,15 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId }: Pricing
         return;
       }
 
+      // Anonymous checkout cannot be provisioned: without a signed-in team
+      // there is no customData.teamId for webhooks to attach the subscription
+      // to, so a paying visitor would get no access. Send them to create a
+      // free account first instead of taking payment.
+      if (!teamId) {
+        setCheckoutError("Please create a free account first, so we can activate your plan right after payment.");
+        return;
+      }
+
       const priceId = tier.priceId[interval];
       setOpeningTier(tier.id);
       setCheckoutError(null);
@@ -450,6 +459,14 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId }: Pricing
               className="sm:col-span-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-600"
             >
               {checkoutError}
+              {!teamId && (
+                <Link
+                  href="/auth/register"
+                  className="ml-2 shrink-0 font-semibold underline"
+                >
+                  Create free account
+                </Link>
+              )}
               <button
                 className="ml-auto shrink-0"
                 onClick={() => setCheckoutError(null)}
