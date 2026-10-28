@@ -50,9 +50,33 @@ function buildPriceMap(): Record<string, PlanEntry> {
   return map;
 }
 
+/**
+ * Resolve the team a Paddle event belongs to.
+ *
+ * Primary source: custom_data.teamId, stamped at checkout. Fallback: the
+ * team whose paddleCustomerId matches the event's customerId — populated by
+ * the customer.created/updated webhook. The fallback exists because the
+ * public pricing page used to allow checkout without a signed-in team, and
+ * because a stale JWT can lack teamId; without it a paid subscription would
+ * be silently dropped (see handleSubscriptionUpsert). Returns null when
+ * neither source resolves — the caller must then skip, never guess.
+ */
+export async function resolveTeamId(
+  customTeamId: string | undefined | null,
+  customerId: string | undefined | null
+): Promise<string | null> {
+  if (customTeamId) return customTeamId;
+  if (!customerId) return null;
+  const team = await TeamModel.findOne({ paddleCustomerId: customerId })
+    .select("_id")
+    .lean();
+  return team ? String(team._id) : null;
+}
+
 export function planFromPriceId(priceId: string): PlanEntry {
   const map = buildPriceMap();
   if (map[priceId]) return map[priceId];
+  logger.warn("paddle webhook: unknown price id, guessing plan from id string — check env price ids", { priceId });
   const id = priceId.toLowerCase();
   const plan: PlanKey =
     id.includes("pro") ? "pro" : id.includes("growth") ? "growth" : "starter";
@@ -100,10 +124,10 @@ export async function handleSubscriptionUpsert(
   occurredAt?: Date
 ): Promise<void> {
   const customData = (data.customData ?? {}) as Record<string, string>;
-  const teamId     = customData.teamId;
+  const teamId     = await resolveTeamId(customData.teamId, data.customerId);
 
   if (!teamId) {
-    logger.warn("paddle webhook: subscription event missing teamId in custom_data — skipping");
+    logger.warn("paddle webhook: subscription event unresolvable — no teamId in custom_data and no team with this paddleCustomerId — skipping", { subscriptionId: data.id, customerId: data.customerId });
     return;
   }
 
@@ -224,20 +248,27 @@ export async function handleSubscriptionResumed(
 
 export async function handleTransactionCompleted(
   data: TransactionCompletedEvent["data"],
+  // Kept for signature parity with the other handlers; ordering is handled
+  // by the route-level dedup + the create-if-absent rule below, not by
+  // occurredAt (see the comment at the provisioning block).
   occurredAt?: Date
 ): Promise<void> {
+  void occurredAt;
   const subscriptionId = data.subscriptionId;
   const customData     = (data.customData ?? {}) as Record<string, string>;
-  const teamId         = customData.teamId;
+  const teamId         = await resolveTeamId(customData.teamId, data.customerId);
 
   if (!subscriptionId || !teamId) return;
 
-  const applied = await applyIfNewer(subscriptionId, occurredAt, async () => {
-    const existing = await SubscriptionModel.findOne({ externalId: subscriptionId });
-    // Only provision when no record exists — never overwrite a more
-    // complete subscription.created payload with a thinner transaction one.
-    if (existing) return;
-
+  // Only provision when no record exists — never overwrite a more complete
+  // subscription.created payload with a thinner transaction one. Deliberately
+  // NOT routed through applyIfNewer: stamping lastEventAt here would make a
+  // later subscription.created (earlier occurredAt) look stale and be skipped,
+  // leaving the record without billing-period dates. Route-level dedup already
+  // guarantees a single delivery is processed once.
+  const existing = await SubscriptionModel.findOne({ externalId: subscriptionId });
+  let applied = false;
+  if (!existing) {
     const items   = data.items ?? [];
     const priceId = items[0]?.price?.id ?? "";
     const { plan, interval } = planFromPriceId(priceId);
@@ -262,7 +293,8 @@ export async function handleTransactionCompleted(
       TeamModel.findByIdAndUpdate(teamId, { plan, subscriptionId }),
       UserModel.updateMany({ teamId }, { plan }),
     ]);
-  });
+    applied = true;
+  }
 
   logger.info("paddle webhook: transaction.completed", {
     subscriptionId, teamId, applied,

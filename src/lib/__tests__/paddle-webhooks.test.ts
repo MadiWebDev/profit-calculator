@@ -10,6 +10,9 @@ import mongoose from "mongoose";
 import {
   planFromPriceId,
   applyIfNewer,
+  resolveTeamId,
+  handleSubscriptionUpsert,
+  handleTransactionCompleted,
   handlePaymentFailed,
   handleSubscriptionCanceled,
   handleSubscriptionResumed,
@@ -170,6 +173,99 @@ describe("handlePaymentFailed", () => {
     expect(sendDunningEmail).not.toHaveBeenCalled();
     const updated = await SubscriptionModel.findById(sub._id).lean();
     expect(updated!.dunningCount).toBe(1);
+  });
+});
+
+describe("resolveTeamId fallback (anonymous-checkout safety net)", () => {
+  it("prefers customData.teamId, falls back to paddleCustomerId, else null", async () => {
+    const tid = teamId();
+    await TeamModel.create({
+      _id: tid,
+      name: "Fallback Co",
+      slug: `fallback-co-${tid.toString().slice(-6)}`,
+      ownerId: userId(),
+      paddleCustomerId: "cus_fallback_1",
+    });
+
+    expect(await resolveTeamId(tid.toString(), "cus_other")).toBe(tid.toString());
+    expect(await resolveTeamId("", "cus_fallback_1")).toBe(tid.toString());
+    expect(await resolveTeamId(undefined, "cus_unknown")).toBeNull();
+    expect(await resolveTeamId(undefined, undefined)).toBeNull();
+  });
+
+  it("provisions via paddleCustomerId when customData.teamId is missing", async () => {
+    const tid = teamId();
+    await TeamModel.create({
+      _id: tid,
+      name: "Fallback Co 2",
+      slug: `fallback-co2-${tid.toString().slice(-6)}`,
+      ownerId: userId(),
+      paddleCustomerId: "cus_fallback_2",
+    });
+
+    await handleSubscriptionUpsert(
+      {
+        id: "sub_fallback_1",
+        customerId: "cus_fallback_2",
+        items: [{ price: { id: "pri_growth_monthly" } }],
+        status: "active",
+        currentBillingPeriod: {
+          startsAt: "2026-01-01T00:00:00Z",
+          endsAt: "2026-02-01T00:00:00Z",
+        },
+        customData: {},
+      } as never,
+      new Date("2026-01-01T00:00:00Z")
+    );
+
+    const sub = await SubscriptionModel.findOne({ externalId: "sub_fallback_1" }).lean();
+    expect(sub).toBeDefined();
+    expect(String(sub!.teamId)).toBe(tid.toString());
+    expect(sub!.plan).toBe("growth");
+    const team = await TeamModel.findById(tid).lean();
+    expect(team!.plan).toBe("growth");
+  });
+
+  it("transaction.completed does not block a later subscription.created", async () => {
+    const tid = teamId();
+    await TeamModel.create({
+      _id: tid,
+      name: "Race Co",
+      slug: `race-co-${tid.toString().slice(-6)}`,
+      ownerId: userId(),
+    });
+
+    await handleTransactionCompleted(
+      {
+        subscriptionId: "sub_race_tx",
+        customerId: "cus_race",
+        items: [{ price: { id: "pri_growth_monthly" } }],
+        customData: { teamId: tid.toString() },
+      } as never,
+      new Date("2026-01-02T00:00:00Z")
+    );
+
+    // subscription.created carries an EARLIER occurredAt — it must still
+    // apply its billing-period dates, not be skipped as stale.
+    await handleSubscriptionUpsert(
+      {
+        id: "sub_race_tx",
+        customerId: "cus_race",
+        items: [{ price: { id: "pri_growth_monthly" } }],
+        status: "active",
+        currentBillingPeriod: {
+          startsAt: "2026-01-01T00:00:00Z",
+          endsAt: "2026-02-01T00:00:00Z",
+        },
+        customData: { teamId: tid.toString() },
+      } as never,
+      new Date("2026-01-01T00:00:00Z")
+    );
+
+    const sub = await SubscriptionModel.findOne({ externalId: "sub_race_tx" }).lean();
+    expect(sub).toBeDefined();
+    expect(new Date(sub!.currentPeriodStart!).toISOString()).toBe("2026-01-01T00:00:00.000Z");
+    expect(new Date(sub!.currentPeriodEnd!).toISOString()).toBe("2026-02-01T00:00:00.000Z");
   });
 });
 

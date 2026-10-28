@@ -36,6 +36,14 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     const teamId  = (session.user as { teamId?: string }).teamId ?? "";
+    // Never create a checkout that webhooks cannot provision: without a
+    // teamId, custom_data is empty and subscription.created is skipped.
+    if (!teamId) {
+      return NextResponse.json(
+        { error: "No team found for this account. Please sign out and back in, then try again." },
+        { status: 400 }
+      );
+    }
     const priceId = getPriceId(plan, interval);
 
     if (!priceId) {
