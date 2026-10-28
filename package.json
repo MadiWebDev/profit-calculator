@@ -11,7 +11,10 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "db:indexes": "tsx scripts/ensure-indexes.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:security": "vitest run src/lib/__tests__/security",
+    "audit:routes": "tsx scripts/audit-routes.ts",
+    "rotate:keys:dry": "tsx scripts/rotate-encryption-keys.ts --dry-run"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

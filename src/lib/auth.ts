@@ -103,6 +103,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           plan:   user.plan,
           role:   user.platformRole ?? (user.role === "superAdmin" ? "superAdmin" : "user"),
           teamRole,
+          // S1: session revocation + 2FA. twoFactorPending is cleared by
+          // the 2FA verify step (session update); requireAuth rejects
+          // pending sessions for all API routes.
+          sessionVersion: user.sessionVersion ?? 0,
+          twoFactorPending: !!user.twoFactorEnabled,
         };
       },
     }),
@@ -116,6 +121,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * auth.config.ts with DB-backed refresh. Never runs on Edge.
      */
     async jwt(args) {
+      // S1: session update() from the 2FA verify page clears the pending
+      // flag after a verified code — honour it here, and nowhere else.
+      if (args.trigger === "update" && (args.session as { user?: { twoFactorPending?: boolean } } | undefined)?.user?.twoFactorPending === false) {
+        const base0 = authConfig.callbacks?.jwt;
+        const tok0 = base0 ? await base0(args) : args.token;
+        if (tok0) tok0.twoFactorPending = false;
+        return tok0;
+      }
       // Edge-safe base: copies user fields into the token on sign-in
       const base = authConfig.callbacks?.jwt;
       const token = base ? await base(args) : args.token;
@@ -155,21 +168,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
 
-      // Session invalidation on password change: if the password was changed
-      // after this token was issued, drop the session (forces re-login).
-      // Checked at most once every 5 minutes per session to bound DB load.
+      // Session invalidation on password change AND on sessionVersion
+      // bump (revoke-all, S1.2): if either happened after this token was
+      // issued, drop the session (forces re-login). Checked at most once
+      // every 5 minutes per session to bound DB load.
       const nowSec = Math.floor(Date.now() / 1000);
       const lastCheck = typeof token.lastPwdCheck === "number" ? token.lastPwdCheck : 0;
       if (token.id && token.iat && nowSec - lastCheck > 300) {
         try {
           await connectDB();
           const dbUser = await UserModel.findById(token.id)
-            .select("passwordChangedAt")
-            .lean() as { passwordChangedAt?: Date } | null;
+            .select("passwordChangedAt sessionVersion")
+            .lean() as { passwordChangedAt?: Date; sessionVersion?: number } | null;
           token.lastPwdCheck = nowSec;
           const pwdChangedAt = dbUser?.passwordChangedAt;
           if (pwdChangedAt && token.iat * 1000 < new Date(pwdChangedAt).getTime() - 5000) {
             return null; // password changed since issue → session invalid
+          }
+          if (
+            typeof dbUser?.sessionVersion === "number" &&
+            typeof token.sessionVersion === "number" &&
+            dbUser.sessionVersion !== token.sessionVersion
+          ) {
+            return null; // sessions revoked since issue → session invalid
           }
         } catch {
           // Non-fatal — keep the session on DB errors

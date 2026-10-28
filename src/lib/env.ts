@@ -124,6 +124,32 @@ export function validateEnv(): AppEnv {
     console.error(msg);
   }
 
+  // S4: refuse to boot in production with weak/placeholder secrets, and
+  // validate the encryption keyring format when it is configured.
+  if (process.env.NODE_ENV === "production") {
+    const WEAK = ["dev-secret-change-me", "change-me", "test-secret", "secret", "password"];
+    const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "";
+    if (WEAK.some((w) => secret.toLowerCase().includes(w)) || secret.length < 32) {
+      throw new Error("[env] AUTH_SECRET/NEXTAUTH_SECRET is weak or placeholder in production (must be >= 32 chars, not a known placeholder).");
+    }
+    const cron = process.env.CRON_SECRET ?? "";
+    if (WEAK.some((w) => cron.toLowerCase().includes(w))) {
+      throw new Error("[env] CRON_SECRET is a known placeholder in production.");
+    }
+    if (process.env.ENCRYPTION_KEYS_JSON) {
+      try {
+        const parsedKeys = JSON.parse(process.env.ENCRYPTION_KEYS_JSON) as Record<string, unknown>;
+        for (const [id, val] of Object.entries(parsedKeys)) {
+          if (typeof val !== "string" || !/^[0-9a-fA-F]{64}$/.test(val)) {
+            throw new Error(`ENCRYPTION_KEYS_JSON key "${id}" must be 64 hex chars (32 bytes)`);
+          }
+        }
+      } catch (e) {
+        throw new Error(`[env] ENCRYPTION_KEYS_JSON is invalid: ${(e as Error).message}`);
+      }
+    }
+  }
+
   // Warn about recommended-but-missing vars
   const warnings: string[] = [];
   for (const v of RECOMMENDED_VARS) {

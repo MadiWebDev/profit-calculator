@@ -1,0 +1,55 @@
+# CI security job template (S4) — ADD VIA THE GITHUB WEB UI.
+# Why not committed to .github/workflows/ directly in this branch:
+# the Muse GitHub App cannot push workflow files (403, workflow scope),
+# so a snapshot push containing a workflow file fails. Copy this file
+# to .github/workflows/security.yml via the web UI (or a local git push),
+# then delete this template copy if desired.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1" # weekly audit
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # PIN BY SHA before merging — resolve the SHA from the action release page at add time
+      - uses: actions/setup-node@v4 # PIN BY SHA before merging
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit (fail on high/critical)
+        run: npm audit --audit-level=high
+      - name: Route auth-policy audit
+        run: npx tsx scripts/audit-routes.ts
+      - name: Security test suite
+        run: npm run test:security
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2 # PIN BY SHA before merging
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: SBOM (CycloneDX)
+        run: npx @cyclonedx/cyclonedx-npm --output-file sbom.json
+      - uses: actions/upload-artifact@v4 # PIN BY SHA before merging
+        with:
+          name: sbom
+          path: sbom.json
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4 # PIN BY SHA before merging
+      - uses: github/codeql-action/init@v3 # PIN BY SHA before merging
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3 # PIN BY SHA before merging

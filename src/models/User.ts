@@ -28,6 +28,20 @@ export interface IUser extends Document {
   emailVerificationExpires?: Date;
   resetPasswordTokenHash?: string;
   resetPasswordExpires?: Date;
+  // Two-factor authentication (S1.1) — secret is AES-256-GCM encrypted
+  // (encryption-v2) before write; never stored raw.
+  twoFactorSecretEncrypted?: string;
+  twoFactorEnabled: boolean;
+  twoFactorRecoveryHashes: string[]; // SHA-256, single-use (removed on use)
+  twoFactorEnforcedAt?: Date;
+  // Session revocation (S1.2): bump to invalidate all JWT sessions.
+  sessionVersion: number;
+  // Login protection (S1.3): last login fingerprint for new-device alerts.
+  lastLoginIpTruncated?: string;
+  lastLoginAt?: Date;
+  // Privacy (S2): deletion request with grace period.
+  deletionRequestedAt?: Date;
+  deletionScheduledAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +66,15 @@ const UserSchema = new Schema<IUser>(
     emailVerificationExpires:  { type: Date,   select: false },
     resetPasswordTokenHash:    { type: String, select: false },
     resetPasswordExpires:      { type: Date,   select: false },
+    twoFactorSecretEncrypted:  { type: String, select: false },
+    twoFactorEnabled:          { type: Boolean, default: false },
+    twoFactorRecoveryHashes:   [{ type: String, select: false }],
+    twoFactorEnforcedAt:       Date,
+    sessionVersion:            { type: Number, default: 0 },
+    lastLoginIpTruncated:      String,
+    lastLoginAt:               Date,
+    deletionRequestedAt:       Date,
+    deletionScheduledAt:       Date,
   },
   { timestamps: true }
 );

@@ -26,6 +26,10 @@ export interface ITeam extends Document {
   paddleCustomerId?: string; // Paddle customer ID — set by customer.created webhook
   currency: string;
   timezone: string;
+  // Team security (S1.4): when true, owners and admins must have 2FA.
+  twoFactorRequiredForAdmins: boolean;
+  // Data retention (S2.2): raw-IP / log retention in days (default 90).
+  ipRetentionDays: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +57,8 @@ const TeamSchema = new Schema<ITeam>(
     paddleCustomerId: { type: String, index: true, sparse: true },
     currency: { type: String, default: "USD" },
     timezone: { type: String, default: "UTC" },
+    twoFactorRequiredForAdmins: { type: Boolean, default: false },
+    ipRetentionDays: { type: Number, default: 90 },
   },
   { timestamps: true }
 );

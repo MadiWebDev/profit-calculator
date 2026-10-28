@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Megaphone,
   Sliders, Target, FileText, Settings, LogOut, TrendingUp, AlertTriangle, Truck, Bell, ShieldAlert, PackageSearch,
   Calculator, ChevronRight, Users, Zap, Key, ClipboardList,
-  Crown, Clock, Globe, BarChart3, Gauge, BookOpen, Droplets, Wallet, Coins, Receipt, Store, Landmark, Sparkles, Bookmark, CalendarClock, Ship, Banknote, ChevronDown, Search,
+  Crown, Clock, Globe, ShieldCheck, BarChart3, Gauge, BookOpen, Droplets, Wallet, Coins, Receipt, Store, Landmark, Sparkles, Bookmark, CalendarClock, Ship, Banknote, ChevronDown, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UsageMeter } from "@/components/dashboard/UsageMeter";
@@ -100,6 +100,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/settings/api-keys", label: "API & Webhooks", icon: Key, ownerOnly: true },
       { href: "/dashboard/settings?tab=billing", label: "Billing", icon: Wallet, ownerOnly: true },
       { href: "/dashboard/settings/audit-log", label: "Audit Log", icon: ClipboardList, ownerOnly: true },
+      { href: "/dashboard/security", label: "Security", icon: ShieldCheck },
       { href: "/dashboard/settings/jobs", label: "Jobs", icon: Clock, ownerOnly: true },
       { href: "/dashboard/settings", label: "All Settings", icon: Settings },
     ],

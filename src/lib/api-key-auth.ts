@@ -16,6 +16,7 @@ export interface ApiKeySession {
   teamId: string;
   scopes: string[];
   keyId: string;
+  accessLevel: "read" | "write";
 }
 
 export type ApiKeyFailure =
@@ -57,10 +58,27 @@ export async function validateApiKey(
     return { ok: false, failure: { reason: "expired" } };
   }
 
+  // S1.5 IP allowlist: an allowlisted key used from another IP is rejected
+  // (401, indistinguishable from an invalid key to the caller).
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (key.ipAllowlist?.length && clientIp && !key.ipAllowlist.includes(clientIp)) {
+    return { ok: false, failure: { reason: "invalid" } };
+  }
+
+  // S1.5 anomaly: >200 uses in an hour is flagged (security event, and
+  // the key is NOT silently killed — the owner decides from the dashboard).
+  const recent = (key.recentUseCount ?? 0) + 1;
+  if (recent > 200) {
+    try {
+      const { recordSecurityEvent } = await import("@/lib/security-events");
+      await recordSecurityEvent({ teamId: key.teamId.toString(), type: "api_key_anomaly", metadata: { keyId: key._id.toString(), recentUseCount: recent } });
+    } catch { /* best-effort */ }
+  }
+
   // Update usage stats (non-blocking)
   ApiKeyModel.findByIdAndUpdate(key._id, {
-    $inc: { usageCount: 1 },
-    $set: { lastUsedAt: new Date() },
+    $inc: { usageCount: 1, recentUseCount: 1 },
+    $set: { lastUsedAt: new Date(), lastUsedIpTruncated: clientIp ? clientIp.split(".").slice(0, 3).join(".") + ".0" : undefined },
   }).exec().catch(() => undefined);
 
   return {
@@ -69,6 +87,7 @@ export async function validateApiKey(
       teamId: key.teamId.toString(),
       scopes: key.scopes ?? [],
       keyId: key._id.toString(),
+      accessLevel: key.accessLevel ?? "read",
     },
   };
 }
@@ -117,6 +136,10 @@ export async function requireV1Access(
 
   if (!hasScope(session, scope)) {
     return NextResponse.json({ error: `Forbidden. Missing scope: ${scope}` }, { status: 403 });
+  }
+  // S1.5: read-only keys can never perform a write, even with a write scope.
+  if (scope.startsWith("write:") && session.accessLevel !== "write") {
+    return NextResponse.json({ error: "Forbidden. This is a read-only API key." }, { status: 403 });
   }
 
   const { checkSubscription } = await import("@/lib/api-helpers");
