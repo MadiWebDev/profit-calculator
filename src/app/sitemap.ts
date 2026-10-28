@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { calculators } from "@/config/calculators";
 import { BASE_URL } from "@/lib/seo";
+import { SEO_PAGES } from "@/lib/seo-pages";
+import { LOCALES, CORE_LOCALE_SLUGS } from "@/lib/seo-locales";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
@@ -46,5 +48,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  return [...staticPages, ...calculatorPages, ...blogPages];
+  // SEO landing pages: 21 English pages mirroring the competitor sitemap.
+  const seoPages: MetadataRoute.Sitemap = Object.keys(SEO_PAGES).map((slug) => ({
+    url: `${BASE_URL}/${slug}`,
+    lastModified: now,
+    changeFrequency: "monthly",
+    priority: 0.85,
+  }));
+
+  // Localised landing pages: 19 locales x (home + 5 core topics) = 114 URLs.
+  const localePages: MetadataRoute.Sitemap = LOCALES.flatMap((locale) => [
+    { url: `${BASE_URL}/${locale.code}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.7 },
+    ...CORE_LOCALE_SLUGS.map((slug) => ({
+      url: `${BASE_URL}/${locale.code}/${slug}`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
+  ]);
+
+  return [...staticPages, ...calculatorPages, ...blogPages, ...seoPages, ...localePages];
 }
