@@ -28,6 +28,10 @@ import OrderModel from "@/models/Order";
 import ProductModel from "@/models/Product";
 import { upsertShopifyOrder, type ShopifyOrder } from "@/lib/sync/shopify";
 import { claimWebhookEvent, finishWebhookEvent } from "@/lib/webhook-dedup";
+import { compileCustomerDataExport } from "@/lib/gdpr-export";
+import { sendGdprExportEmail } from "@/lib/email";
+import TeamModel from "@/models/Team";
+import UserModel from "@/models/User";
 import { logger, toLogError } from "@/lib/logger";
 
 const ALLOWED_TOPICS = new Set([
@@ -123,14 +127,53 @@ export async function POST(req: Request, { params }: RouteParams) {
   try {
     switch (topic) {
       case "customers-data_request": {
-        // We store only order-level email/customerId — no customer PII vault.
-        // Return an empty data set; the 200 acknowledges within Shopify's window.
-        logger.info("shopify GDPR data_request", { shopDomain });
+        // payload: { customer: { id, email }, shop_domain }
+        // Compile the customer's order records and email the export to
+        // the store owner (Shopify's contact for the requester, who
+        // forwards it). The 200 acknowledges within Shopify's window;
+        // a failed email is logged loudly, not swallowed — the export
+        // counts stay in the log for manual follow-up.
+        const customer = payload.customer as { id?: number; email?: string } | undefined;
+        const domain = ((payload.shop_domain as string) ?? shopDomain).toLowerCase();
+        const store = domain
+          ? await StoreModel.findOne({ domain, platform: "shopify" }).select("_id teamId").lean()
+          : null;
+        if (store && (customer?.id || customer?.email)) {
+          const data = await compileCustomerDataExport({
+            storeId: store._id,
+            shopDomain: domain,
+            customerId: customer?.id ? String(customer.id) : undefined,
+            customerEmail: customer?.email,
+          });
+          let ownerEmail: string | null = null;
+          if (store.teamId) {
+            const team = await TeamModel.findById(store.teamId).select("ownerId").lean();
+            if (team?.ownerId) {
+              const owner = await UserModel.findById(team.ownerId).select("email").lean();
+              ownerEmail = owner?.email ?? null;
+            }
+          }
+          if (ownerEmail) {
+            try {
+              await sendGdprExportEmail(ownerEmail, domain, customer?.email ?? `customer ${customer?.id}`, data);
+              logger.info("shopify GDPR data_request exported", { domain, orders: data.orders.length });
+            } catch (e) {
+              logger.error("shopify GDPR data_request email failed", e instanceof Error ? e : new Error("email failed"), { domain, orders: data.orders.length });
+            }
+          } else {
+            logger.warn("shopify GDPR data_request: no owner email, export logged only", { domain, orders: data.orders.length });
+          }
+        } else {
+          logger.info("shopify GDPR data_request: no matching store/customer", { domain });
+        }
         break;
       }
 
       case "customers-redact": {
         // payload: { customer: { id }, shop_domain }
+        // Redaction must cover ALL customer PII we hold on orders, not
+        // just the email: name, phone, shipping/billing locality and
+        // the stored browser IP are unset as well.
         const customer = payload.customer as { id?: number } | undefined;
         const domain = ((payload.shop_domain as string) ?? shopDomain).toLowerCase();
         if (customer?.id && domain) {
@@ -138,7 +181,12 @@ export async function POST(req: Request, { params }: RouteParams) {
           if (store) {
             await OrderModel.updateMany(
               { storeId: store._id, customerId: String(customer.id) },
-              { $unset: { customerEmail: "" } }
+              { $unset: {
+                customerEmail: "", customerName: "", customerPhone: "",
+                shippingCity: "", shippingPostalCode: "", shippingCountry: "",
+                billingCity: "", billingPostalCode: "", billingCountry: "",
+                browserIp: "",
+              } }
             );
             logger.info("shopify GDPR customer redacted", { domain });
           }

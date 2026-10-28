@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { SESSION_ABSOLUTE_MAX_AGE_SEC, SESSION_UPDATE_AGE_SEC } from "@/lib/session-policy";
 
 /**
  * Edge-safe auth config — NO Node.js imports allowed here.
@@ -9,7 +10,10 @@ import type { NextAuthConfig } from "next-auth";
  */
 export const authConfig: NextAuthConfig = {
   secret: process.env.AUTH_SECRET,
-  session: { strategy: "jwt" },
+  // Session lifetimes (see session-policy.ts): tokens refresh on daily
+  // activity (updateAge) but never live past the 30-day absolute cap, and
+  // 7 days of inactivity ends the session (enforced in auth.ts jwt()).
+  session: { strategy: "jwt", maxAge: SESSION_ABSOLUTE_MAX_AGE_SEC, updateAge: SESSION_UPDATE_AGE_SEC },
 
   pages: {
     signIn: "/auth/login",
@@ -86,6 +90,7 @@ export const authConfig: NextAuthConfig = {
         // S1: session revocation version + 2FA pending flag (see auth.ts).
         token.sessionVersion = (user as Record<string, unknown>).sessionVersion as number | undefined;
         token.twoFactorPending = (user as Record<string, unknown>).twoFactorPending as boolean | undefined;
+        token.twoFactorSetupRequired = (user as Record<string, unknown>).twoFactorSetupRequired as boolean | undefined;
       }
       return token;
     },
@@ -101,6 +106,7 @@ export const authConfig: NextAuthConfig = {
         u.teamRole = token.teamRole;
         u.sessionVersion = token.sessionVersion;
         u.twoFactorPending = token.twoFactorPending;
+        u.twoFactorSetupRequired = token.twoFactorSetupRequired;
       }
       return session;
     },

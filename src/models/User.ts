@@ -39,6 +39,9 @@ export interface IUser extends Document {
   // Login protection (S1.3): last login fingerprint for new-device alerts.
   lastLoginIpTruncated?: string;
   lastLoginAt?: Date;
+  // Session policy: last activity seen by the auth jwt() check (updated at
+  // most once per 5 minutes per session). Drives the idle timeout.
+  lastSeenAt?: Date;
   // Privacy (S2): deletion request with grace period.
   deletionRequestedAt?: Date;
   deletionScheduledAt?: Date;
@@ -73,6 +76,7 @@ const UserSchema = new Schema<IUser>(
     sessionVersion:            { type: Number, default: 0 },
     lastLoginIpTruncated:      String,
     lastLoginAt:               Date,
+    lastSeenAt:                Date,
     deletionRequestedAt:       Date,
     deletionScheduledAt:       Date,
   },

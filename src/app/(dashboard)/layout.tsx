@@ -14,7 +14,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!session?.user) redirect("/auth/login");
   // S1: a session that has not completed 2FA cannot render any dashboard
   // page — send it to the verify step instead (API routes enforce this too).
-  if ((session.user as { twoFactorPending?: boolean }).twoFactorPending) {
+  // Team-enforced enrolment takes precedence: a member who must set up
+  // 2FA goes to the setup page, not the verify page (they have no secret
+  // yet, so a code prompt would be a dead end).
+  const su = session.user as { twoFactorPending?: boolean; twoFactorSetupRequired?: boolean };
+  if (su.twoFactorSetupRequired) {
+    redirect("/auth/2fa-setup");
+  }
+  if (su.twoFactorPending) {
     redirect("/auth/2fa-verify");
   }
 

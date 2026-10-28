@@ -7,6 +7,7 @@
  */
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
+import fs from "fs";
 import path from "path";
 import { connectDB } from "@/lib/db";
 
@@ -18,6 +19,10 @@ export async function setupTestDb(): Promise<void> {
   // tmpfs mounts (e.g. 512M) mongod's 500MB free-space check fails, so
   // keep the data dir on disk inside the project (gitignored).
   const dbPath = path.join(process.cwd(), ".mongo-mem");
+  // Fresh clones lack this directory and MongoMemoryServer fails on a
+  // missing dbPath (scandir ENOENT) instead of creating it — that used to
+  // fail every DB-backed suite with all its tests skipped.
+  fs.mkdirSync(dbPath, { recursive: true });
   mongod = await MongoMemoryServer.create({ instance: { dbPath } });
   process.env.MONGODB_URI = mongod.getUri();
   await connectDB();

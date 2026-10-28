@@ -82,17 +82,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Resolve the team-level role for permission checks
         let teamRole: string | undefined;
+        let twoFactorRequiredForAdmins = false;
         if (user.teamId) {
           const { default: TeamModel } = await import("@/models/Team");
           const team = await TeamModel.findById(user.teamId)
-            .select("members.userId members.role members.status")
+            .select("members.userId members.role members.status twoFactorRequiredForAdmins")
             .lean();
           const member = team?.members?.find(
             (m: { userId?: unknown; status?: string }) =>
               m.userId?.toString() === user._id.toString() && m.status === "active"
           ) as { role?: string } | undefined;
           teamRole = member?.role;
+          twoFactorRequiredForAdmins = !!(team as { twoFactorRequiredForAdmins?: boolean } | null)?.twoFactorRequiredForAdmins;
         }
+
+        // Team-enforced 2FA (previously a field only, never enforced):
+        // owner/admin members of a team that requires 2FA must enrol
+        // before using the dashboard. They land on /auth/2fa-setup via
+        // the dashboard layout redirect (pending sessions are blocked
+        // from APIs and dashboard pages until enrolment completes).
+        const { requiresTwoFactorSetup } = await import("@/lib/session-policy");
+        const twoFactorSetupRequired = requiresTwoFactorSetup({
+          twoFactorRequiredForAdmins,
+          teamRole,
+          twoFactorEnabled: user.twoFactorEnabled,
+        });
 
         return {
           id:     user._id.toString(),
@@ -107,7 +121,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // the 2FA verify step (session update); requireAuth rejects
           // pending sessions for all API routes.
           sessionVersion: user.sessionVersion ?? 0,
-          twoFactorPending: !!user.twoFactorEnabled,
+          twoFactorPending: !!user.twoFactorEnabled || twoFactorSetupRequired,
+          twoFactorSetupRequired,
         };
       },
     }),
@@ -121,13 +136,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * auth.config.ts with DB-backed refresh. Never runs on Edge.
      */
     async jwt(args) {
-      // S1: session update() from the 2FA verify page clears the pending
-      // flag after a verified code — honour it here, and nowhere else.
-      if (args.trigger === "update" && (args.session as { user?: { twoFactorPending?: boolean } } | undefined)?.user?.twoFactorPending === false) {
-        const base0 = authConfig.callbacks?.jwt;
-        const tok0 = base0 ? await base0(args) : args.token;
-        if (tok0) tok0.twoFactorPending = false;
-        return tok0;
+      // S1: session update() from the 2FA verify/setup pages clears the
+      // pending / setup-required flags after a verified code — honour it
+      // here, and nowhere else.
+      if (args.trigger === "update") {
+        const su = (args.session as { user?: { twoFactorPending?: boolean; twoFactorSetupRequired?: boolean } } | undefined)?.user;
+        if (su?.twoFactorPending === false || su?.twoFactorSetupRequired === false) {
+          const base0 = authConfig.callbacks?.jwt;
+          const tok0 = base0 ? await base0(args) : args.token;
+          if (tok0) {
+            if (su.twoFactorPending === false) tok0.twoFactorPending = false;
+            if (su.twoFactorSetupRequired === false) tok0.twoFactorSetupRequired = false;
+          }
+          return tok0;
+        }
       }
       // Edge-safe base: copies user fields into the token on sign-in
       const base = authConfig.callbacks?.jwt;
@@ -171,15 +193,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Session invalidation on password change AND on sessionVersion
       // bump (revoke-all, S1.2): if either happened after this token was
       // issued, drop the session (forces re-login). Checked at most once
-      // every 5 minutes per session to bound DB load.
+      // every 5 minutes per session to bound DB load. The same check
+      // enforces the session policy (absolute 30-day cap, 7-day idle
+      // timeout) and records activity (lastSeenAt).
       const nowSec = Math.floor(Date.now() / 1000);
       const lastCheck = typeof token.lastPwdCheck === "number" ? token.lastPwdCheck : 0;
       if (token.id && token.iat && nowSec - lastCheck > 300) {
         try {
           await connectDB();
           const dbUser = await UserModel.findById(token.id)
-            .select("passwordChangedAt sessionVersion")
-            .lean() as { passwordChangedAt?: Date; sessionVersion?: number } | null;
+            .select("passwordChangedAt sessionVersion lastSeenAt twoFactorEnabled")
+            .lean() as { passwordChangedAt?: Date; sessionVersion?: number; lastSeenAt?: Date; twoFactorEnabled?: boolean } | null;
           token.lastPwdCheck = nowSec;
           const pwdChangedAt = dbUser?.passwordChangedAt;
           if (pwdChangedAt && token.iat * 1000 < new Date(pwdChangedAt).getTime() - 5000) {
@@ -192,6 +216,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           ) {
             return null; // sessions revoked since issue → session invalid
           }
+          const { isSessionExpired, requiresTwoFactorSetup } = await import("@/lib/session-policy");
+          const lastSeenMs = dbUser?.lastSeenAt ? new Date(dbUser.lastSeenAt).getTime() : null;
+          if (isSessionExpired({ iatSec: token.iat, lastSeenMs, nowMs: Date.now() })) {
+            return null; // absolute lifetime or idle timeout reached
+          }
+          // Team-enforced 2FA for OAuth logins (password logins are
+          // caught in authorize()). Checked here, so at most one check
+          // cycle after login; the dashboard layout then redirects the
+          // member to /auth/2fa-setup until enrolment completes.
+          if (token.teamId && token.teamRole && !token.twoFactorSetupRequired) {
+            const { default: TeamModel } = await import("@/models/Team");
+            const team = await TeamModel.findById(token.teamId)
+              .select("twoFactorRequiredForAdmins")
+              .lean() as { twoFactorRequiredForAdmins?: boolean } | null;
+            if (requiresTwoFactorSetup({
+              twoFactorRequiredForAdmins: team?.twoFactorRequiredForAdmins,
+              teamRole: token.teamRole as string,
+              twoFactorEnabled: dbUser?.twoFactorEnabled,
+            })) {
+              token.twoFactorPending = true;
+              token.twoFactorSetupRequired = true;
+            }
+          }
+          await UserModel.findByIdAndUpdate(token.id, { lastSeenAt: new Date() }).exec();
         } catch {
           // Non-fatal — keep the session on DB errors
         }
