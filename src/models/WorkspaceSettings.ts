@@ -38,7 +38,7 @@ const WorkspaceSettingsSchema = new Schema<IWorkspaceSettings>(
     reverseCharge: { type: Boolean, default: false },
     vatRates: { type: [VatRateSchema], default: [] },
     reportingCurrency: { type: String, default: "USD" },
-    fxSource: { type: String, default: "open.er-api.com" },
+    fxSource: { type: String, default: "currencyapi.net" },
     fxOverrides: { type: [FxOverrideSchema], default: [] },
   },
   { timestamps: true },
