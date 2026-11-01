@@ -35,6 +35,12 @@ export const metadata: Metadata = {
   },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
   verification: { google: "google77fce3f57266cc5a" },
+  manifest: '/manifest.json',
+  icons: {
+    icon: [{ url: '/getprofitcalc.png', type: 'image/png' }],
+    shortcut: [{ url: '/getprofitcalc.png', type: 'image/png' }],
+    apple: [{ url: '/getprofitcalc.png', type: 'image/png' }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -46,7 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="GetProfitCalc" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/getprofitcalc.png" />
         {/* Google AdSense verification */}
         <meta name="google-adsense-account" content="ca-pub-4860681021797211" />
         <script

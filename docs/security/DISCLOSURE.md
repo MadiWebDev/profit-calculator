@@ -1,7 +1,7 @@
 # Vulnerability Disclosure Policy (S5)
 
 - Report security issues via the contact on /.well-known/security.txt
-  (https://www.getprofitcalc.com/contact). Do not post exploit details
+  (https://getprofitcalc.com/contact). Do not post exploit details
   publicly before a fix.
 - We triage within 5 business days and aim to fix confirmed issues
   within 90 days, sooner for critical issues.

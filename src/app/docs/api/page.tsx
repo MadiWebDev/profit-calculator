@@ -148,7 +148,7 @@ export default function ApiDocsPage() {
             <div>
               <p className="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-1">Base URL</p>
               <code className="font-mono text-sm bg-[var(--color-muted)] px-3 py-2 rounded-lg block">
-                https://www.getprofitcalc.com
+                https://getprofitcalc.com
               </code>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">

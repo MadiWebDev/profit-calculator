@@ -37,7 +37,7 @@ export class GetProfitCalc {
   constructor(private opts: { apiKey: string; baseUrl?: string }) {}
 
   private async req<T>(path: string, init?: RequestInit): Promise<T> {
-    const base = (this.opts.baseUrl ?? "https://www.getprofitcalc.com").replace(/\/$/, "");
+    const base = (this.opts.baseUrl ?? "https://getprofitcalc.com").replace(/\/$/, "");
     const res = await fetch(`${base}${path}`, {
       ...init,
       headers: { Authorization: `Bearer ${this.opts.apiKey}`, "Content-Type": "application/json", ...(init?.headers ?? {}) },

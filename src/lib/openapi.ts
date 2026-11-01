@@ -18,7 +18,7 @@ export const openApiSpec = {
       "to the team that owns the API key. Money values are in the team's " +
       "currency units (rounded to 2 decimals).",
   },
-  servers: [{ url: "https://www.getprofitcalc.com/api/v1" }],
+  servers: [{ url: "https://getprofitcalc.com/api/v1" }],
   security: [{ ApiKeyAuth: [] }],
   components: {
     securitySchemes: {
