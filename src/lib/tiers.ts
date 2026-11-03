@@ -92,7 +92,7 @@ export function getTiers(): Tier[] {
         "Unlimited stores",
         "All ad platforms",
         "Real-time AI insights",
-        "Public API + Zapier",
+        "Public API",
         "Priority chat support",
         "Unlimited team members",
       ],

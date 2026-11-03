@@ -104,7 +104,7 @@ export default function HomePage() {
             Free profit calculators for every business model. Plus a full profit-tracking SaaS that actually costs less than a coffee subscription — starting at <strong className="text-[var(--color-foreground)]">$3/month</strong>.
           </p>
           <p className="text-sm text-[var(--color-muted-foreground)] mb-8">
-            Real Shopify profit tracking, without the <s>$39–$349/month</s> price tag.
+            Real Shopify profit tracking, without the <s className="text-red-500 text-bold">$39–$349/month</s> price tag.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button asChild size="lg" className="w-full sm:w-auto text-base font-semibold px-8 gap-2">
@@ -298,7 +298,7 @@ export default function HomePage() {
               </div>
               <p className="text-xs text-[var(--color-muted-foreground)] mb-4">For scaling brands with no limits.</p>
               <ul className="space-y-2 mb-6 flex-1">
-                {["Unlimited orders", "Unlimited stores", "Everything in Growth", "Real-time AI Insights", "All ad platforms", "Public API + Zapier", "White-label reports", "Priority chat support"].map((f) => (
+                {["Unlimited orders", "Unlimited stores", "Everything in Growth", "Real-time AI Insights", "All ad platforms", "Public API", "White-label reports", "Priority chat support"].map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
                     <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
                     {f}

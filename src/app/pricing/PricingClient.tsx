@@ -104,7 +104,7 @@ const PLAN_FEATURES: PlanFeature[] = [
   { label: "Tax set-aside estimator",      starter: true,            growth: true,            pro: true },
   { label: "CSV / PDF reports",            starter: "CSV only",      growth: true,            pro: true },
   { label: "Team members",                 starter: "2",             growth: "5",             pro: "Unlimited" },
-  { label: "Public API + Zapier",          starter: false,           growth: false,           pro: true },
+  { label: "Public API",          starter: false,           growth: false,           pro: true },
   { label: "Support",                      starter: "Email",         growth: "Email",         pro: "Priority chat" },
 ];
 
