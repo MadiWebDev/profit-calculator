@@ -197,7 +197,7 @@ export async function sendTeamInviteEmail(
         padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;
       ">Accept Invitation</a>
       <p style="color:#64748b;font-size:12px;margin-top:16px;">
-        This invitation expires in 48 hours.
+        This invitation expires in 72 hours.
       </p>
     `,
   });
