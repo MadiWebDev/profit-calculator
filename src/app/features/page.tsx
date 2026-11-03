@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   Sparkles, TrendingUp, ShoppingBag, Package,
   Users, FileText, Globe, Upload, Zap, ArrowRight,
-  CheckCircle,
+  CheckCircle, BarChart3, Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Features — AI Profit Tracking for Ecommerce & Ads",
   description:
-    "GetProfitCalc features: AI profit insights, Shopify-only support, what-if simulator, ad creative ROI, goal tracking, tax estimates, and more.",
+    "GetProfitCalc features: AI profit insights, product and customer intelligence, guardrails and alerts, multi-currency FX, Shopify support, what-if simulator, ad creative ROI, goal tracking, tax estimates, and more.",
   path: "/features",
 });
 
@@ -20,24 +20,24 @@ const FEATURES = [
     icon: Sparkles,
     title: "AI Profit Insights",
     badge: "Growth + Pro",
-    desc: "Our AI reads your last 30 days of profit data and proactively surfaces insights in plain English: 'Your Meta ROAS dropped 18% this week while COGS on Product X rose — here's why your margin fell.' No other profit tracker in this price range offers this.",
+    desc: "Our AI reads your last 30 days of profit data and proactively surfaces insights in plain English: 'Your Meta ROAS dropped 18% this week while COGS on Product X rose — here's why your margin fell.'",
     points: [
-      "GPT-4o powered analysis of your actual business data",
+      "AI analysis of your actual business data, via OpenRouter or Groq",
       "Compares current vs. prior 30-day period automatically",
       "Breaks down by ad platform, product, and cost component",
+      "Flags anomalies and forecasts the next 30 days of revenue",
       "Weekly digest on Growth; real-time on Pro",
     ],
   },
   {
     icon: Globe,
-    title: "Multi-Platform Store Support",
+    title: "Shopify + CSV Import",
     badge: "All Plans",
     desc: "GetProfitCalc is Shopify-only by design: native Shopify OAuth plus CSV import for any platform with no native integration yet.",
     points: [
       "Shopify: OAuth connection, automatic order sync",
-      "CSV import: historical orders",
       "Shopify webhooks: real-time order updates",
-      "CSV import: works with any platform — Amazon, BigCommerce, Ecwid, manual",
+      "CSV import: historical orders from any platform — Amazon, BigCommerce, Ecwid, manual",
     ],
   },
   {
@@ -59,7 +59,7 @@ const FEATURES = [
     desc: "Campaign-level ROAS is a vanity metric. GetProfitCalc shows you which specific ad creative is profitable after deducting COGS, shipping, and fees — not just which generated the most revenue.",
     points: [
       "Connects to Meta Ads, Google Ads, and TikTok Ads",
-      "Breaks down ROAS, CPA, and net profit at ad/creative level",
+      "Breaks down ROAS, CPA, and net profit at campaign level, and at creative level where the data supports it",
       "Automatically attributes ad spend to orders",
       "Identifies your worst-performing creatives draining margin",
     ],
@@ -79,25 +79,62 @@ const FEATURES = [
   {
     icon: Users,
     title: "Team Roles & Permissions",
-    badge: "All Plans",
-    desc: "Invite your VA, media buyer, or accountant. Each role has appropriate access — owners see everything, viewers see reports but can't edit COGS or billing.",
+    badge: "Growth + Pro",
+    desc: "Invite your VA, media buyer, or accountant on Growth and Pro. Starter is solo use — no team invites. Each role has appropriate access — owners see everything, viewers see reports but can't edit COGS or billing.",
     points: [
       "Owner, Admin, Member, and Viewer roles",
       "Full audit log: who changed what, when",
-      "Invite via email with 48-hour expiring tokens",
+      "Invite via email with expiring tokens",
       "Remove team members instantly",
+      "Growth includes 1 team member, Pro includes 5",
     ],
   },
   {
     icon: FileText,
-    title: "White-Label Reports",
-    badge: "Growth + Pro",
-    desc: "One-click CSV (and PDF on Pro) reports for every data dimension: profit summary, order detail, product margins, ad spend ROI, and tax estimates.",
+    title: "Reports & Exports",
+    badge: "All Plans",
+    desc: "One-click CSV and PDF reports for every data dimension: profit summary, order detail, product margins, ad spend ROI, and tax estimates.",
     points: [
       "Date range picker for any historical period",
       "Profit Summary, Order Detail, Product Margins, Ad Spend ROI, Tax Estimate",
-      "CSV on all plans; PDF on Pro",
+      "CSV on all plans; PDF on Growth and Pro",
       "Designed to share with investors, accountants, or partners",
+    ],
+  },
+  {
+    icon: BarChart3,
+    title: "Product & Customer Intelligence",
+    badge: "All Plans",
+    desc: "Know which products actually make money after every cost, and which customers are worth keeping. Rankings, break-even prices, and customer segments are computed from your real orders — not sample data.",
+    points: [
+      "Products ranked by fully-loaded profit, not just revenue",
+      "Break-even price and maximum discount before a product loses money",
+      "30-day rising, falling, and dead movers",
+      "Customer RFM segments: champions, loyal, new, at-risk, and lost",
+    ],
+  },
+  {
+    icon: Bell,
+    title: "Guardrails & Alerts",
+    badge: "All Plans",
+    desc: "Set a floor and let GetProfitCalc watch it. When margin, refunds, returns-to-origin, or average order profit cross a threshold you chose, you get an alert instead of discovering it in next month's numbers.",
+    points: [
+      "Threshold rules on margin, refunds, RTO, and average order profit",
+      "Checked automatically every day",
+      "24-hour notification cooldown, so one bad day doesn't spam you",
+      "Alerts surface in your dashboard when a rule trips",
+    ],
+  },
+  {
+    icon: Globe,
+    title: "Multi-Currency & Real-Time FX",
+    badge: "All Plans",
+    desc: "Sell in one currency, report in another, without sums that mix currencies 1:1. Every order is converted to your team's base currency before any total is computed.",
+    points: [
+      "Exchange rates via currencyapi.net, with fallback to free rates and stale cached rates",
+      "Reports, P&L, and product margins all in one base currency",
+      "No mixed-currency totals — conversion happens before aggregation",
+      "Currency settings live in your dashboard, per workspace",
     ],
   },
   {
@@ -176,7 +213,7 @@ export default function FeaturesPage() {
       {/* CTA */}
       <section className="py-16 bg-[var(--color-primary)]">
         <div className="mx-auto max-w-3xl px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-3">All features. 14-day free trial.</h2>
+          <h2 className="text-3xl font-bold text-white mb-3">All features. 7-day free trial.</h2>
           <p className="text-green-100 mb-6">No credit card required. Cancel anytime.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild size="lg" variant="secondary" className="font-semibold gap-2">

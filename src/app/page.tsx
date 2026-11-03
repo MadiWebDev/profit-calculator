@@ -253,7 +253,7 @@ export default function HomePage() {
               </div>
               <p className="text-xs text-[var(--color-muted-foreground)] mb-4">Perfect for side-hustlers and early-stage stores.</p>
               <ul className="space-y-2 mb-6 flex-1">
-                {["100 orders/month", "1 store", "Shopify", "CSV import", "Order-level profit", "What-if simulator", "Profit goal tracking", "2 team members"].map((f) => (
+                {["100 orders/month", "1 store", "Shopify", "CSV import", "Order-level profit", "What-if simulator", "Profit goal tracking", "No team members"].map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
                     <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
                     {f}
@@ -277,7 +277,7 @@ export default function HomePage() {
               </div>
               <p className="text-xs text-[var(--color-muted-foreground)] mb-4">For growing stores ready for real insights.</p>
               <ul className="space-y-2 mb-6 flex-1">
-                {["1,000 orders/month", "2 stores", "Everything in Starter", "AI Profit Insights (weekly)", "Ad creative-level ROI", "3 ad platforms", "Slack alerts", "5 team members"].map((f) => (
+                {["1,000 orders/month", "2 stores", "Everything in Starter", "AI Profit Insights (weekly)", "Ad creative-level ROI", "3 ad platforms", "Slack alerts", "1 team member"].map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm text-[var(--color-muted-foreground)]">
                     <CheckCircle className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
                     {f}

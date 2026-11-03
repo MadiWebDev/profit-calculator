@@ -52,7 +52,7 @@ export function getTiers(): Tier[] {
         "1 store",
         "1 ad platform",
         "CSV import",
-        "2 team members",
+        "No team members",
         "Email support",
       ],
       priceId: {
@@ -73,7 +73,7 @@ export function getTiers(): Tier[] {
         "AI insights (weekly digest)",
         "PDF reports",
         "Slack alerts",
-        "5 team members",
+        "1 team member",
       ],
       priceId: {
         month:      process.env.NEXT_PUBLIC_PADDLE_GROWTH_MONTHLY_PRICE_ID    ?? "",
@@ -94,7 +94,7 @@ export function getTiers(): Tier[] {
         "Real-time AI insights",
         "Public API",
         "Priority chat support",
-        "Unlimited team members",
+        "5 team members",
       ],
       priceId: {
         month:      process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID    ?? "",

@@ -238,13 +238,19 @@ export async function assertCan(
     : 0;
 
   if (used + count > limit) {
+    // A limit of 1 total member means owner-only: there is no team to
+    // add to, so say so plainly instead of "limit of 1 team members".
+    const message =
+      action === "team.invite" && limit <= 1
+        ? "Team invites are not available on your plan."
+        : `You've reached your plan's limit of ${limit} ${ACTION_LABEL[action]} (${used} used).`;
     throw new EntitlementError({
       code: "PLAN_LIMIT",
       action,
       limit,
       used,
       upgradeTo: suggestUpgrade(key, limit),
-      message: `You've reached your plan's limit of ${limit} ${ACTION_LABEL[action]} (${used} used).`,
+      message,
     });
   }
   return effective;

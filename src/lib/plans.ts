@@ -8,6 +8,15 @@ export interface PlanLimits {
   adPlatforms: number;
   aiInsights: boolean;
   aiInsightsFrequency: "none" | "weekly" | "realtime";
+  /**
+   * Total active team members INCLUDING the owner (getUsage counts
+   * every active member, owner included). So the number of extra
+   * members a plan may invite is teamMembers - 1:
+   *   free/starter 1 = owner only, no invites
+   *   growth      2 = owner + 1 member
+   *   pro         6 = owner + 5 members
+   * Marketing copy states the extra-member number (0 / 1 / 5).
+   */
   teamMembers: number;
   csvImport: boolean;
   apiAccess: boolean;
@@ -32,7 +41,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     adPlatforms: 1,
     aiInsights: false,
     aiInsightsFrequency: "none",
-    teamMembers: 2,
+    teamMembers: 1,
     csvImport: true,
     apiAccess: false,
     pdfReports: false,
@@ -43,7 +52,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     adPlatforms: 3,
     aiInsights: true,
     aiInsightsFrequency: "weekly",
-    teamMembers: 5,
+    teamMembers: 2,
     csvImport: true,
     apiAccess: false,
     pdfReports: true,
@@ -54,7 +63,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     adPlatforms: -1,
     aiInsights: true,
     aiInsightsFrequency: "realtime",
-    teamMembers: -1,
+    teamMembers: 6,
     csvImport: true,
     apiAccess: true,
     pdfReports: true,
