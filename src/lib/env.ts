@@ -30,7 +30,12 @@ const EnvSchema = z
     // ── Recommended (warn, don't fail) ─────────────────────────────────────
     ENCRYPTION_KEY: z.string().min(32).optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
-    OPENAI_API_KEY: z.string().min(1).optional(),
+        // ── AI insights (OpenRouter + Groq; OpenAI removed) ────────────────
+    AI_PROVIDER: z.enum(["openrouter", "groq"]).optional(),
+    OPENROUTER_API_KEY: z.string().min(1).optional(),
+    OPENROUTER_MODEL: z.string().min(1).optional(),
+    GROQ_API_KEY: z.string().min(1).optional(),
+    GROQ_MODEL: z.string().min(1).optional(),
     NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
     NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: z.string().min(1).optional(),
     UPSTASH_REDIS_REST_URL: z.string().url().optional(),
@@ -85,7 +90,7 @@ export type AppEnv = z.infer<typeof EnvSchema>;
 const RECOMMENDED_VARS: Array<{ key: string; description: string }> = [
   { key: "ENCRYPTION_KEY", description: "AES-256 key — OAuth tokens stored unencrypted without it" },
   { key: "RESEND_API_KEY", description: "Transactional email (invites, alerts, receipts)" },
-  { key: "OPENAI_API_KEY", description: "AI insights (Growth/Pro feature)" },
+  { key: "OPENROUTER_API_KEY / GROQ_API_KEY", description: "AI insights via OpenRouter or Groq (Growth/Pro feature)" },
   { key: "NEXT_PUBLIC_SITE_URL", description: "Public site URL — used in emails and checkout success URLs" },
   { key: "SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET", description: "Shopify store OAuth" },
   { key: "CURRENCY_API_KEY", description: "Real-time FX rates from currencyapi.net (commercial use requires a paid plan; without it, falls back to open.er-api.com)" },

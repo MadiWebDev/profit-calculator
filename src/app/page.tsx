@@ -69,7 +69,7 @@ const faqs = [
   { q: "What's the difference between the free calculators and the SaaS platform?", a: "The free calculators are one-off tools you use manually. The SaaS platform connects to your actual store and automatically tracks every order's real profit in real time, with AI insights, goal tracking, and reports." },
   { q: "Do I need a credit card to start the 7-day trial?", a: "No. Sign up with just your email. No credit card is required until you choose to upgrade after your trial ends." },
   { q: "Which platforms does the profit tracker support?", a: "Shopify (OAuth), plus CSV import for historical orders. More native integrations are being added regularly." },
-  { q: "How does AI Insights work?", a: "We send your aggregated profit data (no personal customer info) to OpenAI's GPT-4, which generates 3 proactive insights about your business. Available on Growth and Pro plans." },
+  { q: "How does AI Insights work?", a: "We send your aggregated profit data (no personal customer info) to an AI provider (OpenRouter or Groq), which generates 3 proactive insights about your business. Available on Growth and Pro plans." },
   { q: "Can I import historical orders?", a: "Yes. Use our CSV import on any plan to upload historical order data. We provide a template with all the columns we expect." },
 ];
 
