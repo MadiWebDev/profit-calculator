@@ -273,23 +273,30 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     setCurrencyCode(resolved);
   };
 
-  // FX rates for display conversion — fetched once per session, cached by
-  // the API (Cache-Control) and here in state. Missing rates = no conversion.
+  // FX rates for display conversion — re-fetched every 60 seconds while
+  // the dashboard is open, matching /api/fx/rates' browser cache (60s),
+  // so display conversion tracks live rates without a page reload.
+  // Missing rates = no conversion.
   const [fxRates, setFxRates] = useState<Record<string, number> | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/fx/rates?base=USD")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelled && j?.rates && typeof j.rates === "object") {
-          setFxRates(j.rates as Record<string, number>);
-        }
-      })
-      .catch(() => {
-        // Rates unavailable — amounts render unconverted (documented fallback)
-      });
+    const load = () => {
+      fetch("/api/fx/rates?base=USD")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (!cancelled && j?.rates && typeof j.rates === "object") {
+            setFxRates(j.rates as Record<string, number>);
+          }
+        })
+        .catch(() => {
+          // Rates unavailable — amounts render unconverted (documented fallback)
+        });
+    };
+    load();
+    const timer = setInterval(load, 60_000);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, []);
 

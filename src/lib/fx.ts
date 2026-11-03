@@ -32,6 +32,14 @@
  * Commercial use of GetProfitCalc requires a PAID currencyapi.net plan:
  * the free plan is personal-use only.
  *
+ * Live mode: set CURRENCY_API_LIVE=1 to cache for only 60 seconds — the
+ * fastest the provider ever refreshes. This is only real-time on a
+ * StartUp/Professional plan (60-second provider refresh); on a Free or
+ * Essential plan the provider data itself is still hourly, and a 60-second
+ * cache will burn the monthly quota for no fresher data. The dashboard
+ * client also re-fetches /api/fx/rates every 60 seconds while open, so
+ * display conversion tracks the freshest cached rates without a reload.
+ *
  * Note: rates are indicative spot rates for DISPLAY conversion. They are
  * not historical settlement rates — do not use them to restate historical
  * profit. Order-time FX, where stored, lives separately (see profit-extended).
@@ -175,6 +183,9 @@ async function fetchErApiRates(baseCode: string): Promise<FxRates> {
 function cacheTtlMs(): number {
   const key = process.env.CURRENCY_API_KEY?.trim();
   if (!key) return ER_API_CACHE_TTL_MS;
+  // Live mode wins over the TTL env var: 60s is the provider's fastest
+  // refresh, and caching longer would make "live" a lie.
+  if (process.env.CURRENCY_API_LIVE === "1") return 60 * 1000;
   const raw = Number(process.env.CURRENCY_API_CACHE_TTL_SECONDS ?? 300);
   const seconds = Number.isFinite(raw) ? Math.min(3600, Math.max(60, raw)) : 300;
   return seconds * 1000;
