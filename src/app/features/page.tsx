@@ -219,7 +219,7 @@ export default function FeaturesPage() {
             <Button asChild size="lg" variant="secondary" className="font-semibold gap-2">
               <Link href="/auth/register"><Zap className="h-5 w-5" /> Start Free Trial</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="font-semibold border-white/40 text-white hover:bg-white/10">
+            <Button asChild size="lg" variant="outline" className="font-semibold border-white/40 hover:bg-white/10">
               <Link href="/pricing">View Pricing</Link>
             </Button>
           </div>
