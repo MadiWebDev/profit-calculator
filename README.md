@@ -100,14 +100,14 @@ Viewer-role members get a dedicated read-only dashboard. Navigation items are fi
 ### Billing
 Pluggable payment gateway layer — switch between **Dodo Payments** (default) and **Paddle** with one env var:
 
-| Plan | Monthly | Annual | Orders/mo | Stores | Ad Platforms | AI Insights | Team Members | API Access |
-|------|--------:|-------:|:---------:|:------:|:------------:|:-----------:|:------------:|:----------:|
-| Free | $0 | $0 | 50 | 1 | — | ✗ | 1 | ✗ |
-| Starter | $3 | $1.60/mo | 100 | 1 | 1 | ✗ | 2 | ✗ |
-| Growth | $9 | $7.20/mo | 1,000 | 2 | 3 | Weekly | 5 | ✗ |
-| Pro | $25 | $20/mo | Unlimited | Unlimited | Unlimited | Real-time | Unlimited | ✓ |
+| Plan | Monthly | Annual | Orders/mo | Stores | Ad Platforms | AI Insights | Extra Team Members | API Access |
+|------|--------:|-------:|:---------:|:------:|:------------:|:-----------:|:------------------:|:----------:|
+| Free | $0 | $0 | 50 | 1 | — | ✗ | 0 | ✗ |
+| Starter | $3 | $2.40/mo | 100 | 1 | 1 | ✗ | 0 | ✗ |
+| Growth | $18 | $14.40/mo | 1,000 | 2 | 3 | Weekly | 1 | ✗ |
+| Pro | $29 | $23.20/mo | Unlimited | Unlimited | Unlimited | Real-time | 5 | ✓ |
 
-All new accounts start with a **14-day free trial**. No credit card required.
+All new accounts start with a **7-day free trial**. No credit card required.
 
 ---
 

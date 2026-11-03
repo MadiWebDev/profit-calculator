@@ -694,15 +694,15 @@ Pro plan only. Keys are scoped (`read:orders`, `read:products`, `read:reports`, 
 ## 10. Billing & Subscription Plans
 
 **Gateway:** Paddle (sole provider as of Phase 1)  
-**Trial:** 14-day free trial, no credit card required  
+**Trial:** 7-day free trial, no credit card required  
 **Intervals:** Monthly, Quarterly (−10%), Semiannual (−15%), Annual (−20%)
 
-| Plan | Monthly Price | Orders/mo | Stores | Ad Platforms | AI Insights | Team Members | API Access | PDF Reports |
+| Plan | Monthly Price | Orders/mo | Stores | Ad Platforms | AI Insights | Extra Team Members | API Access | PDF Reports |
 |---|---|---|---|---|---|---|---|---|
-| **Free** | $0 | 50 | 1 | 0 | ✗ | 1 | ✗ | ✗ |
-| **Starter** | $3 | 100 | 1 | 1 | ✗ | 2 | ✗ | ✗ |
-| **Growth** | $9 | 1,000 | 2 | 3 | Weekly | 5 | ✗ | ✓ |
-| **Pro** | $25 | Unlimited | Unlimited | Unlimited | Real-time | Unlimited | ✓ | ✓ |
+| **Free** | $0 | 50 | 1 | 0 | ✗ | 0 | ✗ | ✗ |
+| **Starter** | $3 | 100 | 1 | 1 | ✗ | 0 | ✗ | ✗ |
+| **Growth** | $18 | 1,000 | 2 | 3 | Weekly | 1 | ✗ | ✓ |
+| **Pro** | $29 | Unlimited | Unlimited | Unlimited | Real-time | 5 | ✓ | ✓ |
 
 **Gating:** `src/lib/entitlements.ts` enforces plan limits. `checkSubscription()` returns 402 for archived (trial-expired) accounts on every write route.
 

@@ -55,7 +55,7 @@ const features = [
   { icon: Package,    title: "Tax Set-Aside Estimator",  desc: "Rough quarterly tax estimate based on net profit. Stop being surprised at tax time." },
   { icon: Users,      title: "Team Roles",               desc: "Invite your VA, agency, or accountant with view-only access. Full audit log of every change." },
   { icon: FileText,   title: "White-Label Reports",      desc: "One-click branded CSV reports for investors, accountants, or your own records." },
-  { icon: Shield,     title: "Starts at $3/month",       desc: "100-order starter plan for side-hustlers. Growth at $9. Pro unlimited at $25. No $39–$249 price shock." },
+  { icon: Shield,     title: "Starts at $3/month",       desc: "100-order starter plan for side-hustlers. Growth at $18. Pro unlimited at $29. No $39–$249 price shock." },
 ];
 
 const testimonials = [
@@ -272,7 +272,7 @@ export default function HomePage() {
               </div>
               <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-1">Growth</h3>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$9</span>
+                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$18</span>
                 <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
               </div>
               <p className="text-xs text-[var(--color-muted-foreground)] mb-4">For growing stores ready for real insights.</p>
@@ -293,7 +293,7 @@ export default function HomePage() {
             <div className="rounded-2xl border-2 border-[var(--color-border)] bg-[var(--color-card)] p-5 sm:p-6 flex flex-col">
               <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-1">Pro</h3>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$25</span>
+                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$29</span>
                 <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
               </div>
               <p className="text-xs text-[var(--color-muted-foreground)] mb-4">For scaling brands with no limits.</p>
