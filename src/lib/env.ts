@@ -49,6 +49,7 @@ const EnvSchema = z
     // ── FX rates (currencyapi.net) ───────────────────────────────────────
     CURRENCY_API_KEY: z.string().min(1).optional(),
     CURRENCY_API_CACHE_TTL_SECONDS: z.string().min(1).optional(),
+    CURRENCY_API_LIVE: z.string().min(1).optional(),
 
     // ── Meta Ads ───────────────────────────────────────────────────────────
     META_APP_ID: z.string().min(1).optional(),

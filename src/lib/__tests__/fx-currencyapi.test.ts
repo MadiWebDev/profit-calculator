@@ -172,3 +172,28 @@ describe("getFxRates with currencyapi.net", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("live mode (CURRENCY_API_LIVE=1)", () => {
+  it("caches for only 60 seconds, so rates refresh at the provider's fastest cadence", async () => {
+    process.env.CURRENCY_API_KEY = "test-key";
+    process.env.CURRENCY_API_LIVE = "1";
+    const fetchMock = vi.fn(async () => okJson(CURRENCY_API_PAYLOAD));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    try {
+      await getFxRates("USD");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // 59s later: still cached.
+      await vi.advanceTimersByTimeAsync(59_000);
+      await getFxRates("USD");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // 61s after the first fetch: expired, refetched.
+      await vi.advanceTimersByTimeAsync(2_000);
+      await getFxRates("USD");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+      delete process.env.CURRENCY_API_LIVE;
+    }
+  });
+});

@@ -20,7 +20,7 @@ import { connectDB } from "@/lib/db";
 import StoreModel from "@/models/Store";
 import OrderModel from "@/models/Order";
 import ProductModel from "@/models/Product";
-import { fetchVariantCostsSafe } from "@/lib/shopify-graphql";
+import { fetchVariantCostsSafe, fetchShopInfo } from "@/lib/shopify-graphql";
 import { safeDecrypt } from "@/lib/encryption";
 import { calcOrderProfit } from "@/lib/profit-engine";
 import { parseUtmFromLandingSite } from "@/lib/meta-ads-hardening";
@@ -162,6 +162,24 @@ export async function syncShopifyStore(
       syncError: "Access token missing or corrupt — reconnect the store.",
     });
     throw new Error("Access token missing or corrupt");
+  }
+
+  // ── Refresh the store's shop currency from Shopify itself ────────────────
+  // Store currency was previously only read at OAuth connect time, so a
+  // merchant who later changed their shop currency kept syncing orders
+  // against the stale currency whenever an order carried no currency.
+  // Best-effort: a failure here must never fail the order sync.
+  if (store.domain) {
+    try {
+      const shopInfo = await fetchShopInfo(store.domain, accessToken);
+      const shopCurrency = shopInfo.currency?.toUpperCase().trim();
+      if (shopCurrency && shopCurrency !== store.currency) {
+        store.currency = shopCurrency;
+        await StoreModel.findByIdAndUpdate(storeId, { currency: shopCurrency });
+      }
+    } catch (e) {
+      logger.warn("shopify store currency refresh failed (keeping stored currency)", {}, toLogError(e));
+    }
   }
 
   // ── Incremental window ────────────────────────────────────────────────────

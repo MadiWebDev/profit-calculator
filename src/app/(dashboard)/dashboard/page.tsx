@@ -8,8 +8,10 @@ import ProductModel from "@/models/Product";
 import AdAccountModel from "@/models/AdAccount";
 import CourierModel from "@/models/Courier";
 import { calcPeriodSummary } from "@/lib/profit-engine";
+import { getFxRates } from "@/lib/fx";
+import { logger } from "@/lib/logger";
+import { convertOrdersToBase, sumCosts } from "@/lib/report-currency";
 import { OverviewClient } from "./OverviewClient";
-import mongoose from "mongoose";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -45,15 +47,11 @@ async function getOverviewData(
   const priorTo   = new Date(from.getTime() - 1);
   const priorFrom = new Date(priorTo.getTime() - periodMs);
 
-  const teamOid = new mongoose.Types.ObjectId(teamId);
-
   // Run all DB queries in parallel
   const [
     currentOrders,
     lastOrders,
-    dailyRaw,
-    statusSplit,
-    costBreakdown,
+    chartOrders,
     recentOrders,
     stores,
     totalOrderCount,
@@ -79,6 +77,8 @@ async function getOverviewData(
       .lean(),
 
     // ── Prior-period orders (non-cancelled only — for financial metrics) ──
+    // currency is selected here too: prior-period conversion needs each
+    // order's own currency, not an assumed one.
     OrderModel.find({
       teamId,
       orderDate: { $gte: priorFrom, $lte: priorTo },
@@ -87,93 +87,23 @@ async function getOverviewData(
       .select(
         "grossRevenue discounts shippingRevenue shippingCost totalCogs " +
         "transactionFees taxes refundAmount chargebackAmount adSpendAllocated " +
-        "netRevenue netProfit profitMargin"
+        "netRevenue netProfit profitMargin currency"
       )
       .lean(),
 
-    // ── Daily time-series (ALL statuses for order count, non-cancelled for $) ──
-    OrderModel.aggregate([
-      {
-        $match: {
-          teamId: teamOid,
-          orderDate: { $gte: from, $lte: toEOD },
-        },
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$orderDate" } },
-          // Revenue/profit only from non-cancelled
-          revenue: {
-            $sum: {
-              $cond: [{ $ne: ["$status", "cancelled"] }, "$netRevenue", 0],
-            },
-          },
-          profit: {
-            $sum: {
-              $cond: [{ $ne: ["$status", "cancelled"] }, "$netProfit", 0],
-            },
-          },
-          adSpend: {
-            $sum: {
-              $cond: [{ $ne: ["$status", "cancelled"] }, "$adSpendAllocated", 0],
-            },
-          },
-          cogs: {
-            $sum: {
-              $cond: [{ $ne: ["$status", "cancelled"] }, "$totalCogs", 0],
-            },
-          },
-          // Count includes ALL statuses
-          orders: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]),
-
-    // ── Status split (ALL statuses, no filter) ───────────────────────────
-    OrderModel.aggregate([
-      {
-        $match: {
-          teamId: teamOid,
-          orderDate: { $gte: from, $lte: toEOD },
-        },
-      },
-      {
-        $group: {
-          _id: "$status",
-          count:   { $sum: 1 },
-          revenue: { $sum: "$grossRevenue" },
-        },
-      },
-    ]),
-
-    // ── Cost breakdown (single $group over current period) ────────────────
-    OrderModel.aggregate([
-      {
-        $match: {
-          teamId: teamOid,
-          orderDate: { $gte: from, $lte: toEOD },
-          status: { $ne: "cancelled" },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          grossRevenue:     { $sum: "$grossRevenue" },
-          discounts:        { $sum: "$discounts" },
-          refunds:          { $sum: "$refundAmount" },
-          chargebacks:      { $sum: "$chargebackAmount" },
-          cogs:             { $sum: "$totalCogs" },
-          shippingCost:     { $sum: "$shippingCost" },
-          shippingRevenue:  { $sum: "$shippingRevenue" },
-          transactionFees:  { $sum: "$transactionFees" },
-          adSpend:          { $sum: "$adSpendAllocated" },
-          taxes:            { $sum: "$taxes" },
-          netProfit:        { $sum: "$netProfit" },
-          orderCount:       { $sum: 1 },
-        },
-      },
-    ]),
+    // ── Current-period orders, ALL statuses, for the daily chart + status
+    // split. Money fields are converted per order in JS below — a Mongo
+    // $sum cannot convert currencies, so these two series can no longer
+    // come from $group aggregates (which summed mixed currencies 1:1).
+    OrderModel.find({
+      teamId,
+      orderDate: { $gte: from, $lte: toEOD },
+    })
+      .select(
+        "orderDate status grossRevenue netRevenue netProfit " +
+        "adSpendAllocated totalCogs currency"
+      )
+      .lean(),
 
     // ── 5 most recent orders ──────────────────────────────────────────────
     OrderModel.find({
@@ -220,8 +150,106 @@ async function getOverviewData(
     CourierModel.countDocuments({ teamId }),
   ]);
 
+  // ── Base currency + per-order FX conversion ─────────────────────────────
+  // Base = most common store currency. Every money figure below is first
+  // converted, order by order, from that order's own Shopify currency into
+  // base — never summed 1:1 across currencies. Single-currency teams are
+  // exact (same-currency conversion is a no-op). If FX is unavailable,
+  // conversion is skipped and the old 1:1 sums are used rather than
+  // failing the whole dashboard.
+  const baseCurrency = (() => {
+    const counts = new Map<string, number>();
+    for (const st of stores) {
+      const c = ((st as { currency?: string }).currency ?? "USD").toUpperCase();
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    let best = "USD";
+    let bestN = -1;
+    for (const [c, n] of counts) if (n > bestN) { best = c; bestN = n; }
+    return best;
+  })();
+
+  let fxRates: Record<string, number> | null = null;
+  try {
+    fxRates = (await getFxRates(baseCurrency)).rates;
+  } catch (e) {
+    logger.warn("dashboard: FX rates unavailable, aggregating unconverted", {
+      error: e instanceof Error ? e.message : "unknown",
+    });
+  }
+
+  const toCosts = (orders: typeof currentOrders) =>
+    convertOrdersToBase(
+      orders.map((o) => ({
+        currency: (o as { currency?: string }).currency ?? baseCurrency,
+        grossRevenue: o.grossRevenue,
+        discounts: o.discounts,
+        shippingRevenue: o.shippingRevenue,
+        shippingCost: o.shippingCost,
+        totalCogs: o.totalCogs,
+        transactionFees: o.transactionFees,
+        taxes: o.taxes,
+        refundAmount: o.refundAmount,
+        chargebackAmount: o.chargebackAmount,
+        adSpendAllocated: o.adSpendAllocated,
+      })),
+      baseCurrency,
+      fxRates,
+    );
+
+  const currentCosts = toCosts(currentOrders);
+  const lastCosts = toCosts(lastOrders);
+
+  // Daily chart + status split from the converted chart orders. Money only
+  // from non-cancelled orders (as before); order counts include all statuses.
+  // netRevenue/netProfit per order are derived from the converted costs
+  // with the same formula as calcPeriodSummary, per order.
+  const dailyMap = new Map<string, { revenue: number; profit: number; orders: number; adSpend: number; cogs: number }>();
+  const statusAgg = new Map<string, { count: number; revenue: number }>();
+  for (const o of chartOrders) {
+    const key = isoDate(o.orderDate as Date);
+    const entry = dailyMap.get(key) ?? { revenue: 0, profit: 0, orders: 0, adSpend: 0, cogs: 0 };
+    entry.orders += 1;
+    const st = statusAgg.get(o.status) ?? { count: 0, revenue: 0 };
+    st.count += 1;
+    const [converted] = convertOrdersToBase(
+      [{
+        currency: (o as { currency?: string }).currency ?? baseCurrency,
+        grossRevenue: o.grossRevenue,
+        discounts: 0,
+        shippingRevenue: 0,
+        shippingCost: 0,
+        totalCogs: o.totalCogs,
+        transactionFees: 0,
+        taxes: 0,
+        refundAmount: 0,
+        chargebackAmount: 0,
+        adSpendAllocated: o.adSpendAllocated,
+      }],
+      baseCurrency,
+      fxRates,
+    );
+    st.revenue += converted.grossRevenue;
+    statusAgg.set(o.status, st);
+    if (o.status !== "cancelled") {
+      // netRevenue/netProfit are stored in the order's own currency; convert
+      // them with the same rate as grossRevenue for this order.
+      const rate = (() => {
+        const from = ((o as { currency?: string }).currency ?? baseCurrency).toUpperCase();
+        if (!fxRates || from === baseCurrency) return 1;
+        const fromRate = fxRates[from];
+        const toRate = fxRates[baseCurrency];
+        return fromRate > 0 && toRate > 0 ? toRate / fromRate : 1;
+      })();
+      entry.revenue += (o.netRevenue ?? 0) * rate;
+      entry.profit += (o.netProfit ?? 0) * rate;
+      entry.adSpend += converted.adSpendAllocated;
+      entry.cogs += converted.totalCogs;
+    }
+    dailyMap.set(key, entry);
+  }
+
   // ── Build filled daily chart data ─────────────────────────────────────────
-  const dailyMap = new Map(dailyRaw.map((d) => [d._id as string, d]));
   const chartData: {
     date: string;
     revenue: number;
@@ -238,31 +266,17 @@ async function getOverviewData(
     const e   = dailyMap.get(key);
     chartData.push({
       date:    key,
-      revenue: e?.revenue  ?? 0,
-      profit:  e?.profit   ?? 0,
+      revenue: round2(e?.revenue  ?? 0),
+      profit:  round2(e?.profit   ?? 0),
       orders:  e?.orders   ?? 0,
-      adSpend: e?.adSpend  ?? 0,
-      cogs:    e?.cogs     ?? 0,
+      adSpend: round2(e?.adSpend  ?? 0),
+      cogs:    round2(e?.cogs     ?? 0),
     });
   }
 
-  // ── Period summaries ──────────────────────────────────────────────────────
-  const toCosts = (orders: typeof currentOrders) =>
-    orders.map((o) => ({
-      grossRevenue:     o.grossRevenue,
-      discounts:        o.discounts,
-      shippingRevenue:  o.shippingRevenue,
-      shippingCost:     o.shippingCost,
-      totalCogs:        o.totalCogs,
-      transactionFees:  o.transactionFees,
-      taxes:            o.taxes,
-      refundAmount:     o.refundAmount,
-      chargebackAmount: o.chargebackAmount,
-      adSpendAllocated: o.adSpendAllocated,
-    }));
-
-  const current = calcPeriodSummary(toCosts(currentOrders));
-  const last    = calcPeriodSummary(toCosts(lastOrders));
+  // ── Period summaries (from converted costs) ───────────────────────────────
+  const current = calcPeriodSummary(currentCosts);
+  const last    = calcPeriodSummary(lastCosts);
 
   const pct = (curr: number, prev: number) =>
     prev !== 0 ? round2(((curr - prev) / Math.abs(prev)) * 100) : 0;
@@ -270,25 +284,25 @@ async function getOverviewData(
   // Orders % change uses the all-status in-period counts, not just non-cancelled
   const ordersChange = pct(periodOrderCount, priorPeriodOrderCount);
 
-  // ── Cost breakdown from aggregate ─────────────────────────────────────────
+  // ── Cost breakdown from converted current-period costs ────────────────────
   // Money contract (see profit-engine.ts): order grossRevenue is tax-exclusive
   // and already net of discounts, with shipping included — so net revenue is
   // gross minus refunds/chargebacks only. discounts/shippingRevenue are memos.
-  const cb = costBreakdown[0] ?? {};
-  const grossRev   = cb.grossRevenue   ?? 0;
-  const totalCosts = (cb.cogs ?? 0) + (cb.shippingCost ?? 0) + (cb.transactionFees ?? 0) + (cb.adSpend ?? 0);
-  const netRev     = grossRev - (cb.refunds ?? 0) - (cb.chargebacks ?? 0);
+  const cbSums = sumCosts(currentCosts);
+  const grossRev   = cbSums.grossRevenue;
+  const totalCosts = cbSums.totalCogs + cbSums.shippingCost + cbSums.transactionFees + cbSums.adSpendAllocated;
+  const netRev     = grossRev - cbSums.refundAmount - cbSums.chargebackAmount;
 
   // ROAS: net revenue generated per $ of ad spend
-  const roas = (cb.adSpend ?? 0) > 0 ? round2(netRev / (cb.adSpend ?? 1)) : 0;
+  const roas = cbSums.adSpendAllocated > 0 ? round2(netRev / (cbSums.adSpendAllocated || 1)) : 0;
 
   // Gross revenue already includes shipping charged to the customer
   const totalGrossRevenue = grossRev;
 
-  // ── Status map ────────────────────────────────────────────────────────────
+  // ── Status map (from converted chart orders above) ────────────────────────
   const statusMap: Record<string, { count: number; revenue: number }> = {};
-  for (const s of statusSplit) {
-    statusMap[s._id as string] = { count: s.count, revenue: round2(s.revenue) };
+  for (const [status, agg] of statusAgg) {
+    statusMap[status] = { count: agg.count, revenue: round2(agg.revenue) };
   }
 
   // ── Goal progress ─────────────────────────────────────────────────────────
@@ -340,16 +354,16 @@ async function getOverviewData(
     costBreakdown: {
       grossRevenue:     round2(grossRev),
       totalGrossRevenue: round2(totalGrossRevenue),
-      discounts:        round2(cb.discounts       ?? 0),
-      refunds:          round2(cb.refunds         ?? 0),
-      chargebacks:      round2(cb.chargebacks     ?? 0),
-      cogs:             round2(cb.cogs            ?? 0),
-      shippingCost:     round2(cb.shippingCost    ?? 0),
-      shippingRevenue:  round2(cb.shippingRevenue ?? 0),
-      transactionFees:  round2(cb.transactionFees ?? 0),
-      adSpend:          round2(cb.adSpend         ?? 0),
-      taxes:            round2(cb.taxes           ?? 0),
-      netProfit:        round2(cb.netProfit       ?? 0),
+      discounts:        round2(cbSums.discounts),
+      refunds:          round2(cbSums.refundAmount),
+      chargebacks:      round2(cbSums.chargebackAmount),
+      cogs:             round2(cbSums.totalCogs),
+      shippingCost:     round2(cbSums.shippingCost),
+      shippingRevenue:  round2(cbSums.shippingRevenue),
+      transactionFees:  round2(cbSums.transactionFees),
+      adSpend:          round2(cbSums.adSpendAllocated),
+      taxes:            round2(cbSums.taxes),
+      netProfit:        round2(current.netProfit),
       totalCosts:       round2(totalCosts),
       roas,
       netRevenue:       round2(netRev),
@@ -376,19 +390,10 @@ async function getOverviewData(
       currency:    (s as { currency?: string }).currency ?? "USD",
     })),
     // Base currency for FX display conversion = most common store currency.
-    // Aggregates are summed in this currency (single-currency teams are exact;
-    // mixed-currency teams convert at current spot rates — see Phase 5 notes).
-    baseCurrency: (() => {
-      const counts = new Map<string, number>();
-      for (const st of stores) {
-        const c = ((st as { currency?: string }).currency ?? "USD").toUpperCase();
-        counts.set(c, (counts.get(c) ?? 0) + 1);
-      }
-      let best = "USD";
-      let bestN = -1;
-      for (const [c, n] of counts) if (n > bestN) { best = c; bestN = n; }
-      return best;
-    })(),
+    // Every aggregate above was converted order-by-order into this currency
+    // before summing, so the totals are in baseCurrency even for
+    // mixed-currency teams (single-currency teams are exact).
+    baseCurrency,
     goalProgress,
     hasOrders: totalOrderCount > 0,
     hasCogs: productsWithCogs > 0,
