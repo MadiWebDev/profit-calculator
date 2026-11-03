@@ -70,7 +70,10 @@ const faqs = [
   { q: "Do I need a credit card to start the 7-day trial?", a: "No. Sign up with just your email. No credit card is required until you choose to upgrade after your trial ends." },
   { q: "Which platforms does the profit tracker support?", a: "Shopify (OAuth), plus CSV import for historical orders. More native integrations are being added regularly." },
   { q: "How does AI Insights work?", a: "We send your aggregated profit data (no personal customer info) to an AI provider (OpenRouter or Groq), which generates 3 proactive insights about your business. Available on Growth and Pro plans." },
-  { q: "Can I import historical orders?", a: "Yes. Use our CSV import on any plan to upload historical order data. We provide a template with all the columns we expect." },
+  { q: "Can I import historical orders?", a: "Yes. Use our CSV import to upload historical order data, within your plan's monthly order limit. We provide a template with all the columns we expect." },
+  { q: "How much does the SaaS platform cost?", a: "Starter is $3/month, Growth is $18/month, and Pro is $29/month. Longer billing saves more: quarterly is 10% off, semiannual is 15% off, and annual is 20% off. Every paid plan starts with a 7-day free trial, no credit card required." },
+  { q: "Can I invite my team?", a: "Yes, on Growth and Pro. Starter is solo use. Growth includes 1 team member and Pro includes 5 team members, beyond the account owner." },
+  { q: "Do you support multiple currencies?", a: "Yes. Order profit is converted to your store currency before totals are calculated, so mixed-currency orders are never summed 1:1. Rates come from currencyapi.net, with a fallback provider if it is unavailable." },
 ];
 
 // ── Components ────────────────────────────────────────────────────────────────
