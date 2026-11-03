@@ -117,9 +117,9 @@ export const INTERVAL_META: Record<BillingInterval, IntervalMeta> = {
  * cannot be fetched — the live Paddle price always takes precedence).
  */
 export const PLAN_BASE_PRICES: Record<Exclude<PlanId, "free">, number> = {
-  starter: 300,   // $2/mo
-  growth:  900,   // $9/mo
-  pro:     2500,  // $25/mo
+  starter: 300,   // $3/mo
+  growth:  1800,  // $18/mo
+  pro:     2900,  // $29/mo
 };
 
 /**
@@ -154,9 +154,9 @@ export function getTotalCyclePrice(
  * endpoint provides real Paddle prices.
  */
 export const PLAN_DISPLAY = {
-  starter: { name: "Starter", monthlyPrice: 2.00  },
-  growth:  { name: "Growth",  monthlyPrice: 9.00  },
-  pro:     { name: "Pro",     monthlyPrice: 25.00 },
+  starter: { name: "Starter", monthlyPrice: 3.00  },
+  growth:  { name: "Growth",  monthlyPrice: 18.00 },
+  pro:     { name: "Pro",     monthlyPrice: 29.00 },
 } as const;
 
 export function getPlanLimits(plan: PlanId): PlanLimits {

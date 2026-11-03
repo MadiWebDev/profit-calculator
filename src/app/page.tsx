@@ -55,7 +55,7 @@ const features = [
   { icon: Package,    title: "Tax Set-Aside Estimator",  desc: "Rough quarterly tax estimate based on net profit. Stop being surprised at tax time." },
   { icon: Users,      title: "Team Roles",               desc: "Invite your VA, agency, or accountant with view-only access. Full audit log of every change." },
   { icon: FileText,   title: "White-Label Reports",      desc: "One-click branded CSV reports for investors, accountants, or your own records." },
-  { icon: Shield,     title: "Starts at $3/month",       desc: "100-order starter plan for side-hustlers. Growth at $9. Pro unlimited at $25. No $39–$249 price shock." },
+  { icon: Shield,     title: "Starts at $3/month",       desc: "100-order starter plan for side-hustlers. Growth at $18. Pro unlimited at $29. No $39–$249 price shock." },
 ];
 
 const testimonials = [
@@ -70,7 +70,10 @@ const faqs = [
   { q: "Do I need a credit card to start the 7-day trial?", a: "No. Sign up with just your email. No credit card is required until you choose to upgrade after your trial ends." },
   { q: "Which platforms does the profit tracker support?", a: "Shopify (OAuth), plus CSV import for historical orders. More native integrations are being added regularly." },
   { q: "How does AI Insights work?", a: "We send your aggregated profit data (no personal customer info) to an AI provider (OpenRouter or Groq), which generates 3 proactive insights about your business. Available on Growth and Pro plans." },
-  { q: "Can I import historical orders?", a: "Yes. Use our CSV import on any plan to upload historical order data. We provide a template with all the columns we expect." },
+  { q: "Can I import historical orders?", a: "Yes. Use our CSV import to upload historical order data, within your plan's monthly order limit. We provide a template with all the columns we expect." },
+  { q: "How much does the SaaS platform cost?", a: "Starter is $3/month, Growth is $18/month, and Pro is $29/month. Longer billing saves more: quarterly is 10% off, semiannual is 15% off, and annual is 20% off. Every paid plan starts with a 7-day free trial, no credit card required." },
+  { q: "Can I invite my team?", a: "Yes, on Growth and Pro. Starter is solo use. Growth includes 1 team member and Pro includes 5 team members, beyond the account owner." },
+  { q: "Do you support multiple currencies?", a: "Yes. Order profit is converted to your store currency before totals are calculated, so mixed-currency orders are never summed 1:1. Rates come from currencyapi.net, with a fallback provider if it is unavailable." },
 ];
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -272,7 +275,7 @@ export default function HomePage() {
               </div>
               <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-1">Growth</h3>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$9</span>
+                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$18</span>
                 <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
               </div>
               <p className="text-xs text-[var(--color-muted-foreground)] mb-4">For growing stores ready for real insights.</p>
@@ -293,7 +296,7 @@ export default function HomePage() {
             <div className="rounded-2xl border-2 border-[var(--color-border)] bg-[var(--color-card)] p-5 sm:p-6 flex flex-col">
               <h3 className="text-lg font-bold text-[var(--color-foreground)] mb-1">Pro</h3>
               <div className="flex items-end gap-1 mb-1">
-                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$25</span>
+                <span className="text-4xl font-extrabold text-[var(--color-foreground)]">$29</span>
                 <span className="text-sm text-[var(--color-muted-foreground)] mb-1">/month</span>
               </div>
               <p className="text-xs text-[var(--color-muted-foreground)] mb-4">For scaling brands with no limits.</p>
