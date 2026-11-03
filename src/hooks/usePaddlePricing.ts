@@ -188,7 +188,11 @@ export function usePaddlePricing(
 
       const priceId    = tier.priceId[interval];
       const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-      const successUrl = opts.successUrl ?? `${siteUrl}/dashboard/settings?upgraded=1`;
+      // Paddle requires an absolute success URL; a relative path is resolved
+      // against the site URL so callers can simply pass "/dashboard".
+      const successUrl = opts.successUrl
+        ? (opts.successUrl.startsWith("http") ? opts.successUrl : `${siteUrl}${opts.successUrl}`)
+        : `${siteUrl}/dashboard/settings?upgraded=1`;
 
       setOpeningTier(tier.id);
       setCheckoutError(null);

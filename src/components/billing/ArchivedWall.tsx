@@ -13,8 +13,8 @@
  *   cannot close it; the user must upgrade or sign out.
  */
 
-import { useState } from "react";
-import { Lock, Clock, Zap, LogOut } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Lock, Clock, Zap, LogOut, Loader2, RefreshCw } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { PricingModal } from "@/components/billing/PricingModal";
@@ -26,8 +26,75 @@ interface ArchivedWallProps {
   teamId?:      string;
 }
 
+const UPGRADE_PENDING_KEY = "gpc_upgrade_pending";
+const POLL_INTERVAL_MS = 3000;
+const POLL_MAX_ATTEMPTS = 20; // ~60s — covers normal Paddle webhook delivery
+
 export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: ArchivedWallProps) {
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [activationTimedOut, setActivationTimedOut] = useState(false);
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollTimer.current) {
+      clearInterval(pollTimer.current);
+      pollTimer.current = null;
+    }
+  }, []);
+
+  // Poll the server-side status until the webhook has provisioned the
+  // subscription. Access is granted ONLY when the server says the account
+  // is no longer archived — never on the client-side checkout event alone,
+  // which Paddle fires before the webhook is processed.
+  const startActivationPolling = useCallback(() => {
+    stopPolling();
+    setActivating(true);
+    setActivationTimedOut(false);
+    let attempts = 0;
+    pollTimer.current = setInterval(async () => {
+      attempts += 1;
+      try {
+        const res = await fetch("/api/trial/status", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.isArchived) {
+          stopPolling();
+          try { sessionStorage.removeItem(UPGRADE_PENDING_KEY); } catch { /* ignore */ }
+          window.location.reload();
+        }
+      } catch {
+        // Transient network error — keep polling until the timeout.
+      }
+      if (attempts >= POLL_MAX_ATTEMPTS) {
+        stopPolling();
+        setActivating(false);
+        setActivationTimedOut(true);
+      }
+    }, POLL_INTERVAL_MS);
+  }, [stopPolling]);
+
+  useEffect(() => () => stopPolling(), [stopPolling]);
+
+  // Covers the redirect path: Paddle may navigate to successUrl before the
+  // checkout.completed handler runs, so a pending upgrade is resumed here.
+  /* eslint-disable react-hooks/set-state-in-effect -- mount-time init: a pending upgrade can only be known client-side from sessionStorage after hydration; no SSR alternative */
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(UPGRADE_PENDING_KEY);
+      if (raw && Date.now() - Number(raw) < 10 * 60 * 1000) {
+        startActivationPolling();
+      } else if (raw) {
+        sessionStorage.removeItem(UPGRADE_PENDING_KEY);
+      }
+    } catch { /* sessionStorage unavailable — polling starts via onComplete */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCheckoutComplete = useCallback(() => {
+    try { sessionStorage.setItem(UPGRADE_PENDING_KEY, String(Date.now())); } catch { /* ignore */ }
+    startActivationPolling();
+  }, [startActivationPolling]);
 
   const endDate      = trialEndedAt ? new Date(trialEndedAt) : null;
   const formattedDate = endDate
@@ -39,9 +106,11 @@ export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: Arch
       <div
         role="main"
         aria-labelledby="archived-wall-heading"
-        className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-background)] px-4 py-12"
+        // m-auto (not justify-center) on the card: tall content scrolls
+        // normally on short phones instead of clipping at the top.
+        className="min-h-dvh flex flex-col items-center bg-[var(--color-background)] px-4 py-6 sm:py-12"
       >
-        <div className="w-full max-w-md rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl p-8 flex flex-col items-center text-center gap-6">
+        <div className="m-auto w-full max-w-md rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl p-5 sm:p-8 flex flex-col items-center text-center gap-5 sm:gap-6">
 
           {/* Icon */}
           <div className="relative" aria-hidden="true">
@@ -55,7 +124,7 @@ export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: Arch
 
           {/* Headline */}
           <div className="space-y-2">
-            <h1 id="archived-wall-heading" className="text-2xl font-extrabold text-[var(--color-foreground)]">
+            <h1 id="archived-wall-heading" className="text-xl sm:text-2xl font-extrabold text-[var(--color-foreground)]">
               {userName ? `${userName.split(" ")[0]}, your` : "Your"} free trial has ended
             </h1>
             {formattedDate && (
@@ -87,9 +156,30 @@ export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: Arch
             ))}
           </ul>
 
+          {/* Activation status — shown after payment, before the server confirms */}
+          {activating && (
+            <div role="status" className="w-full flex items-center justify-center gap-2 rounded-xl bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />
+              Payment received — activating your plan…
+            </div>
+          )}
+          {activationTimedOut && (
+            <div role="alert" className="w-full rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+              Payment completed, but activation is still processing. It usually
+              takes under a minute — refresh to check again.
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-2 w-full inline-flex items-center justify-center gap-1.5 font-semibold hover:underline"
+              >
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                Refresh
+              </button>
+            </div>
+          )}
+
           {/* CTA */}
           <div className="w-full space-y-3">
-            <Button className="w-full gap-2 text-base py-5" onClick={() => setPricingOpen(true)}>
+            <Button className="w-full gap-2 text-base py-5" disabled={activating} onClick={() => setPricingOpen(true)}>
               <Zap className="h-4 w-4" aria-hidden="true" />
               View Plans &amp; Upgrade
             </Button>
@@ -115,6 +205,8 @@ export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: Arch
         onClose={() => setPricingOpen(false)}
         userEmail={userEmail}
         teamId={teamId}
+        successUrl="/dashboard"
+        onComplete={handleCheckoutComplete}
       />
     </>
   );
