@@ -157,7 +157,7 @@ export interface BundleMargin {
   netMargin: number;         // %
 }
 
-/** FX rates quoted as units of currency per 1 USD (open.er-api.com convention). */
+/** FX rates quoted as units of currency per 1 base currency (provider-agnostic; see src/lib/fx.ts). */
 export interface FxRates {
   base: string;              // e.g. "USD"
   rates: Record<string, number>;
@@ -579,8 +579,8 @@ export function calcCustomerLtv(orders: {
 /**
  * Convert an amount between currencies using a rates table.
  *
- * Rates are quoted as units of currency per 1 USD (the open.er-api.com
- * convention, e.g. { USD: 1, EUR: 0.92, PKR: 278.5 }).
+ * Rates are quoted as units of currency per 1 base currency
+ * (e.g. USD-based: { USD: 1, EUR: 0.92, PKR: 278.5 }).
  * Same-currency conversion is exact (no rounding drift).
  * Throws on unknown currency codes — silently returning the unconverted
  * amount would be worse than failing loudly.

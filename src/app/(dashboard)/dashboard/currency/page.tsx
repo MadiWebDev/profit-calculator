@@ -12,7 +12,7 @@ export default function CurrencyPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ reportingCurrency: "USD", fxSource: "open.er-api.com", currency: "", rate: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
+  const [form, setForm] = useState({ reportingCurrency: "USD", fxSource: "currencyapi.net", currency: "", rate: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = async () => {

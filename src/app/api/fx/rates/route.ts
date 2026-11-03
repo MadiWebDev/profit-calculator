@@ -20,9 +20,11 @@ const QuerySchema = z
 /**
  * GET /api/fx/rates?base=USD
  *
- * Returns cached FX rates (units per 1 USD-base) for display-currency
+ * Returns cached FX rates (units per 1 base currency) for display-currency
  * conversion. Authenticated; standard rate limit. Rates are indicative
- * spot rates — not for accounting.
+ * spot rates — not for accounting. The browser cache is deliberately
+ * short (60s): the old 1-hour public cache defeated real-time display
+ * and must not be restored for an authenticated response.
  */
 export async function GET(req: NextRequest) {
   const authed = await requireAuth(req, { rateLimitKey: "fx-rates" });
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
   try {
     const rates = await getFxRates(q.data.base);
     return NextResponse.json(rates, {
-      headers: { "Cache-Control": "public, max-age=3600" },
+      headers: { "Cache-Control": "private, max-age=60" },
     });
   } catch (err) {
     await logFxFailure(err);

@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     fiscalMonthStartDay: 1, defaultDateRangeDays: 30,
     includeShippingRevenueInProfit: true, includeTaxesInProfit: false, includeAdSpendInProfit: true,
     taxMode: "exclusive", reverseCharge: false, vatRates: [], reportingCurrency: "USD",
-    fxSource: "open.er-api.com", fxOverrides: [],
+    fxSource: "currencyapi.net", fxOverrides: [],
   } });
 }
 
