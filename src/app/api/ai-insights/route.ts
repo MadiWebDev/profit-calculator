@@ -9,15 +9,8 @@ import InsightModel from "@/models/Insight";
 import { normalizeReportOrders } from "@/lib/reporting";
 import { detectAnomalies, forecastSeries, type DailyPoint } from "@/lib/analytics";
 import { logger } from "@/lib/logger";
-import OpenAI from "openai";
 import { fail } from "@/lib/validation";
-
-/** Lazily constructed — module import must never throw when the env var is missing (build time). */
-function getOpenAI(): OpenAI | null {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-  return new OpenAI({ apiKey });
-}
+import { resolveAiProviders, generateAiCompletion, parseInsights } from "@/lib/ai-providers";
 
 export async function POST(req: Request) {
   const rl = await withRateLimit(req, "strict", "ai-insights");
@@ -158,24 +151,15 @@ Return ONLY this JSON (no markdown, no explanation):
 }
     `.trim();
 
-    const openai = getOpenAI();
-    if (!openai) {
+    // OpenRouter first (or AI_PROVIDER's pick), Groq as fallback — no
+    // OpenAI key or SDK anywhere in this path.
+    const providers = resolveAiProviders();
+    if (!providers) {
       return fail("AI insights are not configured", 503, "AI_NOT_CONFIGURED");
     }
 
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 600,
-      temperature: 0.3,
-    });
-
-    const text = completion.choices[0]?.message?.content ?? "{}";
-
-    // Robustly parse — strip markdown fences if present
-    const clean = text.replace(/```json?/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(clean);
-    const items = Array.isArray(parsed.insights) ? parsed.insights.slice(0, 5) : [];
+    const completion = await generateAiCompletion(prompt, providers, { maxTokens: 600, temperature: 0.3 });
+    const items = parseInsights(completion.text);
 
     // Cache today's insights (upsert — the unique index prevents duplicates
     // when two requests race)
@@ -189,8 +173,9 @@ Return ONLY this JSON (no markdown, no explanation):
               title: String(i.title ?? "").slice(0, 120),
               body: String(i.body ?? "").slice(0, 2000),
             })),
-            modelName: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-            tokensUsed: completion.usage?.total_tokens,
+            modelName: completion.model,
+            provider: completion.provider,
+            tokensUsed: completion.tokensUsed,
             inputs: {
               revenue30d: Math.round(recent.totalRevenue * 100) / 100,
               netProfit30d: Math.round(recent.netProfit * 100) / 100,
@@ -209,7 +194,7 @@ Return ONLY this JSON (no markdown, no explanation):
     // Return fallback insights rather than a 500
     return NextResponse.json({
       insights: [
-        { type: "info", title: "Insights unavailable", body: "We couldn't generate AI insights right now. Make sure your OpenAI API key is configured and you have order data synced." },
+        { type: "info", title: "Insights unavailable", body: "We couldn't generate AI insights right now. Make sure an AI provider key (OPENROUTER_API_KEY or GROQ_API_KEY) is configured and you have order data synced." },
       ],
     });
   }

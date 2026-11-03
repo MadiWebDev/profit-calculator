@@ -19,6 +19,7 @@ export interface IInsight extends Document {
   /** Aggregated inputs the insight was generated from (no PII). */
   inputs: Record<string, number>;
   modelName: string;
+  provider?: string;
   tokensUsed?: number;
   createdAt: Date;
   updatedAt: Date;
@@ -40,7 +41,8 @@ const InsightSchema = new Schema<IInsight>(
     kind: { type: String, enum: ["periodic", "weekly", "daily", "waterfall", "ask"], default: "periodic" },
     items: [InsightItemSchema],
     inputs: { type: Map, of: Number, default: {} },
-    modelName: { type: String, default: "gpt-4o-mini" },
+    modelName: { type: String, default: "meta-llama/llama-3.3-70b-instruct" },
+    provider: { type: String, enum: ["openrouter", "groq"] },
     tokensUsed: Number,
   },
   { timestamps: true }
