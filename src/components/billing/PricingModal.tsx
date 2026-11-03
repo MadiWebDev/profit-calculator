@@ -55,6 +55,9 @@ interface PricingModalProps {
   countryCode?: string;
   /** Called on checkout.completed */
   onComplete?: () => void;
+  /** URL Paddle returns to after a successful payment (default: settings).
+   *  A relative path is resolved against NEXT_PUBLIC_SITE_URL by the hook. */
+  successUrl?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -67,6 +70,7 @@ export function PricingModal({
   teamId,
   countryCode,
   onComplete,
+  successUrl,
 }: PricingModalProps) {
   const [interval, setInterval] = useState<PricingInterval>("month");
 
@@ -89,7 +93,7 @@ export function PricingModal({
   const handleSubscribe = (tierId: string) => {
     const tier = tiers.find((t) => t.id === tierId);
     if (!tier) return;
-    openCheckout(tier, interval, { userEmail, teamId, onComplete });
+    openCheckout(tier, interval, { userEmail, teamId, onComplete, successUrl });
   };
 
   return (
@@ -101,7 +105,9 @@ export function PricingModal({
     >
       <DialogContent
         className={cn(
-          "max-w-4xl w-full p-0 overflow-hidden gap-0",
+          // Mobile: the 3 stacked cards + header are taller than a phone
+          // screen, so the dialog must scroll internally instead of clipping.
+          "max-w-4xl w-full p-0 gap-0 max-h-[90dvh] overflow-y-auto overscroll-contain",
           !dismissible && "[&>button]:hidden"
         )}
         onInteractOutside={(e) => { if (!dismissible) e.preventDefault(); }}
@@ -110,7 +116,7 @@ export function PricingModal({
         <DialogTitle className="sr-only">Choose a plan</DialogTitle>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="relative bg-gradient-to-br from-[var(--color-primary)]/10 to-transparent px-6 pt-8 pb-6 text-center border-b border-[var(--color-border)]">
+        <div className="relative bg-gradient-to-br from-[var(--color-primary)]/10 to-transparent px-4 sm:px-6 pt-6 sm:pt-8 pb-5 sm:pb-6 text-center border-b border-[var(--color-border)]">
           {dismissible && onClose && (
             <button
               onClick={onClose}
@@ -126,7 +132,7 @@ export function PricingModal({
             Upgrade to continue
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--color-foreground)] mb-1">
+          <h2 className="text-xl sm:text-3xl font-extrabold text-[var(--color-foreground)] mb-1">
             Choose a plan
           </h2>
           <p className="text-sm text-[var(--color-muted-foreground)] max-w-sm mx-auto mb-5">
@@ -147,7 +153,7 @@ export function PricingModal({
                   onClick={() => setInterval(iv)}
                   aria-pressed={isActive}
                   className={cn(
-                    "relative px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
+                    "relative px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap",
                     isActive
                       ? "bg-[var(--color-card)] text-[var(--color-foreground)] shadow-sm"
                       : "text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
@@ -186,7 +192,7 @@ export function PricingModal({
         )}
 
         {/* ── Plan cards ───────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 p-4 sm:p-6">
           {tiers.map((tier) => {
             const isHighlighted  = !!tier.highlighted;
             const isOpening      = openingTier === tier.id;
@@ -227,7 +233,7 @@ export function PricingModal({
                 <div className="mb-1 flex items-end gap-1">
                   <span
                     className={cn(
-                      "text-4xl font-extrabold text-[var(--color-foreground)] transition-opacity",
+                      "text-3xl sm:text-4xl font-extrabold text-[var(--color-foreground)] transition-opacity",
                       !pricesLoaded && "opacity-40 animate-pulse"
                     )}
                     aria-label={`${displayPrice} per month`}

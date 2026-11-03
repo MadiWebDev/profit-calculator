@@ -22,7 +22,10 @@ interface TrialBannerProps {
 
 export function TrialBanner({ daysLeft, userEmail, teamId }: TrialBannerProps) {
   const [dismissed,    setDismissed]    = useState(false);
-  const [pricingOpen,  setPricingOpen]  = useState(false);
+  // Trial ending (≤2 days left): open the upgrade modal on arrival so the
+  // user cannot miss it. It stays dismissible — the trial is still active,
+  // so the dashboard itself is NOT blocked until it actually expires.
+  const [pricingOpen,  setPricingOpen]  = useState(daysLeft <= 2);
 
   if (dismissed) return null;
 
@@ -32,13 +35,15 @@ export function TrialBanner({ daysLeft, userEmail, teamId }: TrialBannerProps) {
     <>
       <div
         className={cn(
-          "relative flex items-center justify-center gap-3 px-4 py-2.5 text-sm font-medium",
+          // Wrap + right padding: on a narrow phone the dismiss button used
+          // to sit on top of the banner text.
+          "relative flex flex-wrap items-center justify-center gap-2 px-4 pr-12 py-2.5 text-xs sm:text-sm font-medium",
           urgent ? "bg-amber-500 text-white" : "bg-[var(--color-primary)] text-white"
         )}
       >
         <Clock className="h-4 w-4 flex-shrink-0" />
 
-        <span>
+        <span className="text-center">
           {daysLeft <= 0
             ? "Your free trial ends today."
             : daysLeft === 1
@@ -49,7 +54,7 @@ export function TrialBanner({ daysLeft, userEmail, teamId }: TrialBannerProps) {
         <button
           onClick={() => setPricingOpen(true)}
           className={cn(
-            "inline-flex items-center gap-1 rounded-full px-3 py-0.5 text-xs font-semibold transition-colors",
+            "inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-0.5 text-xs font-semibold transition-colors",
             urgent
               ? "bg-white text-amber-600 hover:bg-amber-50"
               : "bg-white/20 hover:bg-white/30 text-white"
@@ -74,6 +79,7 @@ export function TrialBanner({ daysLeft, userEmail, teamId }: TrialBannerProps) {
         onClose={() => setPricingOpen(false)}
         userEmail={userEmail}
         teamId={teamId}
+        successUrl="/dashboard"
       />
     </>
   );
