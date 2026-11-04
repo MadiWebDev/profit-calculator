@@ -31,7 +31,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
     subject: "Welcome to GetProfitCalc 🎉",
     html: `
       <h2>Welcome, ${name}!</h2>
-      <p>Your 14-day free trial has started. No credit card required.</p>
+      <p>Your 7-day free trial has started. No credit card required.</p>
       <p>Get started by connecting your first store:</p>
       <a href="${process.env.NEXT_PUBLIC_SITE_URL}/onboarding" style="
         display:inline-block;background:#22c55e;color:#fff;
