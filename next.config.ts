@@ -87,8 +87,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Standalone output for the Docker image (see Dockerfile)
-  output: "standalone",
+  // NOTE: output:"standalone" is for Docker only. Vercel uses its own packaging.
+  // Uncomment the line below only when building the Docker image.
+  // output: "standalone",
   // reactCompiler disabled — it breaks custom hooks with closures (toggle function)
   // reactCompiler: true,
 
