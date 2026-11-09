@@ -23,10 +23,11 @@ async function getSettingsData(teamId: string, userId: string) {
   return {
     team: team
       ? {
-          name:     team.name,
-          plan:     team.plan,
-          currency: team.currency,
-          timezone: team.timezone,
+          name:             team.name,
+          plan:             team.plan,
+          currency:         team.currency,
+          timezone:         team.timezone,
+          paddleCustomerId: team.paddleCustomerId,
         }
       : null,
     subscription: sub
@@ -80,13 +81,16 @@ export default async function SettingsPage() {
   if (!user.teamId) redirect("/onboarding");
 
   const data = await getSettingsData(user.teamId, user.id ?? "");
+  // Authoritative live plan takes priority over stale JWT token
+  const effectivePlan = (data.subscription?.plan || data.team?.plan || user.plan || "free") as UserPlan;
 
   return (
     <SettingsClient
       data={data}
-      userPlan={user.plan ?? "free"}
+      userPlan={effectivePlan}
       userEmail={session.user.email ?? undefined}
       teamId={user.teamId ?? undefined}
+      paddleCustomerId={data.team?.paddleCustomerId}
     />
   );
 }

@@ -1,20 +1,19 @@
-"use client";
-
 /**
  * usePaddlePricing
- * ─────────────────
- * Shared hook used by PricingModal and the Settings billing tab.
+ * ────────────────
+ * Shared hook encapsulating Paddle.js initialisation, price previews, and checkout.
  *
- * Mirrors the exact Paddle.js approach in PricingClient:
- *   1. Initialises Paddle.js with the env token.
+ * Approach:
+ *   1. Initialises Paddle.js with the env token and pwCustomer for Paddle Retain.
  *   2. Calls Paddle.PricePreview() for all 12 price IDs (3 tiers × 4 intervals)
  *      once Paddle is ready — returns country-localised, already-formatted strings.
  *   3. Exposes Paddle.Checkout.open() via openCheckout(tier, interval, options).
+ *   4. Performs instant checkout sync with /api/billing/sync on checkout.completed.
  *
  * Prices are displayed verbatim from Paddle (e.g. "$9.00", "€8.50").
- * No manual currency formatting, no /api/billing/prices round-trip.
+ * We never format currencies manually on the client.
  *
- * Requires:
+ * Environment variables consumed:
  *   NEXT_PUBLIC_PADDLE_CLIENT_TOKEN   — live_ or sandbox_ token
  *   NEXT_PUBLIC_PADDLE_ENV            — "production" | "sandbox"
  */
@@ -29,8 +28,9 @@ import { logger } from "@/lib/logger";
 export interface FormattedPrice {
   /** Paddle-formatted total for one billing cycle, e.g. "$9.00" */
   total: string;
-  /** Per-month equivalent (same as total for monthly; computed for others) */
+  /** Paddle-formatted per-month equivalent */
   perMonth: string;
+  /** ISO 4217 currency code returned by Paddle, e.g. "USD" */
   currencyCode: string;
 }
 
@@ -60,7 +60,8 @@ const MONTHS_IN_CYCLE: Record<PricingInterval, number> = {
 
 export function usePaddlePricing(
   tiers: SerializedTier[],
-  countryCode?: string
+  countryCode?: string,
+  paddleCustomerId?: string
 ) {
   const paddleRef     = useRef<Paddle | null>(null);
   // Store the latest onComplete so the init-time eventCallback can call it
@@ -91,11 +92,29 @@ export function usePaddlePricing(
         const paddle = await initializePaddle({
           environment: paddleEnv,
           token:       clientToken,
+          // Paddle Retain: attach customer ID when signed in
+          ...(paddleCustomerId ? { pwCustomer: { id: paddleCustomerId } } : {}),
           eventCallback(event: PaddleEventData) {
-            // Route checkout.completed to whatever callback was registered
-            // at the time openCheckout was called.
             if (event.name === "checkout.completed") {
-              onCompleteRef.current?.();
+              const eventData = event.data as Record<string, unknown> | undefined;
+              const txId = (eventData?.transaction_id ?? eventData?.id) as string | undefined;
+
+              if (txId) {
+                // Instant sync with backend to eliminate webhook race condition
+                fetch("/api/billing/sync", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ transactionId: txId }),
+                })
+                  .then(() => {
+                    onCompleteRef.current?.();
+                  })
+                  .catch(() => {
+                    onCompleteRef.current?.();
+                  });
+              } else {
+                onCompleteRef.current?.();
+              }
             }
           },
         });
@@ -109,13 +128,14 @@ export function usePaddlePricing(
       }
     })();
 
-    return () => { cancelled = true; };
-  }, []); // run once
+    return () => {
+      cancelled = true;
+    };
+  }, [paddleCustomerId]);
 
-  // ── 2. Fetch localised prices via PricePreview ────────────────────────────
+  // ── 2. Fetch prices via PricePreview ──────────────────────────────────────
   useEffect(() => {
     if (!paddleReady || !paddleRef.current) return;
-    if (tiers.length === 0) return;
 
     let cancelled = false;
 
@@ -136,30 +156,29 @@ export function usePaddlePricing(
         if (cancelled) return;
 
         const map: PriceMap = {};
-
         for (const lineItem of response.data.details.lineItems) {
           const priceId = lineItem.price.id;
 
           for (const tier of tiers) {
             for (const iv of ["month", "quarter", "semiannual", "year"] as PricingInterval[]) {
-              if (tier.priceId[iv] !== priceId) continue;
+              if (tier.priceId[iv] === priceId) {
+                const key = `${tier.id}_${iv}`;
+                const cycleTotal = lineItem.formattedTotals.total;
 
-              const cycleTotal = lineItem.formattedTotals.total;
+                let perMonth = cycleTotal;
+                if (iv !== "month") {
+                  const rawSubtotal = parseFloat(lineItem.totals.subtotal) / 100;
+                  const perMonthRaw = rawSubtotal / MONTHS_IN_CYCLE[iv];
+                  const symbol = cycleTotal.replace(/[\d.,\s]/g, "");
+                  perMonth = `${symbol}${perMonthRaw.toFixed(2)}`;
+                }
 
-              // Compute per-month for multi-month intervals.
-              let perMonth = cycleTotal;
-              if (iv !== "month") {
-                const rawSubtotal = parseFloat(lineItem.totals.subtotal) / 100;
-                const perMonthRaw = rawSubtotal / MONTHS_IN_CYCLE[iv];
-                const symbol      = extractCurrencySymbol(cycleTotal);
-                perMonth = `${symbol}${perMonthRaw.toFixed(2)}`;
+                map[key] = {
+                  total:        cycleTotal,
+                  perMonth,
+                  currencyCode: response.data.currencyCode,
+                };
               }
-
-              map[`${tier.id}_${iv}`] = {
-                total:        cycleTotal,
-                perMonth,
-                currencyCode: response.data.currencyCode,
-              };
             }
           }
         }
@@ -171,7 +190,9 @@ export function usePaddlePricing(
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [paddleReady, tiers, countryCode]);
 
   // ── 3. Open checkout ──────────────────────────────────────────────────────
@@ -230,31 +251,22 @@ export function usePaddlePricing(
     return interval === "month" ? entry.total : entry.perMonth;
   }
 
-  /** Billing cadence sub-label below the price. */
-  function getBillingLabel(tierId: string, interval: PricingInterval): string {
-    const cadenceMap: Record<PricingInterval, string> = {
-      month:      "monthly",
-      quarter:    "every 3 months",
-      semiannual: "every 6 months",
-      year:       "annually",
-    };
-    const savingMap: Record<PricingInterval, string> = {
-      month:      "",
-      quarter:    "save 10%",
-      semiannual: "save 15%",
-      year:       "save 20%",
-    };
-
-    if (interval === "month") return "billed monthly";
-
+  /** Interval billing description, e.g. "billed annually ($278.40/yr)". */
+  function getBillingLabel(tierId: string, interval: PricingInterval): string | null {
+    if (interval === "month") return null;
     const entry = prices[`${tierId}_${interval}`];
-    if (!entry) return `billed ${cadenceMap[interval]}`;
-    return `${entry.total} billed ${cadenceMap[interval]} · ${savingMap[interval]}`;
+    if (!entry) return null;
+    const labels: Record<PricingInterval, string> = {
+      month:      "",
+      quarter:    `billed quarterly (${entry.total}/qtr)`,
+      semiannual: `billed every 6 months (${entry.total}/6mo)`,
+      year:       `billed annually (${entry.total}/yr)`,
+    };
+    return labels[interval];
   }
 
   return {
     paddleReady,
-    prices,
     pricesLoaded,
     openingTier,
     checkoutError,
@@ -263,11 +275,4 @@ export function usePaddlePricing(
     getDisplayPrice,
     getBillingLabel,
   };
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function extractCurrencySymbol(formatted: string): string {
-  const match = formatted.match(/^[^\d\s]+/);
-  return match ? match[0] : "";
 }

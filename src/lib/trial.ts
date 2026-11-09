@@ -9,7 +9,7 @@
  * • When the trial ends AND there is no active subscription, the account is
  *   "archived" — the dashboard is fully blocked and the pricing wall is shown.
  * • past_due subscriptions retain access (grace period — see hasActiveAccess).
- * • A scheduled_change to cancel or pause does NOT revoke access.  Only when
+ * • A scheduled_change to cancel or pause does NOT revoke access. Only when
  *   status itself becomes "cancelled" (and currentPeriodEnd has passed) do we
  *   archive.
  *
@@ -29,8 +29,11 @@ export type AccountStatus =
   | "cancelled"    // cancelled but still within the billing period
   | "archived";    // trial expired with no paid plan → full wall shown
 
+export type PlanLevel = "free" | "starter" | "growth" | "pro";
+
 export interface TrialInfo {
   status: AccountStatus;
+  plan: PlanLevel;
   trialEndsAt: Date | null;
   daysLeft: number;        // only meaningful when status === "trialing"
   isArchived: boolean;     // shortcut: status === "archived"
@@ -53,14 +56,16 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
   // ── Paid subscription takes priority ─────────────────────────────────────
   if (sub) {
     const s = sub.status as string;
+    const subPlan = (sub.plan as PlanLevel) || "free";
 
     // hasActiveAccess covers "active" | "trialing" | "past_due" — the shared
-    // set in paddle.ts.  Never duplicate this list here.
+    // set in paddle.ts. Never duplicate this list here.
     if (hasActiveAccess(s)) {
       // Distinguish past_due from fully active so the UI can show a warning
       const status: AccountStatus = s === "past_due" ? "past_due" : "active";
       return {
         status,
+        plan: subPlan,
         trialEndsAt: team?.trialEndsAt ?? null,
         daysLeft: 0,
         isArchived: false,
@@ -73,6 +78,7 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
       if (periodEnd && periodEnd > now) {
         return {
           status: "cancelled",
+          plan: subPlan,
           trialEndsAt: team?.trialEndsAt ?? null,
           daysLeft: 0,
           isArchived: false,
@@ -81,6 +87,7 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
       // Period ended → archived
       return {
         status: "archived",
+        plan: "free",
         trialEndsAt: team?.trialEndsAt ?? null,
         daysLeft: 0,
         isArchived: true,
@@ -91,6 +98,7 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
     if (s === "paused") {
       return {
         status: "archived",
+        plan: "free",
         trialEndsAt: team?.trialEndsAt ?? null,
         daysLeft: 0,
         isArchived: true,
@@ -100,12 +108,14 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
 
   // ── No active subscription — check trial ──────────────────────────────────
   const trialEndsAt = team?.trialEndsAt ? new Date(team.trialEndsAt) : null;
+  const teamPlan = (team?.plan as PlanLevel) || "free";
 
   if (trialEndsAt && trialEndsAt > now) {
     const msLeft   = trialEndsAt.getTime() - now.getTime();
     const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
     return {
       status: "trialing",
+      plan: teamPlan !== "free" ? teamPlan : "free",
       trialEndsAt,
       daysLeft,
       isArchived: false,
@@ -115,6 +125,7 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
   // Trial has expired and no paid subscription → archived
   return {
     status: "archived",
+    plan: "free",
     trialEndsAt,
     daysLeft: 0,
     isArchived: true,

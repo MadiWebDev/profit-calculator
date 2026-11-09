@@ -93,9 +93,10 @@ export async function requireAuth(
 
   // ── Subscription / trial gate ──────────────────────────────────────────────
   // Checked server-side on every request — cannot be bypassed from the client.
-  if (requireSubscription) {
+  let effectivePlan = user.plan ?? "free";
+  if (user.teamId) {
     const trialInfo = await getAccountStatus(user.teamId);
-    if (trialInfo.isArchived) {
+    if (requireSubscription && trialInfo.isArchived) {
       return NextResponse.json(
         {
           error: "Your free trial has expired. Please upgrade to continue.",
@@ -105,13 +106,16 @@ export async function requireAuth(
         { status: 402 }
       );
     }
+    if (trialInfo.plan) {
+      effectivePlan = trialInfo.plan;
+    }
   }
 
   return {
     session: {
       userId: user.id,
       teamId: user.teamId,
-      plan: user.plan ?? "free",
+      plan: effectivePlan,
       role: user.role ?? "user",
       teamRole,
       email: user.email ?? "",

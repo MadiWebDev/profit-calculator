@@ -137,11 +137,13 @@ export function SettingsClient({
   userPlan,
   userEmail,
   teamId,
+  paddleCustomerId,
 }: {
   data: SettingsData;
   userPlan: string;
   userEmail?: string;
   teamId?: string;
+  paddleCustomerId?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -215,6 +217,7 @@ export function SettingsClient({
 
   // Lazy — avoids module-level getTiers() which runs before client env vars are inlined
   const tiers = useMemo(() => getTiers(), []);
+  const currentPlan = data.subscription?.plan || data.team?.plan || userPlan || "free";
 
   const {
     paddleReady,
@@ -225,7 +228,7 @@ export function SettingsClient({
     openCheckout,
     getDisplayPrice,
     getBillingLabel,
-  } = usePaddlePricing(tiers);
+  } = usePaddlePricing(tiers, undefined, paddleCustomerId);
 
   const anyOpening = openingTier !== null;
 
@@ -482,8 +485,8 @@ export function SettingsClient({
                   <p className="text-sm text-[var(--color-muted-foreground)]">{data.user.email}</p>
                   <div className="flex items-center gap-2 mt-1.5">
                     <Badge variant="outline" className="text-xs capitalize">{role}</Badge>
-                    <Badge variant={userPlan === "pro" ? "default" : "outline"} className="text-xs capitalize">
-                      {userPlan} plan
+                    <Badge variant={currentPlan === "pro" ? "default" : "outline"} className="text-xs capitalize">
+                      {currentPlan} plan
                     </Badge>
                   </div>
                 </div>
@@ -643,7 +646,7 @@ export function SettingsClient({
           </Card>
 
           {/* ── Upgrade plan cards — exact PricingClient layout ───────────── */}
-          {userPlan !== "pro" && (
+          {currentPlan !== "pro" && (
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex flex-col gap-3">
@@ -700,7 +703,7 @@ export function SettingsClient({
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {tiers.map((tier) => {
-                    const isCurrentPlan  = userPlan === tier.id;
+                    const isCurrentPlan  = currentPlan === tier.id;
                     const isHighlighted  = !!tier.highlighted;
                     const isOpening      = openingTier === tier.id;
                     const displayPrice   = getDisplayPrice(tier.id, upgradeInterval);
@@ -1067,7 +1070,7 @@ export function SettingsClient({
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Bell className="h-4 w-4" /> Slack Notifications
-                {!["growth", "pro"].includes(userPlan) && (
+                {!["growth", "pro"].includes(currentPlan) && (
                   <Badge variant="outline" className="ml-auto text-xs text-[var(--color-muted-foreground)]">
                     <Lock className="h-3 w-3 mr-1" /> Growth+
                   </Badge>
@@ -1075,7 +1078,7 @@ export function SettingsClient({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {!["growth", "pro"].includes(userPlan) ? (
+              {!["growth", "pro"].includes(currentPlan) ? (
                 <div className="text-center py-6 space-y-2">
                   <Lock className="h-8 w-8 mx-auto text-[var(--color-border)]" />
                   <p className="text-sm text-[var(--color-muted-foreground)]">
@@ -1145,7 +1148,7 @@ export function SettingsClient({
             <CardContent>
               <p className="text-sm text-[var(--color-muted-foreground)] mb-3">
                 Generate API keys to access your data programmatically.
-                {userPlan !== "pro" && " Requires Pro plan."}
+                {currentPlan !== "pro" && " Requires Pro plan."}
               </p>
               <Button size="sm" variant="outline" className="gap-2" onClick={() => router.push("/dashboard/settings/api-keys")}>
                 <Key className="h-3.5 w-3.5" /> Manage API Keys

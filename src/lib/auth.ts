@@ -160,7 +160,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Backfill teamId / teamRole when missing (stale JWT, Google OAuth
       // first-login race, or pre-team-creation accounts). The team-level
       // role is refreshed alongside so permission checks stay current.
-      if (token.id && trigger !== "signIn" && (!token.teamId || !token.teamRole)) {
+      if (token.id && (trigger === "update" || (trigger !== "signIn" && (!token.teamId || !token.teamRole)))) {
         try {
           await connectDB();
           const dbUser = await UserModel.findById(token.id)
@@ -202,8 +202,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           await connectDB();
           const dbUser = await UserModel.findById(token.id)
-            .select("passwordChangedAt sessionVersion lastSeenAt twoFactorEnabled")
-            .lean() as { passwordChangedAt?: Date; sessionVersion?: number; lastSeenAt?: Date; twoFactorEnabled?: boolean } | null;
+            .select("passwordChangedAt sessionVersion lastSeenAt twoFactorEnabled plan teamId")
+            .lean() as { passwordChangedAt?: Date; sessionVersion?: number; lastSeenAt?: Date; twoFactorEnabled?: boolean; plan?: string; teamId?: unknown } | null;
+          if (dbUser?.plan) token.plan = dbUser.plan;
           token.lastPwdCheck = nowSec;
           const pwdChangedAt = dbUser?.passwordChangedAt;
           if (pwdChangedAt && token.iat * 1000 < new Date(pwdChangedAt).getTime() - 5000) {

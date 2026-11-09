@@ -6,6 +6,7 @@
  *
  * Security contract
  * ─────────────────
+ * • IP origin verification against Paddle's live /ips endpoint.
  * • The RAW request body is passed to unmarshal — never pre-parsed JSON.
  * • If signature verification fails we return 401, NOT 2xx.
  *   A 2xx would tell Paddle "delivery succeeded" and stop retries.
@@ -80,8 +81,18 @@ import {
   handlePaymentFailed,
   handleCustomerUpsert,
 } from "@/lib/paddle-webhooks";
+import { isPaddleWebhookIp, getClientIp } from "@/lib/paddle-ip";
 
 export async function POST(req: Request) {
+  // 0. Security: verify origin against Paddle live published IP ranges
+  const isAllowedIp = await isPaddleWebhookIp(req);
+  if (!isAllowedIp) {
+    logger.warn("paddle webhook: request rejected from unallowed IP", {
+      ip: getClientIp(req),
+    });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   // 1. Read the RAW body — must not be JSON.parsed before unmarshal
   const rawBody = await req.text();
 

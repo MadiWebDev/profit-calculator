@@ -33,14 +33,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
     teamId?: string | null;
   };
 
-  const role: UserRole  = user.role  ?? "owner";
-  const plan: UserPlan  = user.plan  ?? "free";
-  const teamId: string  = user.teamId ?? "";
+  const teamId: string = user.teamId ?? "";
 
-  // ── Trial / archival check (server-side, reads DB every request) ───────────
+  // ── Trial / archival / authoritative live plan check (reads DB every request) ──
   const trialInfo = teamId
     ? await getAccountStatus(teamId)
     : null;
+
+  const role: UserRole = user.role ?? "owner";
+  // Always prefer the fresh DB plan from Subscription / Team over stale JWT session
+  const plan: UserPlan = (trialInfo?.plan as UserPlan) || user.plan || "free";
 
   const isArchived = trialInfo?.isArchived ?? false;
   const isTrialing = trialInfo?.status === "trialing";

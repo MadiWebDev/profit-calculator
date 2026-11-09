@@ -53,6 +53,19 @@ export default async function PricingPage() {
   const userEmail = userSession?.email  ?? undefined;
   const teamId    = userSession?.teamId ?? undefined;
 
+  let paddleCustomerId: string | undefined;
+  if (teamId) {
+    try {
+      const { connectDB } = await import("@/lib/db");
+      const { default: TeamModel } = await import("@/models/Team");
+      await connectDB();
+      const team = await TeamModel.findById(teamId).select("paddleCustomerId").lean();
+      paddleCustomerId = team?.paddleCustomerId;
+    } catch {
+      // Non-fatal
+    }
+  }
+
   // ── Tier config ──────────────────────────────────────────────────────────
   // getTiers() reads env vars and throws loudly if any are unset, so a
   // misconfigured deployment is caught at request time, not silently at pay time.
@@ -64,6 +77,7 @@ export default async function PricingPage() {
       countryCode={countryCode}
       userEmail={userEmail}
       teamId={teamId}
+      paddleCustomerId={paddleCustomerId}
     />
   );
 }

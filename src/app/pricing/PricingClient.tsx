@@ -163,11 +163,13 @@ interface PricingClientProps {
    * Never sourced from client input.
    */
   teamId?: string;
+  /** Paddle customer ID for Paddle Retain */
+  paddleCustomerId?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function PricingClient({ tiers, countryCode, userEmail, teamId }: PricingClientProps) {
+export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCustomerId }: PricingClientProps) {
   const router = useRouter();
 
   const paddleRef  = useRef<Paddle | null>(null);
@@ -188,10 +190,23 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId }: Pricing
         const paddle = await initializePaddle({
           environment: PADDLE_ENV as "production" | "sandbox",
           token:       CLIENT_TOKEN as string,
+          ...(paddleCustomerId ? { pwCustomer: { id: paddleCustomerId } } : {}),
           eventCallback(event: PaddleEventData) {
             // Redirect to /welcome when checkout completes successfully
             if (event.name === "checkout.completed") {
-              router.push("/welcome");
+              const eventData = event.data as Record<string, unknown> | undefined;
+              const txId = (eventData?.transaction_id ?? eventData?.id) as string | undefined;
+              if (txId) {
+                fetch("/api/billing/sync", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ transactionId: txId }),
+                }).finally(() => {
+                  router.push("/welcome");
+                });
+              } else {
+                router.push("/welcome");
+              }
             }
           },
         });
