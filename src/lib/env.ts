@@ -84,7 +84,7 @@ const EnvSchema = z
     SENTRY_DSN: z.string().url().optional(),
     USE_MOCK_ADS: z.enum(["true", "false"]).optional(),
   })
-  .strict();
+  .passthrough();
 
 export type AppEnv = z.infer<typeof EnvSchema>;
 
