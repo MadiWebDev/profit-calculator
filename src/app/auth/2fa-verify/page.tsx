@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Loader2, ShieldCheck } from "lucide-react";
+import Image from "next/image";
 
 /**
  * 2FA login step (S1.1). Reached after a password login when the user
@@ -11,14 +14,23 @@ import { useRouter } from "next/navigation";
  * session.update() to clear the flag. API routes reject pending sessions.
  */
 export default function TwoFactorVerifyPage() {
-  const { update } = useSession();
+  const { update, status } = useSession();
   const router = useRouter();
   const [code, setCode] = useState("");
   const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  /* Redirect unauthenticated users to login */
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/login");
+    }
+  }, [status, router]);
 
   useEffect(() => {
+    if (status === "loading") return;
     (async () => {
       try {
         const res = await fetch("/api/auth/2fa/trusted-check", { method: "POST" });
@@ -31,32 +43,114 @@ export default function TwoFactorVerifyPage() {
       } catch { /* fall through to code entry */ }
       setChecking(false);
     })();
-  }, [update, router]);
+  }, [update, router, status]);
 
   const submit = async () => {
     setError(null);
-    const res = await fetch("/api/auth/2fa/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, rememberDevice }),
-    });
-    if (!res.ok) {
-      setError("Invalid code. Try again, or use a recovery code.");
-      return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/2fa/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, rememberDevice }),
+      });
+      if (!res.ok) {
+        setError("Invalid code. Try again, or use a recovery code.");
+        return;
+      }
+      await update({ user: { twoFactorPending: false } });
+      router.push("/dashboard");
+    } finally {
+      setSubmitting(false);
     }
-    await update({ user: { twoFactorPending: false } });
-    router.push("/dashboard");
   };
 
-  if (checking) return <p>Checking trusted device…</p>;
+  if (status === "loading" || checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-muted)] px-4 py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--color-primary)]" />
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h1>Two-factor verification</h1>
-      <p>Enter the 6-digit code from your authenticator app, or a recovery code.</p>
-      <label>Code <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" autoComplete="one-time-code" /></label>
-      <label><input type="checkbox" checked={rememberDevice} onChange={(e) => setRememberDevice(e.target.checked)} /> Remember this device for 30 days</label>
-      {error && <p>{error}</p>}
-      <button onClick={submit}>Verify</button>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--color-muted)] px-4 py-12">
+      <div className="w-full max-w-md">
+
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center font-bold text-xl" aria-label="GetProfitCalc home">
+            <Image
+              src="/getprofitcalc.png"
+              alt="GetProfitCalc logo"
+              width={100}
+              height={100}
+              className="h-12 w-12 rounded-lg object-contain"
+              priority
+            />
+            <span className="text-[var(--color-foreground)]">
+              Get<span className="text-[var(--color-primary)]">Profit</span>Calc
+            </span>
+          </Link>
+          <h1 className="text-2xl font-bold text-[var(--color-foreground)] mt-6 mb-1">Two-factor verification</h1>
+          <p className="text-sm text-[var(--color-muted-foreground)]">Enter the code from your authenticator app</p>
+        </div>
+
+        <div className="bg-[var(--color-card)] rounded-2xl border border-[var(--color-border)] p-8 shadow-sm">
+
+          <div className="flex justify-center mb-5">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-muted)]">
+              <ShieldCheck className="h-8 w-8 text-[var(--color-primary)]" />
+            </div>
+          </div>
+
+          <p className="text-sm text-[var(--color-muted-foreground)] mb-5 text-center">
+            Enter the 6-digit code from your authenticator app, or a recovery code.
+          </p>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="2fa-verify-code" className="text-sm font-medium leading-none">
+                Verification code
+              </label>
+              <input
+                id="2fa-verify-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                disabled={submitting}
+                className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
+              />
+              {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="2fa-remember"
+                type="checkbox"
+                checked={rememberDevice}
+                onChange={(e) => setRememberDevice(e.target.checked)}
+                disabled={submitting}
+                className="h-4 w-4 rounded border-[var(--color-border)] disabled:opacity-50"
+              />
+              <label htmlFor="2fa-remember" className="text-sm text-[var(--color-muted-foreground)]">
+                Remember this device for 30 days
+              </label>
+            </div>
+
+            <button
+              onClick={submit}
+              disabled={submitting}
+              className="w-full h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Verifying…</> : "Verify"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

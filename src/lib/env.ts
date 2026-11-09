@@ -147,6 +147,9 @@ export function validateEnv(): AppEnv {
     if (WEAK.some((w) => cron.toLowerCase().includes(w))) {
       throw new Error("[env] CRON_SECRET is a known placeholder in production.");
     }
+    if (!process.env.NEXT_PUBLIC_SITE_URL) {
+      throw new Error("[env] NEXT_PUBLIC_SITE_URL is required in production (used in all email links).");
+    }
     if (process.env.ENCRYPTION_KEYS_JSON) {
       try {
         const parsedKeys = JSON.parse(process.env.ENCRYPTION_KEYS_JSON) as Record<string, unknown>;

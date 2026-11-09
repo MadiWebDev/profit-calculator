@@ -3,6 +3,11 @@ import { logger } from "@/lib/logger";
 
 const FROM = process.env.EMAIL_FROM ?? "GetProfitCalc <onboarding@resend.dev>";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
+if (!SITE_URL) {
+  logger.warn("[email] NEXT_PUBLIC_SITE_URL is not set — email links will be broken");
+}
+
 /** Lazily constructed — module import must never throw when the env var is missing (build time). */
 let resend: Resend | null = null;
 function getResend(): Resend {
@@ -33,7 +38,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
       <h2>Welcome, ${name}!</h2>
       <p>Your 7-day free trial has started. No credit card required.</p>
       <p>Get started by connecting your first store:</p>
-      <a href="${process.env.NEXT_PUBLIC_SITE_URL}/onboarding" style="
+      <a href="${SITE_URL}/onboarding" style="
         display:inline-block;background:#22c55e;color:#fff;
         padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;
       ">Connect Your Store</a>
@@ -70,7 +75,7 @@ export async function sendGoalAlertEmail(
         ${formatter.format(targetProfit)} target.
       </p>
       <p>Review your dashboard to identify what's pulling your margin down.</p>
-      <a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/goals" style="
+      <a href="${SITE_URL}/dashboard/goals" style="
         display:inline-block;background:#22c55e;color:#fff;
         padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;
       ">View Goal Dashboard</a>
@@ -101,7 +106,7 @@ export async function sendProfitReportEmail(
         <tr><td>ROAS</td><td><strong>${metrics.roas}x</strong></td></tr>
         <tr><td>RTO rate</td><td><strong>${metrics.rtoRate}%</strong></td></tr>
       </table>
-      <p><a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/profit">View the full True Profit dashboard</a></p>
+      <p><a href="${SITE_URL}/dashboard/profit">View the full True Profit dashboard</a></p>
     `,
   });
 }
@@ -182,7 +187,7 @@ export async function sendTeamInviteEmail(
   teamName: string,
   inviteToken: string
 ) {
-  const url = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/accept-invite?token=${inviteToken}`;
+  const url = `${SITE_URL}/auth/accept-invite?token=${inviteToken}`;
   return sendEmail({
     from: FROM,
     to,
@@ -208,7 +213,7 @@ export async function sendPasswordResetEmail(
   name: string,
   resetToken: string
 ) {
-  const url = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset-password?token=${resetToken}`;
+  const url = `${SITE_URL}/auth/reset-password?token=${resetToken}`;
   return sendEmail({
     from: FROM,
     to,
@@ -238,7 +243,7 @@ export async function sendDunningEmail(
   plan: string,
   attempt: number
 ) {
-  const url = `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/settings?tab=billing`;
+  const url = `${SITE_URL}/dashboard/settings?tab=billing`;
   const isFinal = attempt >= 3;
   return sendEmail({
     from: FROM,
@@ -265,7 +270,7 @@ export async function sendDunningEmail(
 }
 
 export async function sendVerificationEmail(to: string, name: string, verifyToken: string) {
-  const url = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/verify-email?token=${verifyToken}`;
+  const url = `${SITE_URL}/auth/verify-email?token=${verifyToken}`;
   return sendEmail({
     from: FROM,
     to,

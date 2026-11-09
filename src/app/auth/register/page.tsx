@@ -35,7 +35,7 @@ export default function RegisterPage() {
     if (!name) errs.name = "Name is required";
     if (!email) errs.email = "Email is required";
     if (!password) errs.password = "Password is required";
-    else if (password.length < 8) errs.password = "At least 8 characters";
+    else if (password.length < 10) errs.password = "At least 10 characters";
     if (Object.keys(errs).length) { setErr(errs); return; }
     setErr({});
 
@@ -159,7 +159,7 @@ export default function RegisterPage() {
                   name="password"
                   type={showPass ? "text" : "password"}
                   autoComplete="new-password"
-                  placeholder="Min. 8 characters"
+                  placeholder="Min. 10 characters"
                   ref={passwordRef}
                   disabled={loading}
                   className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 pr-10 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"

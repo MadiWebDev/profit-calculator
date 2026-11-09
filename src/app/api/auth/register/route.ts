@@ -30,14 +30,6 @@ export async function POST(req: Request) {
   // Password policy + breached-password screening
   const policy = checkPasswordPolicy(password);
   if (!policy.ok) return fail(policy.reason ?? "Weak password", 400, "WEAK_PASSWORD");
-  if (await isPasswordBreached(password)) {
-    return fail(
-      "This password has appeared in a data breach. Please choose a different one.",
-      400,
-      "BREACHED_PASSWORD"
-    );
-  }
-
   try {
     await connectDB();
 

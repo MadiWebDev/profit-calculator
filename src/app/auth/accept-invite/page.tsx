@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, CheckCircle2, XCircle, Calculator } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -10,15 +11,34 @@ function AcceptInviteInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
+  const { data: session, status: authStatus } = useSession();
 
-  const [status, setStatus] = useState<"loading" | "success" | "error" | "expired">("loading");
+  const [inviteStatus, setInviteStatus] = useState<"loading" | "success" | "error" | "expired">("loading");
   const [teamName, setTeamName] = useState("");
   const [error, setError] = useState("");
+
+  // Redirect unauthenticated users to login, preserving the callbackUrl
+  useEffect(() => {
+    if (authStatus === "unauthenticated") {
+      const callbackUrl = `/auth/accept-invite${token ? `?token=${token}` : ""}`;
+      router.push(`/auth/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    }
+  }, [authStatus, router, token]);
+
+  // Show spinner while session is loading to avoid flash
+  if (authStatus === "loading") {
+    return (
+      <div className="min-h-screen bg-[var(--color-muted)] flex items-center justify-center px-4">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--color-primary)]" />
+      </div>
+    );
+  }
 
   // Invite validation must run client-side on mount (token comes from the URL).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!token) { setStatus("error"); setError("Invalid invite link."); return; }
+    if (authStatus !== "authenticated") return;
+    if (!token) { setInviteStatus("error"); setError("Invalid invite link."); return; }
 
     fetch("/api/team/accept-invite", {
       method: "POST",
@@ -29,17 +49,17 @@ function AcceptInviteInner() {
       .then((j) => {
         if (j.success) {
           setTeamName(j.teamName ?? "");
-          setStatus("success");
+          setInviteStatus("success");
           setTimeout(() => router.push("/dashboard"), 2500);
         } else if (j.expired) {
-          setStatus("expired");
+          setInviteStatus("expired");
         } else {
-          setStatus("error");
+          setInviteStatus("error");
           setError(j.error ?? "Failed to accept invite.");
         }
       })
-      .catch(() => { setStatus("error"); setError("Network error."); });
-  }, [token, router]);
+      .catch(() => { setInviteStatus("error"); setError("Network error."); });
+  }, [token, router, authStatus]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
@@ -53,7 +73,7 @@ function AcceptInviteInner() {
         </Link>
 
         <div className="bg-[var(--color-card)] rounded-2xl border border-[var(--color-border)] p-8 shadow-sm">
-          {status === "loading" && (
+          {inviteStatus === "loading" && (
             <>
               <Loader2 className="h-12 w-12 animate-spin text-[var(--color-primary)] mx-auto mb-4" />
               <h1 className="text-xl font-bold text-[var(--color-foreground)] mb-2">Accepting invitation…</h1>
@@ -61,7 +81,7 @@ function AcceptInviteInner() {
             </>
           )}
 
-          {status === "success" && (
+          {inviteStatus === "success" && (
             <>
               <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-950 mb-5">
                 <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
@@ -76,7 +96,7 @@ function AcceptInviteInner() {
             </>
           )}
 
-          {status === "expired" && (
+          {inviteStatus === "expired" && (
             <>
               <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-950 mb-5">
                 <XCircle className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
@@ -91,7 +111,7 @@ function AcceptInviteInner() {
             </>
           )}
 
-          {status === "error" && (
+          {inviteStatus === "error" && (
             <>
               <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-950 mb-5">
                 <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />

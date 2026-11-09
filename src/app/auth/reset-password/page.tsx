@@ -29,7 +29,7 @@ function ResetPasswordInner() {
 
     const nextErrs: typeof errs = {};
     if (!password) nextErrs.password = "Password is required";
-    else if (password.length < 8) nextErrs.password = "At least 8 characters";
+    else if (password.length < 10) nextErrs.password = "At least 10 characters";
     if (!confirm) nextErrs.confirm = "Please confirm your password";
     else if (password !== confirm) nextErrs.confirm = "Passwords do not match";
 
@@ -116,7 +116,7 @@ function ResetPasswordInner() {
       <div className="mb-6">
         <h1 className="text-xl font-bold text-[var(--color-foreground)] mb-1">Set a new password</h1>
         <p className="text-sm text-[var(--color-muted-foreground)]">
-          Choose a strong password with at least 8 characters.
+          Choose a strong password with at least 10 characters.
         </p>
       </div>
 
@@ -133,7 +133,7 @@ function ResetPasswordInner() {
               type={showPass ? "text" : "password"}
               autoComplete="new-password"
               autoFocus
-              placeholder="Min. 8 characters"
+              placeholder="Min. 10 characters"
               ref={passwordRef}
               disabled={loading}
               className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 pr-10 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
