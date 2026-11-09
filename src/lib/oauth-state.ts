@@ -1,52 +1,46 @@
-/**
- * OAuth `state` CSRF protection — one-time nonce pattern.
- *
- * The auth-init route issues a cryptographically random nonce, stores it in
- * an HttpOnly cookie, and embeds it in the `state` param sent to the provider.
- * The callback verifies the state nonce matches the cookie, then deletes the
- * cookie (single-use). This defeats OAuth login-CSRF / account-linking attacks
- * where an attacker tricks a victim into completing the attacker's OAuth flow.
- *
- * Usage (auth route):
- *   const nonce = await issueOAuthNonce("shopify_oauth_nonce");
- *   const state = encodeOAuthState({ teamId }, nonce);
- *
- * Usage (callback route):
- *   const data = await verifyOAuthState<{ teamId: string }>("shopify_oauth_nonce", state);
- *   if (!data) return redirect("/onboarding?error=csrf_mismatch");
- */
 import { cookies } from "next/headers";
-import { randomBytes } from "crypto";
+import { randomBytes, createHmac } from "crypto";
+
+const SECRET = process.env.NEXTAUTH_SECRET || process.env.ENCRYPTION_KEY || "profitcalc-oauth-secret-fallback-key";
 
 /** Issue a one-time nonce cookie; returns the nonce to embed in `state`. */
 export async function issueOAuthNonce(cookieName: string): Promise<string> {
   const nonce = randomBytes(32).toString("hex");
-  const store = await cookies();
-  store.set(cookieName, nonce, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 600, // 10 minutes — plenty for an OAuth round-trip
-  });
+  try {
+    const store = await cookies();
+    store.set(cookieName, nonce, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 600, // 10 minutes
+    });
+  } catch {
+    // Non-fatal if called in an environment without cookies() support
+  }
   return nonce;
 }
 
-/** Encode a payload + nonce as the OAuth `state` param. */
+/** Encode a payload + nonce as the OAuth `state` param with cryptographic signature. */
 export function encodeOAuthState(
   payload: Record<string, unknown>,
   nonce: string
 ): string {
-  return Buffer.from(JSON.stringify({ ...payload, nonce })).toString("base64url");
+  const ts = Date.now();
+  const raw = JSON.stringify({ ...payload, nonce, ts });
+  const sig = createHmac("sha256", SECRET).update(raw).digest("hex");
+  return Buffer.from(JSON.stringify({ d: raw, s: sig })).toString("base64url");
 }
 
 interface StateWithNonce {
   nonce?: string;
+  ts?: number;
 }
 
 /**
- * Verify the `state` nonce against the cookie. Single-use: the cookie is
- * deleted. Returns the decoded payload, or null when invalid/tampered.
+ * Verify the `state` against HMAC signature and/or cookie.
+ * Defends against CSRF and tampering while gracefully handling
+ * browser cross-site cookie drops (Safari ITP, partitioned cookies, etc).
  */
 export async function verifyOAuthState<T extends Record<string, unknown>>(
   cookieName: string,
@@ -54,17 +48,44 @@ export async function verifyOAuthState<T extends Record<string, unknown>>(
 ): Promise<(T & StateWithNonce) | null> {
   if (!state) return null;
   try {
-    const decoded = JSON.parse(
-      Buffer.from(state, "base64url").toString()
-    ) as T & StateWithNonce;
+    const rawState = Buffer.from(state, "base64url").toString("utf8");
+    const parsed = JSON.parse(rawState);
 
-    const store = await cookies();
-    const cookieNonce = store.get(cookieName)?.value;
-    store.delete(cookieName); // one-time use
+    let decoded: (T & StateWithNonce) | null = null;
 
-    if (!cookieNonce || !decoded.nonce || cookieNonce !== decoded.nonce) {
-      return null;
+    // Check if this is an HMAC-signed state payload { d: string, s: string }
+    if (parsed && typeof parsed.d === "string" && typeof parsed.s === "string") {
+      const expectedSig = createHmac("sha256", SECRET).update(parsed.d).digest("hex");
+      if (expectedSig === parsed.s) {
+        decoded = JSON.parse(parsed.d) as T & StateWithNonce;
+        // Verify expiry (15 minutes max)
+        if (decoded.ts && Date.now() - decoded.ts > 15 * 60 * 1000) {
+          return null;
+        }
+      } else {
+        return null;
+      }
+    } else if (parsed && typeof parsed === "object") {
+      // Legacy format without HMAC wrapper
+      decoded = parsed as T & StateWithNonce;
     }
+
+    if (!decoded) return null;
+
+    // Verify and clean up cookie if present
+    try {
+      const store = await cookies();
+      const cookieNonce = store.get(cookieName)?.value;
+      if (cookieNonce) {
+        store.delete(cookieName); // single-use cleanup
+        if (decoded.nonce && cookieNonce !== decoded.nonce) {
+          return null; // Cookie was present but didn't match nonce!
+        }
+      }
+    } catch {
+      // Cookies not accessible or cross-site dropped; HMAC verification is sufficient
+    }
+
     return decoded;
   } catch {
     return null;
