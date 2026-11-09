@@ -57,8 +57,8 @@ export async function GET(req: Request) {
   const goal = goals[0];
   const target = goal ? Number((goal as { targetProfit?: number }).targetProfit ?? 0) : 0;
   const integrations = [
-    ...stores.map((s) => ({ name: `Store: ${s.name}`, status: s.syncStatus, lastSuccess: s.lastSyncAt?.toISOString() ?? null, error: s.syncError ?? null })),
-    ...adAccounts.map((a) => ({ name: `Ads: ${a.platform}`, status: a.syncStatus, lastSuccess: a.lastSyncAt?.toISOString() ?? null, error: null })),
+    ...stores.map((s) => ({ name: `Store: ${s.name}`, status: s.syncStatus, lastSuccess: s.lastSyncAt ? new Date(s.lastSyncAt).toISOString() : null, error: s.syncError ?? null })),
+    ...adAccounts.map((a) => ({ name: `Ads: ${a.platform}`, status: a.syncStatus, lastSuccess: a.lastSyncAt ? new Date(a.lastSyncAt).toISOString() : null, error: null })),
   ];
 
   // Data health: % of orders with COGS, country, and source recorded.

@@ -13,6 +13,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import mongoose from "mongoose";
 import { requireAuth } from "@/lib/api-helpers";
 import { parseBody } from "@/lib/validation";
 import { getPaddleClient } from "@/lib/paddle";
@@ -30,7 +31,8 @@ const SyncSchema = z
   .strict();
 
 export async function POST(req: Request) {
-  const authRes = await requireAuth(req);
+  // Allow archived accounts to call billing sync immediately upon checkout completion
+  const authRes = await requireAuth(req, { requireSubscription: false });
   if (authRes instanceof NextResponse) return authRes;
   const { session } = authRes;
 
@@ -81,12 +83,16 @@ export async function POST(req: Request) {
 
     await connectDB();
 
+    const teamOid = mongoose.Types.ObjectId.isValid(session.teamId)
+      ? new mongoose.Types.ObjectId(session.teamId)
+      : session.teamId;
+
     // 1. Immediately provision the subscription in MongoDB
     await SubscriptionModel.findOneAndUpdate(
       { externalId: subscriptionId },
       {
         $set: {
-          teamId: session.teamId,
+          teamId: teamOid,
           gateway: "paddle",
           externalId: subscriptionId,
           customerId,
@@ -106,7 +112,10 @@ export async function POST(req: Request) {
         subscriptionId,
         ...(customerId ? { paddleCustomerId: customerId } : {}),
       }),
-      UserModel.updateMany({ teamId: session.teamId }, { plan }),
+      UserModel.updateMany(
+        { $or: [{ teamId: session.teamId }, { teamId: teamOid }] },
+        { plan }
+      ),
     ]);
 
     logger.info("billing-sync: subscription provisioned successfully", {

@@ -17,6 +17,7 @@
  * this file and any future callers stay in sync automatically.
  */
 
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import SubscriptionModel from "@/models/Subscription";
 import TeamModel from "@/models/Team";
@@ -37,6 +38,7 @@ export interface TrialInfo {
   trialEndsAt: Date | null;
   daysLeft: number;        // only meaningful when status === "trialing"
   isArchived: boolean;     // shortcut: status === "archived"
+  paddleCustomerId?: string;
 }
 
 /**
@@ -46,11 +48,20 @@ export interface TrialInfo {
 export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
   await connectDB();
 
+  const teamOid = mongoose.Types.ObjectId.isValid(teamId)
+    ? new mongoose.Types.ObjectId(teamId)
+    : teamId;
+
   const [team, sub] = await Promise.all([
     TeamModel.findById(teamId).lean(),
-    SubscriptionModel.findOne({ teamId }).lean(),
+    SubscriptionModel.findOne({
+      $or: [{ teamId }, { teamId: teamOid }],
+    })
+      .sort({ updatedAt: -1 })
+      .lean(),
   ]);
 
+  const customerId = (sub?.customerId || team?.paddleCustomerId) as string | undefined;
   const now = new Date();
 
   // ── Paid subscription takes priority ─────────────────────────────────────
@@ -69,6 +80,7 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
         trialEndsAt: team?.trialEndsAt ?? null,
         daysLeft: 0,
         isArchived: false,
+        paddleCustomerId: customerId,
       };
     }
 
@@ -82,6 +94,7 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
           trialEndsAt: team?.trialEndsAt ?? null,
           daysLeft: 0,
           isArchived: false,
+          paddleCustomerId: customerId,
         };
       }
       // Period ended → archived
@@ -91,6 +104,7 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
         trialEndsAt: team?.trialEndsAt ?? null,
         daysLeft: 0,
         isArchived: true,
+        paddleCustomerId: customerId,
       };
     }
 
@@ -102,23 +116,37 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
         trialEndsAt: team?.trialEndsAt ?? null,
         daysLeft: 0,
         isArchived: true,
+        paddleCustomerId: customerId,
       };
     }
   }
 
-  // ── No active subscription — check trial ──────────────────────────────────
-  const trialEndsAt = team?.trialEndsAt ? new Date(team.trialEndsAt) : null;
+  // ── Paid team plan takes priority if no sub or sub lookup is desynced ──────
   const teamPlan = (team?.plan as PlanLevel) || "free";
+  if (teamPlan !== "free") {
+    return {
+      status: "active",
+      plan: teamPlan,
+      trialEndsAt: team?.trialEndsAt ?? null,
+      daysLeft: 0,
+      isArchived: false,
+      paddleCustomerId: customerId,
+    };
+  }
+
+  // ── No active subscription or paid plan — check trial ─────────────────────
+  const trialEndsAt = team?.trialEndsAt ? new Date(team.trialEndsAt) : null;
 
   if (trialEndsAt && trialEndsAt > now) {
     const msLeft   = trialEndsAt.getTime() - now.getTime();
     const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
     return {
       status: "trialing",
-      plan: teamPlan !== "free" ? teamPlan : "free",
+      plan: "free",
       trialEndsAt,
       daysLeft,
       isArchived: false,
+      paddleCustomerId: customerId,
     };
   }
 
@@ -129,6 +157,7 @@ export async function getAccountStatus(teamId: string): Promise<TrialInfo> {
     trialEndsAt,
     daysLeft: 0,
     isArchived: true,
+    paddleCustomerId: customerId,
   };
 }
 

@@ -58,6 +58,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           userName={user.name ?? undefined}
           userEmail={user.email ?? undefined}
           teamId={teamId || undefined}
+          paddleCustomerId={trialInfo?.paddleCustomerId}
         />
       </RoleProvider>
     );

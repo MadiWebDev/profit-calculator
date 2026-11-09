@@ -21,8 +21,10 @@ function parseDateParam(s: string | null, fallback: Date): Date {
   return isNaN(d.getTime()) ? fallback : d;
 }
 
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+function isoDate(d?: Date | string | null): string {
+  if (!d) return new Date().toISOString().slice(0, 10);
+  const parsed = d instanceof Date ? d : new Date(d);
+  return isNaN(parsed.getTime()) ? new Date().toISOString().slice(0, 10) : parsed.toISOString().slice(0, 10);
 }
 
 function round2(n: number) {
@@ -373,7 +375,7 @@ async function getOverviewData(
       id:           o._id.toString(),
       orderNumber:  o.orderNumber ?? o.externalId,
       currency:     (o as { currency?: string }).currency ?? "USD",
-      orderDate:    (o.orderDate as Date).toISOString(),
+      orderDate:    o.orderDate ? (o.orderDate instanceof Date ? o.orderDate.toISOString() : new Date(o.orderDate).toISOString()) : new Date().toISOString(),
       grossRevenue: o.grossRevenue,
       netProfit:    o.netProfit,
       profitMargin: o.profitMargin,

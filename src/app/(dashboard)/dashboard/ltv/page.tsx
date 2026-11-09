@@ -13,8 +13,29 @@ function round2(n: number) {
 
 async function getLtvData(teamId: string) {
   await connectDB();
-  const teamOid = new mongoose.Types.ObjectId(teamId);
+  const teamOid = mongoose.Types.ObjectId.isValid(teamId)
+    ? new mongoose.Types.ObjectId(teamId)
+    : null;
   const now = new Date();
+
+  if (!teamOid) {
+    return {
+      cohorts: [],
+      trend: [],
+      frequency: [],
+      topCustomers: [],
+      summary: {
+        totalCustomers: 0,
+        repeatCustomers: 0,
+        repeatRate: 0,
+        avgLtv: 0,
+        avgRevLtv: 0,
+        avgOrdersPerCust: 0,
+        top20pctPct: 0,
+        atRiskCount: 0,
+      },
+    };
+  }
 
   // ── Per-customer lifetime aggregation ────────────────────────────────────
   const [customerData, monthlyTrend, orderFrequency] = await Promise.all([

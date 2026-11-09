@@ -47,7 +47,7 @@ async function getSettingsData(teamId: string, userId: string) {
       name:        s.name,
       platform:    s.platform,
       syncStatus:  s.syncStatus,
-      lastSyncAt:  s.lastSyncAt?.toISOString(),
+      lastSyncAt:  s.lastSyncAt ? new Date(s.lastSyncAt).toISOString() : undefined,
       ordersCount: s.ordersCount,
       domain:      s.domain,
     })),
@@ -58,7 +58,7 @@ async function getSettingsData(teamId: string, userId: string) {
       accountName: a.accountName,
       currency:    a.currency,
       syncStatus:  a.syncStatus,
-      lastSyncAt:  a.lastSyncAt?.toISOString(),
+      lastSyncAt:  a.lastSyncAt ? new Date(a.lastSyncAt).toISOString() : undefined,
     })),
     user: {
       name:  (user as { name?: string }  | null)?.name  ?? "User",

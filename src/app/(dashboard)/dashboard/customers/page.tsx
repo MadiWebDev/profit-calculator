@@ -15,8 +15,8 @@ export default async function CustomersPage() {
     <CustomersClient
       customers={data.customers.map((c) => ({
         ...c,
-        firstOrderDate: c.firstOrderDate.toISOString(),
-        lastOrderDate: c.lastOrderDate.toISOString(),
+        firstOrderDate: c.firstOrderDate instanceof Date ? c.firstOrderDate.toISOString() : new Date(c.firstOrderDate).toISOString(),
+        lastOrderDate: c.lastOrderDate instanceof Date ? c.lastOrderDate.toISOString() : new Date(c.lastOrderDate).toISOString(),
       }))}
       segments={data.segments}
     />

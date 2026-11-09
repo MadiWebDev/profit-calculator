@@ -51,6 +51,8 @@ interface PricingModalProps {
   userEmail?: string;
   /** Team ID from JWT — passed as Paddle customData for webhook provisioning */
   teamId?: string;
+  /** Paddle customer ID for Paddle Retain */
+  paddleCustomerId?: string;
   /** 2-letter ISO country code for localised prices */
   countryCode?: string;
   /** Called on checkout.completed */
@@ -68,6 +70,7 @@ export function PricingModal({
   onClose,
   userEmail,
   teamId,
+  paddleCustomerId,
   countryCode,
   onComplete,
   successUrl,
@@ -86,7 +89,7 @@ export function PricingModal({
     openCheckout,
     getDisplayPrice,
     getBillingLabel,
-  } = usePaddlePricing(tiers, countryCode);
+  } = usePaddlePricing(tiers, countryCode, paddleCustomerId);
 
   const anyOpening = openingTier !== null;
 

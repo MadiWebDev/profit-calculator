@@ -87,6 +87,14 @@ export function planFromPriceId(priceId: string): PlanEntry {
   return { plan, interval };
 }
 
+function toOid(id: string | mongoose.Types.ObjectId | undefined | null): mongoose.Types.ObjectId | string | undefined {
+  if (!id) return undefined;
+  if (typeof id === "string" && mongoose.Types.ObjectId.isValid(id)) {
+    return new mongoose.Types.ObjectId(id);
+  }
+  return id;
+}
+
 function toDate(value: string | Date | null | undefined): Date {
   if (!value) return new Date();
   return value instanceof Date ? value : new Date(value);
@@ -155,7 +163,7 @@ export async function handleSubscriptionUpsert(
       { externalId: data.id },
       {
         $set: {
-          teamId,
+          teamId: toOid(teamId),
           gateway:            "paddle",
           externalId:         data.id,
           customerId:         data.customerId,
@@ -181,7 +189,7 @@ export async function handleSubscriptionUpsert(
         subscriptionId: data.id,
         paddleCustomerId: data.customerId,
       }),
-      UserModel.updateMany({ teamId }, { plan }),
+      UserModel.updateMany({ $or: [{ teamId }, { teamId: toOid(teamId) }] }, { plan }),
     ]);
   });
 
@@ -209,7 +217,7 @@ export async function handleSubscriptionCanceled(
   // Downgrade the team to free immediately — the "instant cancel" guarantee
   await Promise.all([
     TeamModel.findByIdAndUpdate(existing.teamId, { plan: "free" }),
-    UserModel.updateMany({ teamId: existing.teamId }, { plan: "free" }),
+    UserModel.updateMany({ $or: [{ teamId: existing.teamId }, { teamId: toOid(existing.teamId) }] }, { plan: "free" }),
   ]);
   logger.info("paddle webhook: subscription canceled", { id: data.id });
 }
@@ -239,7 +247,7 @@ export async function handleSubscriptionResumed(
     if (sub?.teamId && sub.plan) {
       await Promise.all([
         TeamModel.findByIdAndUpdate(sub.teamId, { plan: sub.plan }),
-        UserModel.updateMany({ teamId: sub.teamId }, { plan: sub.plan }),
+        UserModel.updateMany({ $or: [{ teamId: sub.teamId }, { teamId: toOid(sub.teamId) }] }, { plan: sub.plan }),
       ]);
     }
     logger.info("paddle webhook: subscription resumed", { id: data.id });

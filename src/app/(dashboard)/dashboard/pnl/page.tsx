@@ -10,7 +10,37 @@ export const dynamic = "force-dynamic";
 
 async function getPnlData(teamId: string, from: Date, to: Date) {
   await connectDB();
-  const teamOid = mongoose.Types.ObjectId.createFromHexString(teamId);
+  const teamOid = mongoose.Types.ObjectId.isValid(teamId)
+    ? new mongoose.Types.ObjectId(teamId)
+    : null;
+  if (!teamOid) {
+    return {
+      summary: {
+        grossRevenue: 0,
+        discounts: 0,
+        refunds: 0,
+        chargebacks: 0,
+        netRevenue: 0,
+        shippingRevenue: 0,
+        totalRevenue: 0,
+        cogs: 0,
+        grossProfit: 0,
+        grossMargin: 0,
+        transactionFees: 0,
+        shippingCosts: 0,
+        totalAdSpend: 0,
+        operatingExpenses: 0,
+        operatingProfit: 0,
+        operatingMargin: 0,
+        taxes: 0,
+        netProfit: 0,
+        netMargin: 0,
+        orderCount: 0,
+      },
+      adSpendByPlatform: [],
+      monthlyChart: [],
+    };
+  }
 
   const [orders, adSpend] = await Promise.all([
     OrderModel.find({

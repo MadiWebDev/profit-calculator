@@ -24,13 +24,14 @@ interface ArchivedWallProps {
   userName?:    string;
   userEmail?:   string;
   teamId?:      string;
+  paddleCustomerId?: string;
 }
 
 const UPGRADE_PENDING_KEY = "gpc_upgrade_pending";
 const POLL_INTERVAL_MS = 3000;
 const POLL_MAX_ATTEMPTS = 20; // ~60s — covers normal Paddle webhook delivery
 
-export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: ArchivedWallProps) {
+export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId, paddleCustomerId }: ArchivedWallProps) {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [activationTimedOut, setActivationTimedOut] = useState(false);
@@ -81,15 +82,50 @@ export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: Arch
   /* eslint-disable react-hooks/set-state-in-effect -- mount-time init: a pending upgrade can only be known client-side from sessionStorage after hydration; no SSR alternative */
   useEffect(() => {
     try {
+      // 1. Check for Paddle redirect parameters (e.g. ?_ptxn=txn_... or ?transaction_id=txn_...)
+      const params = new URLSearchParams(window.location.search);
+      const ptxn = params.get("_ptxn") || params.get("transaction_id") || params.get("txnId");
+      if (ptxn) {
+        setActivating(true);
+        fetch("/api/billing/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transactionId: ptxn }),
+        })
+          .then((res) => {
+            if (res.ok) {
+              window.location.href = window.location.pathname;
+            } else {
+              startActivationPolling();
+            }
+          })
+          .catch(() => {
+            startActivationPolling();
+          });
+        return;
+      }
+
+      // 2. Immediate trial status verification in case account was already upgraded
+      fetch("/api/trial/status", { credentials: "same-origin" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && !data.isArchived) {
+            window.location.reload();
+          }
+        })
+        .catch(() => {});
+
+      // 3. Pending upgrade polling from sessionStorage
       const raw = sessionStorage.getItem(UPGRADE_PENDING_KEY);
       if (raw && Date.now() - Number(raw) < 10 * 60 * 1000) {
         startActivationPolling();
       } else if (raw) {
         sessionStorage.removeItem(UPGRADE_PENDING_KEY);
       }
-    } catch { /* sessionStorage unavailable — polling starts via onComplete */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    } catch {
+      /* sessionStorage unavailable */
+    }
+  }, [startActivationPolling]);
 
   const handleCheckoutComplete = useCallback(() => {
     try { sessionStorage.setItem(UPGRADE_PENDING_KEY, String(Date.now())); } catch { /* ignore */ }
@@ -183,6 +219,26 @@ export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: Arch
               <Zap className="h-4 w-4" aria-hidden="true" />
               View Plans &amp; Upgrade
             </Button>
+            <Button
+              variant="outline"
+              className="w-full gap-2 text-sm"
+              disabled={activating}
+              onClick={async () => {
+                setActivating(true);
+                try {
+                  const res = await fetch("/api/trial/status", { credentials: "same-origin" });
+                  const data = await res.json();
+                  if (data && !data.isArchived) {
+                    window.location.reload();
+                    return;
+                  }
+                } catch { /* ignore */ }
+                setActivating(false);
+              }}
+            >
+              <RefreshCw className={"h-4 w-4 " + (activating ? "animate-spin" : "")} aria-hidden="true" />
+              {activating ? "Checking Status…" : "Already Upgraded? Check Status"}
+            </Button>
             <button
               onClick={() => signOut({ callbackUrl: "/auth/login" })}
               className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors py-1"
@@ -205,6 +261,7 @@ export function ArchivedWall({ trialEndedAt, userName, userEmail, teamId }: Arch
         onClose={() => setPricingOpen(false)}
         userEmail={userEmail}
         teamId={teamId}
+        paddleCustomerId={paddleCustomerId}
         successUrl="/dashboard"
         onComplete={handleCheckoutComplete}
       />

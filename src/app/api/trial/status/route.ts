@@ -41,8 +41,10 @@ export async function GET() {
     return NextResponse.json({
       status: info.status,
       trialEndsAt: info.trialEndsAt ? info.trialEndsAt.toISOString() : null,
+      plan: info.plan,
       daysLeft: info.daysLeft,
       isArchived: info.isArchived,
+      paddleCustomerId: info.paddleCustomerId ?? null,
     });
   } catch (err) {
     logger.error("[trial/status]", err);

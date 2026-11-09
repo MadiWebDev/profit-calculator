@@ -17,10 +17,10 @@ async function getApiKeys(teamId: string) {
     name: k.name,
     keyPrefix: k.keyPrefix,
     scopes: k.scopes,
-    lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+    lastUsedAt: k.lastUsedAt ? new Date(k.lastUsedAt).toISOString() : null,
     usageCount: k.usageCount,
-    expiresAt: k.expiresAt?.toISOString() ?? null,
-    createdAt: k.createdAt.toISOString(),
+    expiresAt: k.expiresAt ? new Date(k.expiresAt).toISOString() : null,
+    createdAt: k.createdAt ? new Date(k.createdAt).toISOString() : new Date().toISOString(),
   }));
 }
 

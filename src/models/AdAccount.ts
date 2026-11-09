@@ -4,7 +4,7 @@ export type AdPlatform = "meta" | "google" | "tiktok" | "pinterest" | "snapchat"
 
 export interface IAdAccount extends Document {
   _id: mongoose.Types.ObjectId;
-  storeId: mongoose.Types.ObjectId;
+  storeId?: mongoose.Types.ObjectId;
   teamId: mongoose.Types.ObjectId;
   platform: AdPlatform;
   accountId: string;
@@ -24,7 +24,7 @@ export interface IAdAccount extends Document {
 
 const AdAccountSchema = new Schema<IAdAccount>(
   {
-    storeId: { type: Schema.Types.ObjectId, ref: "Store", required: true, index: true },
+    storeId: { type: Schema.Types.ObjectId, ref: "Store", required: false, index: true },
     teamId: { type: Schema.Types.ObjectId, ref: "Team", required: true, index: true },
     platform: {
       type: String,

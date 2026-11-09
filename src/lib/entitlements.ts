@@ -67,11 +67,18 @@ const PAST_DUE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
  */
 export async function getEffectivePlan(teamId: string): Promise<EffectivePlan> {
   await connectDB();
-  const teamOid = new mongoose.Types.ObjectId(teamId);
+  const teamOid = mongoose.Types.ObjectId.isValid(teamId)
+    ? new mongoose.Types.ObjectId(teamId)
+    : null;
 
   const [team, sub] = await Promise.all([
-    TeamModel.findById(teamOid).select("plan trialEndsAt").lean(),
-    SubscriptionModel.findOne({ teamId: teamOid }).lean(),
+    TeamModel.findById(teamId).select("plan trialEndsAt").lean(),
+    SubscriptionModel.findOne({
+      $or: [
+        { teamId },
+        ...(teamOid ? [{ teamId: teamOid }] : []),
+      ],
+    }).sort({ updatedAt: -1 }).lean(),
   ]);
 
   const free: EffectivePlan = { plan: "free", source: "free", limits: getPlanLimits("free") };
@@ -106,6 +113,12 @@ export async function getEffectivePlan(teamId: string): Promise<EffectivePlan> {
 
     // paused or unknown → free
     return free;
+  }
+
+  // Check if team has a direct paid plan
+  const teamPlan = (team?.plan ?? "free") as PlanId;
+  if (teamPlan !== "free") {
+    return { plan: teamPlan, source: "subscription", limits: getPlanLimits(teamPlan) };
   }
 
   // No subscription — check the 7-day trial

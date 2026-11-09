@@ -54,18 +54,18 @@ async function getAuditLogs(teamId: string, page: number, action?: string) {
 export default async function AuditLogPage({
   searchParams,
 }: {
-  searchParams: { page?: string; action?: string };
+  searchParams?: Promise<{ page?: string; action?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/auth/login");
 
   const user = session.user as { id?: string; teamId?: string; plan?: UserPlan; role?: UserRole };
 
-
   if (!user.teamId) redirect("/onboarding");
 
-  const page   = Math.max(1, parseInt((await searchParams).page ?? "1"));
-  const action = (await searchParams).action ?? "";
+  const params = (await (searchParams ?? Promise.resolve({}))) as { page?: string; action?: string };
+  const page   = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const action = params.action ?? "";
 
   const data = await getAuditLogs(user.teamId, page, action || undefined);
 
