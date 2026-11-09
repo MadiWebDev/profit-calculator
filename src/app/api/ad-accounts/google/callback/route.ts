@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const redirectUri = `${SITE_URL}/api/ad-accounts/google/callback`;
+  const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI || `${SITE_URL}/api/ad-accounts/google/callback`;
 
   // ── 2. Exchange code for tokens ───────────────────────────────────────────
   let accessToken: string | undefined;

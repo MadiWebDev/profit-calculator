@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const redirectUri = `${SITE_URL}/api/ad-accounts/meta/callback`;
+  const redirectUri = process.env.META_REDIRECT_URI || `${SITE_URL}/api/ad-accounts/meta/callback`;
 
   // ── 2. Exchange code for access token ─────────────────────────────────────
   // GET https://graph.facebook.com/v21.0/oauth/access_token

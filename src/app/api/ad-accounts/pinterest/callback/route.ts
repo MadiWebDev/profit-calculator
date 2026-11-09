@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const redirectUri = `${SITE_URL}/api/ad-accounts/pinterest/callback`;
+  const redirectUri = process.env.PINTEREST_REDIRECT_URI || `${SITE_URL}/api/ad-accounts/pinterest/callback`;
 
   // ── 2. Exchange code for access token ─────────────────────────────────────
   // POST https://api.pinterest.com/v5/oauth/token (Basic auth)

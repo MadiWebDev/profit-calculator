@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const redirectUri = `${SITE_URL}/api/ad-accounts/snapchat/callback`;
+  const redirectUri = process.env.SNAPCHAT_REDIRECT_URI || `${SITE_URL}/api/ad-accounts/snapchat/callback`;
 
   // ── 2. Exchange code for access token ─────────────────────────────────────
   // POST https://accounts.snapchat.com/login/oauth2/access_token

@@ -149,7 +149,7 @@ export function AdSpendClient({ data }: { data: AdData }) {
           <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
             Connect your Meta, Google, or TikTok Ads account to start tracking.
           </p>
-          <Button className="mt-4" onClick={() => router.push("/dashboard/settings")}>
+          <Button className="mt-4" onClick={() => router.push("/dashboard/settings?tab=ad-accounts")}>
             Connect Ad Account
           </Button>
         </div>

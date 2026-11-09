@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   CreditCard, Store, Zap, Loader2, AlertTriangle, CheckCircle2,
   RefreshCw, Plus, User, Bell, Key, ExternalLink, Lock,
-  Globe, Clock, Shield, ArrowRight, Check, X,
+  Globe, Clock, Shield, ArrowRight, Check, X, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -188,11 +188,19 @@ export function SettingsClient({
   useEffect(() => {
     const connected = searchParams.get("connected");
     const account   = searchParams.get("account");
-    if (connected === "tiktok") {
+    if (connected) {
+      const platformLabels: Record<string, string> = {
+        meta: "Meta Ads",
+        google: "Google Ads",
+        tiktok: "TikTok Ads",
+        pinterest: "Pinterest Ads",
+        snapchat: "Snapchat Ads",
+      };
+      const label = platformLabels[connected] || `${connected.toUpperCase()} Ads`;
       setTab("ad-accounts");
       setAdAccountSuccess(account
-        ? `TikTok Ads "${account}" connected successfully!`
-        : "TikTok Ads connected successfully!");
+        ? `${label} "${account}" connected successfully!`
+        : `${label} connected successfully!`);
       const url = new URL(window.location.href);
       url.searchParams.delete("connected");
       url.searchParams.delete("account");
@@ -201,7 +209,7 @@ export function SettingsClient({
     const err = searchParams.get("error");
     if (err) {
       setTab("ad-accounts");
-      setFeedback("err", `TikTok connection failed: ${err.replace(/_/g, " ")}`);
+      setFeedback("err", `Connection error: ${err.replace(/_/g, " ")}`);
       const url = new URL(window.location.href);
       url.searchParams.delete("error");
       window.history.replaceState({}, "", url.toString());
@@ -369,6 +377,26 @@ export function SettingsClient({
     finally { updateStoreSyncActive(null); }
   };
 
+  const [disconnectingStoreId, setDisconnectingStoreId] = useState<string | null>(null);
+  const disconnectStore = async (storeId: string) => {
+    if (!window.confirm("Are you sure you want to disconnect this store? Order history will be preserved.")) return;
+    setDisconnectingStoreId(storeId);
+    try {
+      const res = await fetch(`/api/stores/${storeId}`, { method: "DELETE" });
+      if (res.ok) {
+        setFeedback("ok", "Store disconnected successfully.");
+        router.refresh();
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setFeedback("err", j.error ?? "Failed to disconnect store.");
+      }
+    } catch {
+      setFeedback("err", "Failed to disconnect store.");
+    } finally {
+      setDisconnectingStoreId(null);
+    }
+  };
+
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
 
   const connectAdPlatform = async (platform: string, label: string) => {
@@ -397,6 +425,26 @@ export function SettingsClient({
       });
       router.refresh();
     } finally { updateAdSyncActive(null); }
+  };
+
+  const [disconnectingAdAccountId, setDisconnectingAdAccountId] = useState<string | null>(null);
+  const disconnectAdAccount = async (adAccountId: string) => {
+    if (!window.confirm("Are you sure you want to disconnect this ad account? Past spend data will be preserved.")) return;
+    setDisconnectingAdAccountId(adAccountId);
+    try {
+      const res = await fetch(`/api/ad-accounts/${adAccountId}`, { method: "DELETE" });
+      if (res.ok) {
+        setFeedback("ok", "Ad account disconnected successfully.");
+        router.refresh();
+      } else {
+        const j = await res.json().catch(() => ({}));
+        setFeedback("err", j.error ?? "Failed to disconnect ad account.");
+      }
+    } catch {
+      setFeedback("err", "Failed to disconnect ad account.");
+    } finally {
+      setDisconnectingAdAccountId(null);
+    }
   };
 
   const testSlack = async () => {
@@ -872,6 +920,14 @@ export function SettingsClient({
                         >
                           <RefreshCw className={cn("h-3.5 w-3.5", storeSyncActive === store.id && "animate-spin")} />
                         </Button>
+                        <Button
+                          variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--color-muted-foreground)] hover:text-red-600"
+                          onClick={() => disconnectStore(store.id)}
+                          disabled={disconnectingStoreId === store.id}
+                          title="Disconnect store"
+                        >
+                          {disconnectingStoreId === store.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -951,6 +1007,14 @@ export function SettingsClient({
                         >
                           <RefreshCw className={cn("h-3.5 w-3.5", adSyncActive === acc.id && "animate-spin")} />
                         </Button>
+                        <Button
+                          variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--color-muted-foreground)] hover:text-red-600"
+                          onClick={() => disconnectAdAccount(acc.id)}
+                          disabled={disconnectingAdAccountId === acc.id}
+                          title="Disconnect ad account"
+                        >
+                          {disconnectingAdAccountId === acc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -1027,6 +1091,14 @@ export function SettingsClient({
                             title="Sync now"
                           >
                             <RefreshCw className={cn("h-3.5 w-3.5", adSyncActive === acc.id && "animate-spin")} />
+                          </Button>
+                          <Button
+                            variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--color-muted-foreground)] hover:text-red-600"
+                            onClick={() => disconnectAdAccount(acc.id)}
+                            disabled={disconnectingAdAccountId === acc.id}
+                            title="Disconnect ad account"
+                          >
+                            {disconnectingAdAccountId === acc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </Button>
                         </div>
                       </div>

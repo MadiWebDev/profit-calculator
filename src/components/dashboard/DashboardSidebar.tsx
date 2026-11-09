@@ -72,7 +72,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard/couriers", label: "Couriers", icon: Truck },
       { href: "/dashboard/shipments", label: "Shipments", icon: Ship },
-      { href: "/dashboard/profit", label: "COD Cash Flow", icon: Banknote },
     ],
   },
   {
