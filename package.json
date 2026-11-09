@@ -60,7 +60,7 @@
     "@tiptap/extension-underline": "^3.32.0",
     "@tiptap/react": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",
-    "@types/bcryptjs": "^2.4.6",
+    "@types/bcryptjs": "^3.0.0",
     "@types/crypto-js": "^4.2.2",
     "@types/papaparse": "^5.5.2",
     "bcryptjs": "^3.0.3",
