@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, Loader2, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle, Mail, X } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
 
@@ -19,6 +19,9 @@ export default function RegisterPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<{ name?: string; email?: string; password?: string }>({});
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [resending, setResending] = useState(false);
 
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -69,8 +72,12 @@ export default function RegisterPage() {
         toast.success("Welcome to GetProfitCalc!", { id: tid });
         router.push("/onboarding");
         router.refresh();
+      } else if (sr?.error?.includes("EMAIL_NOT_VERIFIED")) {
+        toast.dismiss(tid);
+        setRegisteredEmail(email.toLowerCase());
+        setShowVerifyModal(true);
       } else {
-        toast.success("Account created — check your email to verify it, then sign in.", { id: tid });
+        toast.error("Account created — check your email to verify it, then sign in.", { id: tid });
         router.push("/auth/login?registered=1");
       }
     } catch {
@@ -80,9 +87,86 @@ export default function RegisterPage() {
     }
   };
 
+  const resendVerification = async () => {
+    if (!registeredEmail || resending) return;
+    setResending(true);
+    try {
+      await fetch("/api/auth/verify-email/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: registeredEmail }),
+      });
+      toast.success("Verification email resent — check your inbox.");
+    } catch {
+      toast.error("Could not resend the email. Try again.");
+    } finally {
+      setResending(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-muted)] px-4 py-12">
       <div className="w-full max-w-md">
+
+        {/* ── Verify-email modal ─────────────────────────────────────── */}
+        {showVerifyModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="verify-modal-title"
+          >
+            <div className="relative w-full max-w-sm rounded-2xl bg-[var(--color-card)] border border-[var(--color-border)] p-8 shadow-xl text-center">
+              {/* Close */}
+              <button
+                onClick={() => setShowVerifyModal(false)}
+                className="absolute top-4 right-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+
+              {/* Icon */}
+              <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950 mb-5">
+                <Mail className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              </div>
+
+              <h2 id="verify-modal-title" className="text-xl font-bold text-[var(--color-foreground)] mb-2">
+                Check your inbox
+              </h2>
+              <p className="text-sm text-[var(--color-muted-foreground)] mb-1">
+                We sent a verification link to
+              </p>
+              <p className="text-sm font-medium text-[var(--color-foreground)] mb-5 break-all">
+                {registeredEmail}
+              </p>
+              <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
+                Click the link in the email to verify your account, then sign in.
+              </p>
+
+              {/* Primary CTA */}
+              <Link
+                href="/auth/login"
+                className="inline-flex w-full items-center justify-center h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Go to Sign In
+              </Link>
+
+              {/* Resend */}
+              <p className="mt-4 text-xs text-[var(--color-muted-foreground)]">
+                Didn&apos;t receive it?{" "}
+                <button
+                  type="button"
+                  onClick={resendVerification}
+                  disabled={resending}
+                  className="text-[var(--color-primary)] font-medium hover:underline disabled:opacity-50"
+                >
+                  {resending ? "Sending…" : "Resend email"}
+                </button>
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Logo */}
         <div className="text-center mb-8">
