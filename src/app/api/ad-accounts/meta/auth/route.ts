@@ -23,11 +23,13 @@ async function buildMetaAuthUrl(teamId: string): Promise<string> {
     client_id:     appId,
     redirect_uri:  redirectUri,
     state,
+    // NOTE: do NOT add "read_insights" — Meta rejects it as an invalid
+    // Facebook Login permission ("Invalid Scopes" error on the dialog).
+    // ads_read already covers reading ad insights for ad accounts.
     scope: [
       "ads_read",
       "ads_management",
       "business_management",
-      "read_insights",
     ].join(","),
     response_type: "code",
   });
