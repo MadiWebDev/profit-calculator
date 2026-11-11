@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { logger } from "@/lib/logger";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
 const FROM = process.env.EMAIL_FROM ?? "GetProfitCalc <onboarding@resend.dev>";
 
@@ -297,6 +298,16 @@ export async function sendVerificationEmail(to: string, name: string, verifyToke
  */
 export async function sendSupportMessageEmail(to: string, subject: string, html: string) {
   return sendEmail({ from: FROM, to, subject, html });
+}
+
+/**
+ * Admin inbox reply to a support sender. Same sender as the rest of the
+ * app; reply_to points at the support inbox so a customer's follow-up
+ * lands in hello@, not in the no-reply sender. Throws on Resend failure
+ * so the caller can leave the message un-replied.
+ */
+export async function sendSupportReplyEmail(to: string, subject: string, html: string) {
+  return sendEmail({ from: FROM, to, replyTo: SUPPORT_EMAIL, subject, html });
 }
 
 /** Escape HTML so a plain-text order message renders safely as email. */
