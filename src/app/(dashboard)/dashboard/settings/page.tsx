@@ -16,7 +16,7 @@ async function getSettingsData(teamId: string, userId: string) {
     TeamModel.findById(teamId).lean(),
     SubscriptionModel.findOne({ teamId }).lean(),
     StoreModel.find({ teamId, isActive: true }).lean(),
-    UserModel.findById(userId).select("name email image").lean(),
+    UserModel.findById(userId).select("name email image phone").lean(),
     AdAccountModel.find({ teamId, isActive: true }).lean(),
   ]);
 
@@ -64,6 +64,7 @@ async function getSettingsData(teamId: string, userId: string) {
       name:  (user as { name?: string }  | null)?.name  ?? "User",
       email: (user as { email?: string } | null)?.email ?? "",
       image: (user as { image?: string } | null)?.image,
+      phone: (user as { phone?: string } | null)?.phone ?? "",
     },
   };
 }

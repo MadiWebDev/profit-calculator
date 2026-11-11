@@ -1,0 +1,462 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  Megaphone, Mail, MessageCircle, Send, Loader2, CheckCircle2,
+  AlertCircle, RefreshCw, Plus, X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+
+type Channel = "email" | "whatsapp";
+type TemplateType = "announcement" | "product_update" | "trial_ending" | "billing_notice" | "feature_launch";
+type AudienceType = "all" | "plan" | "team";
+
+const TEMPLATE_TYPE_LABELS: Record<TemplateType, string> = {
+  announcement: "Announcement",
+  product_update: "Product update",
+  trial_ending: "Trial ending",
+  billing_notice: "Billing notice",
+  feature_launch: "Feature launch",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  draft: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  sending: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  sent: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+  failed: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+};
+
+interface CampaignRow {
+  id: string;
+  name: string;
+  channel: Channel;
+  templateType: TemplateType;
+  subject: string | null;
+  body: string;
+  whatsappTemplateName: string | null;
+  audienceType: AudienceType;
+  audiencePlan: string | null;
+  audienceTeamId: string | null;
+  status: "draft" | "sending" | "sent" | "failed";
+  stats: { targeted: number; sent: number; failed: number; skipped: number };
+  error: string | null;
+  createdBy: { name: string; email: string } | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+interface RecipientRow {
+  userId: string | null;
+  identifier: string;
+  status: "sent" | "failed" | "skipped";
+  error: string | null;
+  sentAt: string | null;
+}
+
+interface TeamRow {
+  id: string;
+  name: string;
+  plan: string;
+}
+
+const inputCls =
+  "h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm";
+
+export function CampaignsClient() {
+  const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
+  const [teams, setTeams] = useState<TeamRow[]>([]);
+  const [audienceCap, setAudienceCap] = useState(500);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{ recipients: RecipientRow[] } | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // ── Form state ──
+  const [name, setName] = useState("");
+  const [channel, setChannel] = useState<Channel>("email");
+  const [templateType, setTemplateType] = useState<TemplateType>("announcement");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [whatsappTemplateName, setWhatsappTemplateName] = useState("");
+  const [audienceType, setAudienceType] = useState<AudienceType>("all");
+  const [audiencePlan, setAudiencePlan] = useState("free");
+  const [audienceTeamId, setAudienceTeamId] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [campRes, teamRes] = await Promise.all([
+        fetch("/api/admin/campaigns?limit=50"),
+        fetch("/api/admin/teams"),
+      ]);
+      if (!campRes.ok) throw new Error("Failed to load campaigns");
+      const j = await campRes.json();
+      setCampaigns(j.campaigns ?? []);
+      if (typeof j.audienceCap === "number") setAudienceCap(j.audienceCap);
+      if (teamRes.ok) {
+        const t = await teamRes.json();
+        setTeams(t.teams ?? []);
+      }
+    } catch {
+      setError("Failed to load campaigns.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Mount-time data fetch — the effect is the correct place (suppressed: set-state-in-effect)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { load(); }, [load]);
+
+  const flash = (type: "ok" | "err", msg: string) => {
+    if (type === "ok") { setSuccess(msg); setError(null); }
+    else { setError(msg); setSuccess(null); }
+  };
+
+  const createCampaign = async () => {
+    if (!name.trim() || !body.trim()) return;
+    setCreating(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: name.trim(),
+        channel,
+        templateType,
+        body: body.trim(),
+        audienceType,
+      };
+      if (channel === "email" && subject.trim()) payload.subject = subject.trim();
+      if (channel === "whatsapp") payload.whatsappTemplateName = whatsappTemplateName.trim();
+      if (audienceType === "plan") payload.audiencePlan = audiencePlan;
+      if (audienceType === "team") payload.audienceTeamId = audienceTeamId;
+      const res = await fetch("/api/admin/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Create failed");
+      const a = j.audience as { matched: number; withContact: number; withoutContact: number; willSend: number; capped: number } | undefined;
+      flash(
+        "ok",
+        a
+          ? `Draft created. Audience: ${a.withContact} reachable of ${a.matched} matched` +
+            (a.withoutContact > 0 ? ` (${a.withoutContact} without a ${channel === "whatsapp" ? "phone number" : "contact"} will be skipped)` : "") +
+            (a.capped > 0 ? ` — ${a.capped} over the ${audienceCap} cap will not be sent.` : ". Review it below, then Send.")
+          : "Draft created."
+      );
+      setShowForm(false);
+      setName(""); setSubject(""); setBody(""); setWhatsappTemplateName("");
+      setAudienceType("all");
+      await load();
+    } catch (e) {
+      flash("err", e instanceof Error ? e.message : "Create failed.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const sendCampaign = async (campaign: CampaignRow) => {
+    const reachable =
+      campaign.channel === "whatsapp"
+        ? "WhatsApp users with a phone number on file"
+        : "all matched users";
+    if (!window.confirm(
+      `Send "${campaign.name}" now?\n\nThis sends immediately to ${reachable} (max ${audienceCap} recipients). ` +
+      `A draft can only be sent once — there is no undo.`
+    )) return;
+    setSendingId(campaign.id);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaign.id}/send`, { method: "POST" });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Send failed");
+      const s = j.stats as { targeted: number; sent: number; failed: number; skipped: number };
+      flash("ok", `Sent: ${s.sent} delivered, ${s.failed} failed, ${s.skipped} skipped of ${s.targeted} targeted${j.overflow ? ` (${j.overflow} over the cap were not sent)` : ""}.`);
+      setDetailId(null); setDetail(null);
+      await load();
+    } catch (e) {
+      flash("err", e instanceof Error ? e.message : "Send failed.");
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  const openDetail = async (id: string) => {
+    if (detailId === id) { setDetailId(null); setDetail(null); return; }
+    setDetailId(id); setLoadingDetail(true); setDetail(null);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${id}`);
+      if (!res.ok) throw new Error("Failed to load detail");
+      setDetail(await res.json());
+    } catch {
+      flash("err", "Failed to load campaign detail.");
+      setDetailId(null);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const audienceLabel = (c: CampaignRow) => {
+    if (c.audienceType === "plan") return `Plan: ${c.audiencePlan}`;
+    if (c.audienceType === "team") {
+      const t = teams.find((t) => t.id === c.audienceTeamId);
+      return `Team: ${t ? t.name : c.audienceTeamId}`;
+    }
+    return "All users";
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Megaphone className="h-6 w-6" /> Campaigns
+          </h1>
+          <p className="text-sm text-[var(--color-muted-foreground)] mt-1 max-w-2xl">
+            Send an email or WhatsApp message to your users. Campaigns are drafts until you
+            hit Send, and each send is capped at {audienceCap} recipients. WhatsApp sends
+            use a Meta-approved template — create it in Business Manager first.
+            No scheduling in this version: sending happens immediately.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            {showForm ? "Close" : "New Campaign"}
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 text-sm">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" /> {error}
+        </div>
+      )}
+      {success && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 text-sm">
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> {success}
+        </div>
+      )}
+
+      {/* ── New campaign form ── */}
+      {showForm && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Plus className="h-4 w-4" /> New Campaign (draft)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 max-w-2xl">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Campaign name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. November feature launch" className="h-9" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Channel</Label>
+                <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)} className={inputCls}>
+                  <option value="email">Email (Resend)</option>
+                  <option value="whatsapp">WhatsApp (Meta template)</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Template type</Label>
+                <select value={templateType} onChange={(e) => setTemplateType(e.target.value as TemplateType)} className={inputCls}>
+                  {(Object.keys(TEMPLATE_TYPE_LABELS) as TemplateType[]).map((t) => (
+                    <option key={t} value={t}>{TEMPLATE_TYPE_LABELS[t]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {channel === "email" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Subject (optional — defaults to the template type&apos;s subject)</Label>
+                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Leave blank for the default subject" className="h-9" />
+                <p className="text-xs text-[var(--color-muted-foreground)]">Every email includes an unsubscribe footer (reply to unsubscribe).</p>
+              </div>
+            )}
+            {channel === "whatsapp" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Meta-approved template name</Label>
+                <Input
+                  value={whatsappTemplateName}
+                  onChange={(e) => setWhatsappTemplateName(e.target.value)}
+                  placeholder="e.g. november_launch"
+                  className="h-9"
+                />
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  The exact template name from Meta Business Manager (lowercase letters, digits, underscores).
+                  It must already be approved there — if Meta rejects it, the exact error is shown per recipient.
+                  {"{{1}}"} in the template is filled with the recipient&apos;s first name.
+                </p>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Message body</Label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={5}
+                maxLength={5000}
+                placeholder="Write the message… Use {{name}} for the recipient's first name."
+                className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-[var(--color-muted-foreground)]">Use {"{{name}}"} for the recipient&apos;s first name. {body.length}/5000 characters.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Audience</Label>
+                <select value={audienceType} onChange={(e) => setAudienceType(e.target.value as AudienceType)} className={inputCls}>
+                  <option value="all">All users</option>
+                  <option value="plan">By plan</option>
+                  <option value="team">By team</option>
+                </select>
+              </div>
+              {audienceType === "plan" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Plan</Label>
+                  <select value={audiencePlan} onChange={(e) => setAudiencePlan(e.target.value)} className={inputCls}>
+                    {["free", "starter", "growth", "pro"].map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {audienceType === "team" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Team</Label>
+                  <select value={audienceTeamId} onChange={(e) => setAudienceTeamId(e.target.value)} className={inputCls}>
+                    <option value="">Select a team…</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.plan})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              {channel === "whatsapp"
+                ? `WhatsApp sends only reach users with a phone number on file (set in Dashboard → Settings → Profile). Users without one are skipped and counted.`
+                : `Emails go to every matched user (max ${audienceCap} per send).`}
+            </p>
+            <Button
+              size="sm"
+              onClick={createCampaign}
+              disabled={
+                creating || !name.trim() || !body.trim() ||
+                (channel === "whatsapp" && !whatsappTemplateName.trim()) ||
+                (audienceType === "team" && !audienceTeamId)
+              }
+            >
+              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              Create Draft
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── List ── */}
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center gap-2 p-6 text-sm text-[var(--color-muted-foreground)]">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading campaigns…
+            </div>
+          ) : campaigns.length === 0 ? (
+            <div className="p-6 text-sm text-[var(--color-muted-foreground)]">
+              No campaigns yet. Create a draft to get started.
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--color-border)]">
+              {campaigns.map((c) => (
+                <div key={c.id} className="p-4 space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-muted)] flex-shrink-0">
+                      {c.channel === "email"
+                        ? <Mail className="h-4 w-4" />
+                        : <MessageCircle className="h-4 w-4" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm truncate">{c.name}</p>
+                      <p className="text-xs text-[var(--color-muted-foreground)]">
+                        {c.channel === "email" ? "Email" : "WhatsApp"}
+                        {" · "}{TEMPLATE_TYPE_LABELS[c.templateType]}
+                        {" · "}{audienceLabel(c)}
+                        {c.channel === "whatsapp" && c.whatsappTemplateName ? ` · template “${c.whatsappTemplateName}”` : ""}
+                        {" · "}{new Date(c.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge className={cn("text-xs capitalize", STATUS_STYLES[c.status])}>{c.status}</Badge>
+                    {c.status === "sent" && (
+                      <span className="text-xs text-[var(--color-muted-foreground)]">
+                        {c.stats.sent} sent · {c.stats.failed} failed · {c.stats.skipped} skipped
+                      </span>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => openDetail(c.id)}>
+                      {detailId === c.id ? "Hide results" : "Results"}
+                    </Button>
+                    {c.status === "draft" && (
+                      <Button size="sm" onClick={() => sendCampaign(c)} disabled={sendingId === c.id}>
+                        {sendingId === c.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Send className="h-3.5 w-3.5" />}
+                        Send
+                      </Button>
+                    )}
+                  </div>
+                  {c.status === "failed" && c.error && (
+                    <p className="text-xs text-red-600 dark:text-red-400">{c.error}</p>
+                  )}
+                  {detailId === c.id && (
+                    <div className="rounded-lg border border-[var(--color-border)] p-3">
+                      {loadingDetail ? (
+                        <p className="text-xs text-[var(--color-muted-foreground)] flex items-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading results…
+                        </p>
+                      ) : detail && detail.recipients.length === 0 ? (
+                        <p className="text-xs text-[var(--color-muted-foreground)]">No recipients recorded yet.</p>
+                      ) : detail ? (
+                        <div className="max-h-64 overflow-y-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-left text-[var(--color-muted-foreground)]">
+                                <th className="py-1 pr-2 font-medium">Recipient</th>
+                                <th className="py-1 pr-2 font-medium">Status</th>
+                                <th className="py-1 font-medium">Detail</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detail.recipients.map((r, i) => (
+                                <tr key={`${r.identifier}-${i}`} className="border-t border-[var(--color-border)]">
+                                  <td className="py-1.5 pr-2 break-all">{r.identifier}</td>
+                                  <td className="py-1.5 pr-2 capitalize">{r.status}</td>
+                                  <td className="py-1.5 text-[var(--color-muted-foreground)] break-words">{r.error ?? "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

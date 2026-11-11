@@ -30,7 +30,9 @@ export type AuditAction =
   | "api_key.created"
   | "api_key.revoked"
   | "webhook.created"
-  | "webhook.deleted";
+  | "webhook.deleted"
+  | "campaign.created"
+  | "campaign.sent";
 
 export interface IAuditLog extends Document {
   _id: mongoose.Types.ObjectId;
