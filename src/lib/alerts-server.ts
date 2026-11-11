@@ -24,6 +24,11 @@ import {
   type AlertMetric,
   type AlertOperator,
 } from "@/lib/alerts";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 const NOTIFICATION_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -46,11 +51,17 @@ export async function evaluateTeamAlerts(
   const since = new Date(now.getTime() - maxWindow * 24 * 60 * 60 * 1000);
 
   const orders = await OrderModel.find({ teamId, orderDate: { $gte: since, $lte: now } })
-    .select("orderDate grossRevenue netProfit refundAmount rtoLoss status")
+    .select("currency orderDate grossRevenue netProfit refundAmount rtoLoss status")
     .lean();
   const shipments = await ShipmentModel.find({ teamId, bookedAt: { $gte: since, $lte: now } })
     .select("status bookedAt createdAt")
     .lean();
+
+  // Alert thresholds compare summed profit/revenue; convert each order
+  // into the team base currency first so multi-currency teams are not
+  // evaluated on a 1:1 mixed sum.
+  const base = await getReportBaseCurrency(teamId);
+  const rates = await getReportRates(base);
 
   const evaluations = evaluateAlerts(
     rules.filter((r) => r.enabled).map((r) => ({
@@ -62,10 +73,10 @@ export async function evaluateTeamAlerts(
     })),
     orders.map((o) => ({
       orderDate: o.orderDate,
-      grossRevenue: o.grossRevenue ?? 0,
-      netProfit: o.netProfit ?? 0,
-      refundAmount: o.refundAmount ?? 0,
-      rtoLoss: o.rtoLoss ?? 0,
+      grossRevenue: convertAmount(o.grossRevenue ?? 0, o.currency, base, rates),
+      netProfit: convertAmount(o.netProfit ?? 0, o.currency, base, rates),
+      refundAmount: convertAmount(o.refundAmount ?? 0, o.currency, base, rates),
+      rtoLoss: convertAmount(o.rtoLoss ?? 0, o.currency, base, rates),
       status: o.status,
     })),
     shipments.map((s) => ({

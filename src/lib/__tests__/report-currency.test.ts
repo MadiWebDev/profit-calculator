@@ -6,7 +6,7 @@
  * labelled with one currency.
  */
 import { describe, it, expect } from "vitest";
-import { convertOrdersToBase, sumCosts } from "@/lib/report-currency";
+import { convertAmount, convertOrdersToBase, sumCosts } from "@/lib/report-currency";
 
 const RATES = { USD: 1, EUR: 0.92, GBP: 0.79, PKR: 278.5 };
 
@@ -56,5 +56,19 @@ describe("convertOrdersToBase", () => {
   it("does not assume USD: a USD order converts into a EUR base", () => {
     const converted = convertOrdersToBase([order("USD", 100)], "EUR", RATES);
     expect(converted[0].grossRevenue).toBe(92);
+  });
+});
+
+describe("convertAmount", () => {
+  it("converts a single field (used for extended fields, line items, RFM, alerts)", () => {
+    // 92 EUR = 100 USD at the test rates.
+    expect(convertAmount(92, "EUR", "USD", RATES)).toBeCloseTo(100, 6);
+  });
+
+  it("is exact for same-currency and fail-open without rates or for unknown codes", () => {
+    expect(convertAmount(50, "USD", "USD", RATES)).toBe(50);
+    expect(convertAmount(50, "EUR", "USD", null)).toBe(50);
+    expect(convertAmount(50, "XXX", "USD", RATES)).toBe(50);
+    expect(convertAmount(50, undefined, "USD", RATES)).toBe(50);
   });
 });

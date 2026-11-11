@@ -6,6 +6,11 @@
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { segmentCustomers, type RfmOrderInput, type RfmResult } from "@/lib/rfm";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 const KNOWN_STATUSES = new Set(["pending", "fulfilled", "refunded", "cancelled"]);
 
@@ -24,16 +29,22 @@ export async function getRfm(
   if (opts.storeId) match.storeId = opts.storeId;
 
   const orders = await OrderModel.find(match)
-    .select("customerEmail orderDate netRevenue netProfit status isFirstOrder")
+    .select("currency customerEmail orderDate netRevenue netProfit status isFirstOrder")
     .lean();
+
+  // RFM monetary value sums net revenue/profit per customer; convert
+  // each order into the report base currency first so a customer with
+  // orders in two currencies is not valued on a 1:1 mixed sum.
+  const base = await getReportBaseCurrency(teamId, opts.storeId);
+  const rates = await getReportRates(base);
 
   const inputs: RfmOrderInput[] = orders
     .filter((o) => KNOWN_STATUSES.has(o.status))
     .map((o) => ({
       customerEmail: o.customerEmail ?? null,
       orderDate: o.orderDate,
-      netRevenue: o.netRevenue ?? 0,
-      netProfit: o.netProfit ?? 0,
+      netRevenue: convertAmount(o.netRevenue ?? 0, (o as { currency?: string }).currency, base, rates),
+      netProfit: convertAmount(o.netProfit ?? 0, (o as { currency?: string }).currency, base, rates),
       status: o.status as RfmOrderInput["status"],
       isFirstOrder: o.isFirstOrder,
     }));

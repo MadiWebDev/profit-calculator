@@ -24,6 +24,12 @@ import {
   comparePeriods,
   type DashboardOrderInput,
 } from "@/lib/profit-extended";
+import {
+  convertAmount,
+  convertOrdersToBase,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 const QuerySchema = z
   .object({
@@ -104,13 +110,59 @@ export async function GET(req: Request) {
     OrderModel.find({ ...baseFilter, orderDate: { $gte: prevFrom, $lte: prevTo } }).lean(),
   ]);
 
-  const metrics = calcDashboardMetrics(orders.map((o) => toInput(o as unknown as Record<string, unknown>)));
-  const previous = calcDashboardMetrics(prevOrders.map((o) => toInput(o as unknown as Record<string, unknown>)));
+  // Convert each order into the report base currency before any
+  // summing (metrics, daily series, per-product table); the previous
+  // code summed mixed-currency orders 1:1.
+  const base = await getReportBaseCurrency(session.teamId, storeId);
+  const rates = await getReportRates(base);
+  const convertDocs = (docs: typeof orders) => {
+    const core = convertOrdersToBase(
+      docs.map((o) => {
+        const r = o as unknown as Record<string, unknown>;
+        const n = (k: string) => (typeof r[k] === "number" ? (r[k] as number) : 0);
+        return {
+          currency: typeof r.currency === "string" ? r.currency : undefined,
+          grossRevenue: n("grossRevenue"), discounts: n("discounts"), shippingRevenue: n("shippingRevenue"),
+          shippingCost: n("shippingCost"), totalCogs: n("totalCogs"), transactionFees: n("transactionFees"),
+          taxes: n("taxes"), refundAmount: n("refundAmount"), chargebackAmount: n("chargebackAmount"),
+          adSpendAllocated: n("adSpendAllocated"), otherCosts: n("otherCosts"),
+        };
+      }),
+      base,
+      rates,
+    );
+    return docs.map((o, i) => {
+      const r = o as unknown as Record<string, unknown>;
+      const from = typeof r.currency === "string" ? r.currency : base;
+      const conv = (v: unknown) => convertAmount(typeof v === "number" ? v : 0, from, base, rates);
+      return {
+        ...o,
+        ...core[i],
+        packagingCost: conv(r.packagingCost),
+        codFee: conv(r.codFee),
+        subscriptionShare: conv(r.subscriptionShare),
+        rtoLoss: conv(r.rtoLoss),
+        expenseAllocation: conv(r.expenseAllocation),
+        codCollected: conv(r.codCollected),
+        codPending: conv(r.codPending),
+        lineItems: ((r.lineItems as { price?: number; cogs?: number }[] | undefined) ?? []).map((li) => ({
+          ...li,
+          price: conv(li.price),
+          cogs: conv(li.cogs),
+        })),
+      };
+    });
+  };
+  const convOrders = convertDocs(orders);
+  const convPrevOrders = convertDocs(prevOrders);
+
+  const metrics = calcDashboardMetrics(convOrders.map((o) => toInput(o as unknown as Record<string, unknown>)));
+  const previous = calcDashboardMetrics(convPrevOrders.map((o) => toInput(o as unknown as Record<string, unknown>)));
   const deltas = comparePeriods(metrics, previous);
 
   // Daily series
   const byDay = new Map<string, DashboardOrderInput[]>();
-  for (const o of orders) {
+  for (const o of convOrders) {
     const d = new Date((o as { orderDate: Date }).orderDate).toISOString().slice(0, 10);
     const list = byDay.get(d) ?? [];
     list.push(toInput(o as unknown as Record<string, unknown>));
@@ -122,7 +174,7 @@ export async function GET(req: Request) {
 
   // Per-product winners/losers (gross profit before allocated costs)
   const productMap = new Map<string, { productId: string; name: string; revenue: number; cogs: number; units: number; orders: number }>();
-  for (const o of orders) {
+  for (const o of convOrders) {
     if ((o as { status?: string }).status === "cancelled") continue;
     for (const li of (o as { lineItems?: { productId?: string; name?: string; price?: number; cogs?: number; quantity?: number }[] }).lineItems ?? []) {
       const key = li.productId ?? li.name ?? "unknown";

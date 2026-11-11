@@ -9,6 +9,11 @@ import OrderModel from "@/models/Order";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
 import { detectAnomalies, type DailyPoint } from "@/lib/analytics";
 import { calcOrderProfit } from "@/lib/profit-engine";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 const QuerySchema = z
   .object({
@@ -46,12 +51,17 @@ export async function GET(req: Request) {
       orderDate: { $gte: since },
       status: { $ne: "cancelled" },
     })
-      .select("orderDate grossRevenue refundAmount chargebackAmount totalCogs shippingCost transactionFees otherCosts")
+      .select("currency orderDate grossRevenue refundAmount chargebackAmount totalCogs shippingCost transactionFees otherCosts")
       .lean(),
     AdSpendDailyModel.find({ teamId: teamOid, date: { $gte: since } })
-      .select("date spend")
+      .select("currency date spend")
       .lean(),
   ]);
+
+  // Daily P&L and ad spend are summed across orders/accounts; convert
+  // each into the report base currency first.
+  const base = await getReportBaseCurrency(session.teamId);
+  const rates = await getReportRates(base);
 
   // Aggregate to daily buckets
   const byDay = new Map<string, { orders: typeof orders; spend: number }>();
@@ -68,7 +78,7 @@ export async function GET(req: Request) {
   for (const a of adSpend) {
     const k = dayKey(new Date(a.date));
     const bucket = byDay.get(k);
-    if (bucket) bucket.spend += a.spend ?? 0;
+    if (bucket) bucket.spend += convertAmount(a.spend ?? 0, (a as { currency?: string }).currency, base, rates);
   }
 
   const series: DailyPoint[] = [...byDay.entries()].map(([date, b]) => {
@@ -79,14 +89,16 @@ export async function GET(req: Request) {
       const agg = { netRevenue: 0, cogs: 0, shippingCost: 0, transactionFees: 0, otherCosts: 0 };
       for (const o of b.orders) {
         const oTyped = o as {
+          currency?: string;
           grossRevenue?: number; refundAmount?: number; chargebackAmount?: number;
           totalCogs?: number; shippingCost?: number; transactionFees?: number; otherCosts?: number;
         };
-        agg.netRevenue += (oTyped.grossRevenue ?? 0) - (oTyped.refundAmount ?? 0) - (oTyped.chargebackAmount ?? 0);
-        agg.cogs += oTyped.totalCogs ?? 0;
-        agg.shippingCost += oTyped.shippingCost ?? 0;
-        agg.transactionFees += oTyped.transactionFees ?? 0;
-        agg.otherCosts += oTyped.otherCosts ?? 0;
+        const conv = (v?: number) => convertAmount(v ?? 0, oTyped.currency, base, rates);
+        agg.netRevenue += conv(oTyped.grossRevenue) - conv(oTyped.refundAmount) - conv(oTyped.chargebackAmount);
+        agg.cogs += conv(oTyped.totalCogs);
+        agg.shippingCost += conv(oTyped.shippingCost);
+        agg.transactionFees += conv(oTyped.transactionFees);
+        agg.otherCosts += conv(oTyped.otherCosts);
       }
       value = metric === "netRevenue"
         ? agg.netRevenue

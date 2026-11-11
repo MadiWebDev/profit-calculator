@@ -25,6 +25,11 @@ import DailyRollupModel from "@/models/DailyRollup";
 import AlertRuleModel from "@/models/AlertRule";
 import { runAlertRulesForTeam } from "@/lib/alerts-server";
 import { aggregateDayOrders, dayKey } from "@/lib/rollups";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 import SubscriptionModel from "@/models/Subscription";
 import ApiKeyModel from "@/models/ApiKey";
 import ProductModel from "@/models/Product";
@@ -166,18 +171,20 @@ export async function jobGoalAlerts(): Promise<CronJobResult> {
       };
       if (goal.storeId) match.storeId = goal.storeId;
 
-      const agg = await OrderModel.aggregate([
-        { $match: match },
-        {
-          $group: {
-            _id: null,
-            profit: { $sum: "$netProfit" },
-            revenue: { $sum: "$netRevenue" },
-          },
-        },
-      ]);
-      const currentProfit = agg[0]?.profit ?? 0;
-      const currentRevenue = agg[0]?.revenue ?? 0;
+      // Goal progress sums net profit/revenue across orders; convert
+      // each order into the goal's base currency first (a Mongo $sum
+      // cannot convert, and multi-currency teams were counted 1:1).
+      const goalOrders = await OrderModel.find(match)
+        .select("currency netProfit netRevenue")
+        .lean();
+      const goalBase = await getReportBaseCurrency(goal.teamId, goal.storeId);
+      const goalRates = await getReportRates(goalBase);
+      let currentProfit = 0;
+      let currentRevenue = 0;
+      for (const o of goalOrders) {
+        currentProfit += convertAmount(o.netProfit ?? 0, o.currency, goalBase, goalRates);
+        currentRevenue += convertAmount(o.netRevenue ?? 0, o.currency, goalBase, goalRates);
+      }
       const progressPercent = goal.targetProfit > 0
         ? Math.min(100, Math.round((currentProfit / goal.targetProfit) * 100))
         : 0;
@@ -273,10 +280,19 @@ export async function jobProfitReport(): Promise<CronJobResult> {
       if (orders.length === 0) { skipped++; continue; }
       const owner = team.ownerId ? await UserModel.findById(team.ownerId).select("email name").lean() : null;
       if (!owner?.email) { skipped++; continue; }
+      // Daily profit email sums the same order money; convert each
+      // order into the team base currency first.
+      const emailBase = await getReportBaseCurrency(team._id);
+      const emailRates = await getReportRates(emailBase);
       const metrics = calcDashboardMetrics(
         orders.map((o) => {
           const r = o as unknown as Record<string, unknown>;
-          const n = (k: string) => (typeof r[k] === "number" ? (r[k] as number) : 0);
+          const n = (k: string) => convertAmount(
+            typeof r[k] === "number" ? (r[k] as number) : 0,
+            typeof r.currency === "string" ? r.currency : undefined,
+            emailBase,
+            emailRates,
+          );
           return {
             grossRevenue: n("grossRevenue"), discounts: n("discounts"), shippingRevenue: n("shippingRevenue"),
             shippingCost: n("shippingCost"), totalCogs: n("totalCogs"), transactionFees: n("transactionFees"),
@@ -326,8 +342,15 @@ export async function jobRollupDaily(): Promise<CronJobResult> {
         teamId,
         orderDate: { $gte: start, $lt: end },
       })
-        .select("orderDate grossRevenue netProfit refundAmount totalCogs shippingCost transactionFees status")
+        .select("currency orderDate grossRevenue netProfit refundAmount totalCogs shippingCost transactionFees status")
         .lean();
+      // Rollup rows sum order money per day; convert each order into
+      // the team base currency first. Note: the 7-day window re-computes
+      // only recent days, so pre-existing rollup rows for multi-currency
+      // teams stay 1:1 until they age out of the window's range — only
+      // rows from this run forward are converted.
+      const rollupBase = await getReportBaseCurrency(teamId);
+      const rollupRates = await getReportRates(rollupBase);
       const byDay = new Map<string, typeof orders>();
       for (const o of orders) {
         const key = dayKey(new Date(o.orderDate));
@@ -338,12 +361,12 @@ export async function jobRollupDaily(): Promise<CronJobResult> {
       for (const [key, dayOrders] of byDay) {
         const agg = aggregateDayOrders(
           dayOrders.map((o) => ({
-            grossRevenue: o.grossRevenue ?? 0,
-            netProfit: o.netProfit ?? 0,
-            refundAmount: o.refundAmount ?? 0,
-            totalCogs: o.totalCogs ?? 0,
-            shippingCost: o.shippingCost ?? 0,
-            transactionFees: o.transactionFees ?? 0,
+            grossRevenue: convertAmount(o.grossRevenue ?? 0, o.currency, rollupBase, rollupRates),
+            netProfit: convertAmount(o.netProfit ?? 0, o.currency, rollupBase, rollupRates),
+            refundAmount: convertAmount(o.refundAmount ?? 0, o.currency, rollupBase, rollupRates),
+            totalCogs: convertAmount(o.totalCogs ?? 0, o.currency, rollupBase, rollupRates),
+            shippingCost: convertAmount(o.shippingCost ?? 0, o.currency, rollupBase, rollupRates),
+            transactionFees: convertAmount(o.transactionFees ?? 0, o.currency, rollupBase, rollupRates),
             status: o.status,
           }))
         );
@@ -600,10 +623,14 @@ export async function jobAnomalyScan(): Promise<CronJobResult> {
     teamsScanned++;
     const [orders, adSpend] = await Promise.all([
       OrderModel.find({ teamId, orderDate: { $gte: since }, status: { $ne: "cancelled" } })
-        .select("orderDate grossRevenue refundAmount chargebackAmount totalCogs shippingCost transactionFees otherCosts")
+        .select("currency orderDate grossRevenue refundAmount chargebackAmount totalCogs shippingCost transactionFees otherCosts")
         .lean(),
-      AdSpendDailyModel.find({ teamId, date: { $gte: since } }).select("date spend").lean(),
+      AdSpendDailyModel.find({ teamId, date: { $gte: since } }).select("currency date spend").lean(),
     ]);
+    // Anomaly detection compares daily net profit; convert order money
+    // and ad spend into the team base currency first.
+    const scanBase = await getReportBaseCurrency(teamId);
+    const scanRates = await getReportRates(scanBase);
 
     const byDay = new Map<string, { net: number; spend: number }>();
     const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -613,30 +640,31 @@ export async function jobAnomalyScan(): Promise<CronJobResult> {
     }
     for (const o of orders) {
       const t = o as {
-        orderDate: Date; grossRevenue?: number; refundAmount?: number; chargebackAmount?: number;
+        orderDate: Date; currency?: string; grossRevenue?: number; refundAmount?: number; chargebackAmount?: number;
         totalCogs?: number; shippingCost?: number; transactionFees?: number; otherCosts?: number;
       };
       const bucket = byDay.get(dayKey(new Date(t.orderDate)));
       if (!bucket) continue;
+      const conv = (v?: number) => convertAmount(v ?? 0, t.currency, scanBase, scanRates);
       const profit = calcOrderProfit({
-        grossRevenue: t.grossRevenue ?? 0,
+        grossRevenue: conv(t.grossRevenue),
         discounts: 0,
         shippingRevenue: 0,
-        shippingCost: t.shippingCost ?? 0,
-        totalCogs: t.totalCogs ?? 0,
-        transactionFees: t.transactionFees ?? 0,
+        shippingCost: conv(t.shippingCost),
+        totalCogs: conv(t.totalCogs),
+        transactionFees: conv(t.transactionFees),
         taxes: 0,
-        refundAmount: t.refundAmount ?? 0,
-        chargebackAmount: t.chargebackAmount ?? 0,
+        refundAmount: conv(t.refundAmount),
+        chargebackAmount: conv(t.chargebackAmount),
         adSpendAllocated: 0,
-        otherCosts: t.otherCosts ?? 0,
+        otherCosts: conv(t.otherCosts),
       });
       bucket.net += profit.netProfit;
     }
     for (const a of adSpend) {
-      const t = a as { date: Date; spend?: number };
+      const t = a as { date: Date; currency?: string; spend?: number };
       const bucket = byDay.get(dayKey(new Date(t.date)));
-      if (bucket) bucket.spend += t.spend ?? 0;
+      if (bucket) bucket.spend += convertAmount(t.spend ?? 0, t.currency, scanBase, scanRates);
     }
 
     const series: DailyPoint[] = [...byDay.entries()].map(([date, b]) => ({

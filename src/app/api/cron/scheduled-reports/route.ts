@@ -12,6 +12,11 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 import ScheduledReportModel from "@/models/ScheduledReport";
 import OrderModel from "@/models/Order";
 import { summarizeOrders } from "@/lib/parity-reports";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 import { sendScheduledReportEmail } from "@/lib/email";
 
 export async function GET(req: Request) {
@@ -34,14 +39,22 @@ export async function GET(req: Request) {
     const docs = await OrderModel.find({
       teamId: r.teamId, orderDate: { $gte: from, $lte: to }, status: { $ne: "cancelled" },
     }).lean();
-    const totals = summarizeOrders(docs.map((o) => ({
-      grossRevenue: o.grossRevenue ?? 0, discounts: o.discounts ?? 0, shippingRevenue: o.shippingRevenue ?? 0,
-      shippingCost: o.shippingCost ?? 0, totalCogs: o.totalCogs ?? 0, transactionFees: o.transactionFees ?? 0,
-      taxes: o.taxes ?? 0, refundAmount: o.refundAmount ?? 0, chargebackAmount: o.chargebackAmount ?? 0,
-      adSpendAllocated: o.adSpendAllocated ?? 0, otherCosts: o.otherCosts ?? 0, packagingCost: o.packagingCost ?? 0,
-      codFee: o.codFee ?? 0, subscriptionShare: o.subscriptionShare ?? 0, rtoLoss: o.rtoLoss ?? 0,
-      expenseAllocation: o.expenseAllocation ?? 0, orderDate: o.orderDate, status: o.status,
-    })));
+    // Scheduled-report totals sum order money; convert each order into
+    // the team base currency first.
+    const srBase = await getReportBaseCurrency(r.teamId);
+    const srRates = await getReportRates(srBase);
+    const totals = summarizeOrders(docs.map((o) => {
+      const conv = (v?: number) => convertAmount(v ?? 0, o.currency, srBase, srRates);
+      return {
+        currency: srBase,
+        grossRevenue: conv(o.grossRevenue), discounts: conv(o.discounts), shippingRevenue: conv(o.shippingRevenue),
+        shippingCost: conv(o.shippingCost), totalCogs: conv(o.totalCogs), transactionFees: conv(o.transactionFees),
+        taxes: conv(o.taxes), refundAmount: conv(o.refundAmount), chargebackAmount: conv(o.chargebackAmount),
+        adSpendAllocated: conv(o.adSpendAllocated), otherCosts: conv(o.otherCosts), packagingCost: conv(o.packagingCost),
+        codFee: conv(o.codFee), subscriptionShare: conv(o.subscriptionShare), rtoLoss: conv(o.rtoLoss),
+        expenseAllocation: conv(o.expenseAllocation), orderDate: o.orderDate, status: o.status,
+      };
+    }));
     if (r.channel === "email" || r.channel === "both") {
       try {
         await sendScheduledReportEmail(

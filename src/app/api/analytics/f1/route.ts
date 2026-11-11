@@ -3,6 +3,11 @@ import { requireAuth } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import { toObjectId } from "@/lib/validation";
 import OrderModel from "@/models/Order";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 import { discountProfitability, returnsAnalytics, marketBasket, type F1Order } from "@/lib/f1-engines";
 
 /**
@@ -20,16 +25,20 @@ export async function GET(req: Request) {
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   const orders = await OrderModel.find({ teamId: toObjectId(session.teamId), orderDate: { $gte: since }, status: { $ne: "cancelled" } })
     .sort({ orderDate: -1 }).limit(5000).lean();
+  // F1 engines sum money across orders; convert each order into the
+  // report base currency first.
+  const base = await getReportBaseCurrency(session.teamId);
+  const rates = await getReportRates(base);
   const mapped: F1Order[] = orders.map((o) => ({
     id: o._id.toString(),
-    revenue: o.grossRevenue ?? 0,
-    netProfit: o.netProfit ?? 0,
-    cogs: o.totalCogs ?? 0,
-    refundAmount: o.refundAmount ?? 0,
+    revenue: convertAmount(o.grossRevenue ?? 0, o.currency, base, rates),
+    netProfit: convertAmount(o.netProfit ?? 0, o.currency, base, rates),
+    cogs: convertAmount(o.totalCogs ?? 0, o.currency, base, rates),
+    refundAmount: convertAmount(o.refundAmount ?? 0, o.currency, base, rates),
     status: o.status,
     country: o.shippingCountry,
     discountCode: null,
-    discountAmount: o.discounts ?? 0,
+    discountAmount: convertAmount(o.discounts ?? 0, o.currency, base, rates),
     productIds: (o.lineItems ?? []).map((li: { productId?: string; sku?: string; name: string }) => li.productId ?? li.sku ?? li.name),
     productId: o.lineItems?.[0]?.productId ?? o.lineItems?.[0]?.sku,
   }));

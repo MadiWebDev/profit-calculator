@@ -22,6 +22,11 @@ import {
   type ProductMover,
   type BreakEvenResult,
 } from "@/lib/product-intel";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 export interface ProductIntelRow extends RankedProduct {
   breakEven: BreakEvenResult;
@@ -44,11 +49,19 @@ export async function getProductIntel(
 
   const orders = await OrderModel.find(match)
     .select(
-      "lineItems status orderDate shippingCost transactionFees adSpendAllocated otherCosts packagingCost codFee rtoLoss expenseAllocation refundAmount"
+      "currency lineItems status orderDate shippingCost transactionFees adSpendAllocated otherCosts packagingCost codFee rtoLoss expenseAllocation refundAmount"
     )
     .lean();
 
+  // Product rankings sum line-item revenue and allocated costs across
+  // orders; convert each order into the report base currency first so
+  // a multi-currency team is not ranked on 1:1 mixed-currency sums.
+  const base = await getReportBaseCurrency(teamId, opts.storeId);
+  const rates = await getReportRates(base);
+
   const inputs: ProductIntelOrder[] = orders.map((o) => {
+    const from = (o as { currency?: string }).currency ?? base;
+    const conv = (v?: number | null) => convertAmount(v ?? 0, from, base, rates);
     const lines = (o.lineItems ?? []).map((li: {
       productId?: unknown;
       sku?: string;
@@ -63,24 +76,24 @@ export async function getProductIntel(
       sku: li.sku ?? undefined,
       name: li.name,
       quantity: li.quantity ?? 0,
-      price: li.price ?? 0,
-      cogs: li.cogs ?? 0,
-      totalRevenue: li.totalRevenue ?? 0,
-      totalCogs: li.totalCogs ?? 0,
+      price: conv(li.price),
+      cogs: conv(li.cogs),
+      totalRevenue: conv(li.totalRevenue),
+      totalCogs: conv(li.totalCogs),
     }));
     return {
       lineItems: lines,
       status: o.status,
       orderDate: o.orderDate,
-      shippingCost: o.shippingCost ?? 0,
-      transactionFees: o.transactionFees ?? 0,
-      adSpendAllocated: o.adSpendAllocated ?? 0,
-      otherCosts: o.otherCosts ?? 0,
-      packagingCost: o.packagingCost ?? 0,
-      codFee: o.codFee ?? 0,
-      rtoLoss: o.rtoLoss ?? 0,
-      expenseAllocation: o.expenseAllocation ?? 0,
-      refundAmount: o.refundAmount ?? 0,
+      shippingCost: conv(o.shippingCost),
+      transactionFees: conv(o.transactionFees),
+      adSpendAllocated: conv(o.adSpendAllocated),
+      otherCosts: conv(o.otherCosts),
+      packagingCost: conv(o.packagingCost),
+      codFee: conv(o.codFee),
+      rtoLoss: conv(o.rtoLoss),
+      expenseAllocation: conv(o.expenseAllocation),
+      refundAmount: conv(o.refundAmount),
     };
   });
 

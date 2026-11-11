@@ -16,7 +16,9 @@
  * failing the whole report — callers log that case themselves.
  */
 
-import { convertOrderCosts, type OrderCosts } from "@/lib/profit-engine";
+import { convertCurrency, convertOrderCosts, type OrderCosts } from "@/lib/profit-engine";
+import { getFxRates } from "@/lib/fx";
+import StoreModel from "@/models/Store";
 
 export interface OrderMoney {
   currency?: string | null;
@@ -73,6 +75,71 @@ export function convertOrdersToBase(
       return costs;
     }
   });
+}
+
+/**
+ * Convert one amount into `base`, falling back to the original amount
+ * when rates are unavailable or the currency is unknown — same
+ * fail-open rule as convertOrdersToBase, so a report never drops an
+ * order over a missing rate.
+ */
+export function convertAmount(
+  amount: number,
+  from: string | null | undefined,
+  base: string,
+  rates: Record<string, number> | null,
+): number {
+  const b = base.toUpperCase().trim();
+  const f = (from ?? b).toUpperCase().trim();
+  if (!rates || f === b) return amount;
+  try {
+    return convertCurrency(amount, f, b, rates);
+  } catch {
+    return amount;
+  }
+}
+
+/**
+ * The base currency for a report: the single store's currency when a
+ * store is selected, otherwise the team's most common store currency
+ * (same rule the dashboard uses), falling back to USD when the team
+ * has no store with a currency. Callers must already be connected to
+ * the database (every report caller is).
+ */
+export async function getReportBaseCurrency(
+  teamId: string | object,
+  storeId?: string | object | null,
+): Promise<string> {
+  if (storeId) {
+    const store = await StoreModel.findOne({ _id: storeId }).select("currency").lean();
+    if (store?.currency) return String(store.currency).toUpperCase();
+  }
+  const stores = await StoreModel.find({ teamId }).select("currency").lean();
+  const counts = new Map<string, number>();
+  for (const s of stores) {
+    const c = String(s.currency ?? "").toUpperCase().trim();
+    if (!c) continue;
+    counts.set(c, (counts.get(c) ?? 0) + 1);
+  }
+  let best = "USD";
+  let bestCount = 0;
+  for (const [c, n] of counts) {
+    if (n > bestCount) {
+      best = c;
+      bestCount = n;
+    }
+  }
+  return best;
+}
+
+/** Fetch the rates table for a base currency, or null when unavailable. */
+export async function getReportRates(base: string): Promise<Record<string, number> | null> {
+  try {
+    const fx = await getFxRates(base);
+    return fx.rates;
+  } catch {
+    return null;
+  }
 }
 
 /** Sum a list of converted OrderCosts field by field. */
