@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Megaphone,
   Sliders, Target, FileText, Settings, LogOut, TrendingUp, AlertTriangle, Truck, Bell, ShieldAlert, PackageSearch,
   Calculator, ChevronRight, Users, Zap, Key, ClipboardList,
-  Crown, Clock, Globe, ShieldCheck, BarChart3, Gauge, BookOpen, Droplets, Wallet, Coins, Receipt, Store, Landmark, Sparkles, Bookmark, CalendarClock, Ship, Banknote, ChevronDown, Search,
+  Crown, Clock, Globe, ShieldCheck, BarChart3, Gauge, BookOpen, Droplets, Wallet, Coins, Receipt, Store, Landmark, Sparkles, Bookmark, CalendarClock, Ship, ChevronDown, Search, LifeBuoy, Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UsageMeter } from "@/components/dashboard/UsageMeter";
@@ -84,6 +84,13 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/saved-views", label: "Saved Views", icon: Bookmark },
       { href: "/dashboard/scheduled-reports", label: "Scheduled Reports", icon: CalendarClock },
       { href: "/dashboard/reports", label: "Reports", icon: FileText },
+    ],
+  },
+  {
+    title: "SUPPORT",
+    items: [
+      { href: "/help", label: "Help Center", icon: LifeBuoy },
+      { href: "/help/contact", label: "Contact Support", icon: Mail },
     ],
   },
   {
