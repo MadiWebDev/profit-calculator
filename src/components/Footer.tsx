@@ -144,7 +144,7 @@ export function Footer() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-50px' }}
             transition={{ delay: 0.45, duration: 0.5 }}
-            className="mt-10 pt-8 border-t border-border/50 flex grid-cols-2 items-center justify-between gap-4"
+            className="mt-10 pt-8 border-t border-border/50 flex items-center justify-between gap-4"
           >
            
             <FooterInstallButton />

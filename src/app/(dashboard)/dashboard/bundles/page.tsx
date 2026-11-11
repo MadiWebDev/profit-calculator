@@ -200,8 +200,8 @@ export default function BundlesPage() {
                       A <strong className="text-[var(--color-foreground)]">Skincare Starter Kit</strong> sells for{" "}
                       <strong className="text-[var(--color-foreground)]">$49.99</strong> and contains three products:
                     </p>
-                    <div className="rounded-lg border border-[var(--color-border)] overflow-hidden">
-                      <table className="w-full text-xs">
+                    <div className="rounded-lg border border-[var(--color-border)] overflow-x-auto">
+                      <table className="w-full min-w-[420px] text-xs">
                         <thead className="bg-[var(--color-muted)]">
                           <tr>
                             {["Component", "COGS / unit", "Qty", "Line COGS"].map((h) => (

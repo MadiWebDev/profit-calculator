@@ -14,7 +14,7 @@ const LEGAL_NAME = "Muhammad Hammad - codexengr";
 export default function TermsOfServicePage() {
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-      <h1 className="text-4xl font-extrabold text-[var(--color-foreground)] mb-2">Terms of Service</h1>
+      <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-2">Terms of Service</h1>
       <p className="text-sm text-[var(--color-muted-foreground)] mb-10">Last updated: {LAST_UPDATED}</p>
 
       <div className="space-y-10 text-[var(--color-muted-foreground)] leading-relaxed">
@@ -50,7 +50,7 @@ export default function TermsOfServicePage() {
               A subscription-based software-as-a-service (SaaS) dashboard that connects to your ecommerce
               store (Shopify, or via CSV import) and automatically tracks real-time
               order-level profit, COGS, ad spend, and provides AI-powered insights. Paid plans are
-              available at Starter ($3/mo), Growth ($9/mo), and Pro ($25/mo), billed through our
+              available at Starter ($3/mo), Growth ($18/mo), and Pro ($29/mo), billed through our
               Merchant of Record, <a href="https://www.paddle.com" target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] hover:underline">Paddle.com</a>.
               All paid plans begin with a 7-day free trial requiring no credit card.
             </li>

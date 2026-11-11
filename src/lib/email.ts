@@ -43,7 +43,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
         padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;
       ">Connect Your Store</a>
       <p style="color:#64748b;font-size:12px;margin-top:32px;">
-        Need help? Reply to this email — we respond within 24 hours.
+        Need help? Reply to this email — we respond within 1–3 business days.
       </p>
     `,
   });
