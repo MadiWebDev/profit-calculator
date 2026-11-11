@@ -57,6 +57,7 @@ const foodCalcs = [
 const companyLinks = [
   { href: "/blog",              label: "Blog" },
   { href: "/about",             label: "About" },
+  { href: "/help",              label: "Help Center" },
   { href: "/contact",           label: "Contact" },
   { href: "/privacy-policy",    label: "Privacy Policy" },
   { href: "/terms-of-service",  label: "Terms of Service" },

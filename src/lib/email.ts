@@ -290,6 +290,15 @@ export async function sendVerificationEmail(to: string, name: string, verifyToke
   });
 }
 
+/**
+ * Phase 2 (Help Center): deliver a support-form submission to the support
+ * inbox. Throws when Resend is not configured or the send fails — callers
+ * treat email as best-effort and keep the stored record either way.
+ */
+export async function sendSupportMessageEmail(to: string, subject: string, html: string) {
+  return sendEmail({ from: FROM, to, subject, html });
+}
+
 /** Escape HTML so a plain-text order message renders safely as email. */
 function escapeHtml(s: string): string {
   return s
