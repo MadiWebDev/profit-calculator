@@ -1,10 +1,20 @@
 'use client'
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { FooterInstallButton } from "./pwa/footer-install-button";
 import { CurrencyConverter } from "@/components/currency/CurrencyConverter";
 import { motion } from 'framer-motion';
+import {
+  DASHBOARD_FOOTER_STORAGE_KEY,
+  isDashboardPath,
+  parseStoredPreference,
+  resolveDashboardFooterCollapsed,
+  serializePreference,
+} from "@/lib/dashboard-footer";
 const productLinks = [
   { href: "/features",            label: "Features" },
   { href: "/pricing",             label: "Pricing" },
@@ -88,8 +98,86 @@ export function Footer() {
     const {
     isInstalled,
   } = usePWAInstall();
+  // On dashboard pages the footer is a long link list that eats the
+  // viewport on small screens, so there it can be closed and reopened.
+  // Marketing pages keep the footer as-is. The first render is always
+  // the expanded footer (SSR-safe); the real state is applied after
+  // mount, when localStorage and the viewport are available.
+  const pathname = usePathname();
+  const collapsible = isDashboardPath(pathname);
+  const [collapsed, setCollapsed] = useState(false);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- initial load: the stored footer preference and the viewport only exist in the browser; reading them after mount avoids an SSR/client hydration mismatch (same pattern as CurrencyContext) */
+  useEffect(() => {
+    if (!collapsible) return;
+    let stored: string | null = null;
+    let small = false;
+    try {
+      stored = window.localStorage.getItem(DASHBOARD_FOOTER_STORAGE_KEY);
+      small = window.matchMedia("(max-width: 767px)").matches;
+    } catch {
+      // Storage or matchMedia unavailable — stay expanded.
+    }
+    setCollapsed(
+      resolveDashboardFooterCollapsed({
+        stored: parseStoredPreference(stored),
+        isSmallScreen: small,
+      }),
+    );
+  }, [collapsible]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const toggleFooter = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(
+          DASHBOARD_FOOTER_STORAGE_KEY,
+          serializePreference(next),
+        );
+      } catch {
+        // Storage unavailable — the toggle still works for this page.
+      }
+      return next;
+    });
+  };
+
+  if (collapsible && collapsed) {
+    return (
+      <footer className="border-t border-[var(--color-border)] bg-[var(--color-muted)] mt-auto">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-10 items-center justify-between">
+          <span className="text-xs text-[var(--color-muted-foreground)]">GetProfitCalc</span>
+          <button
+            type="button"
+            onClick={toggleFooter}
+            aria-expanded={false}
+            aria-label="Show footer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-foreground)] hover:text-[var(--color-primary)] transition-colors"
+          >
+            <ChevronUp className="h-4 w-4" aria-hidden="true" />
+            Show footer
+          </button>
+        </div>
+      </footer>
+    );
+  }
+
   return (
     <footer className="border-t border-[var(--color-border)] bg-[var(--color-muted)] mt-auto">
+      {collapsible && (
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={toggleFooter}
+            aria-expanded={!collapsed}
+            aria-label="Hide footer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors"
+          >
+            <ChevronDown className="h-4 w-4" aria-hidden="true" />
+            Hide footer
+          </button>
+        </div>
+      )}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
 
         {/* Top row: brand + product + company */}
