@@ -14,7 +14,7 @@ const SITE_URL      = "https://getprofitcalc.com";
 export default function RefundPolicyPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-      <h1 className="text-4xl font-extrabold text-[var(--color-foreground)] mb-2">
+      <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-2">
         Refund Policy
       </h1>
       <p className="text-sm text-[var(--color-muted-foreground)] mb-10">

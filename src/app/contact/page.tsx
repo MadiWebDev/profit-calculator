@@ -14,7 +14,7 @@ export default function ContactPage() {
         <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--color-primary)] text-white mb-5">
           <MessageSquare className="h-7 w-7" />
         </div>
-        <h1 className="text-4xl font-extrabold text-[var(--color-foreground)] mb-4">Contact Us</h1>
+        <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-4">Contact Us</h1>
         <p className="text-[var(--color-muted-foreground)] text-lg max-w-lg mx-auto">
           We&apos;d love to hear from you. Bug reports, feature suggestions, partnership enquiries — we read everything.
         </p>

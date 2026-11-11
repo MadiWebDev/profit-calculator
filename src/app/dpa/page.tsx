@@ -22,7 +22,7 @@ const CONTACT_EMAIL = "hello@getprofitcalc.com";
 export default function DpaPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-      <h1 className="text-4xl font-extrabold text-[var(--color-foreground)] mb-2">Data Processing Addendum</h1>
+      <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-2">Data Processing Addendum</h1>
       <p className="text-sm text-[var(--color-muted-foreground)] mb-10">Last updated: {LAST_UPDATED}</p>
 
       <div className="space-y-10 text-[var(--color-muted-foreground)] leading-relaxed">

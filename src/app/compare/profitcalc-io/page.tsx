@@ -23,7 +23,7 @@ const ROWS: CompRow[] = [
   // Pricing
   { category: "Pricing", feature: "Starting price",                   us: "$3/month",         them: "$39–$49/month" },
   { category: "Pricing", feature: "Free trial (no credit card)",       us: true,               them: false,             note: "Most require Shopify billing approval" },
-  { category: "Pricing", feature: "Unlimited-order plan price",        us: "$25/month",        them: "$99–$249/month" },
+  { category: "Pricing", feature: "Unlimited-order plan price",        us: "$29/month",        them: "$99–$249/month" },
   { category: "Pricing", feature: "Annual discount",                   us: "20%",              them: "Varies" },
 
   // Integrations
@@ -100,8 +100,8 @@ export default function ComparePage() {
               <h2 className="text-sm font-bold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-3 px-2">
                 {cat}
               </h2>
-              <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden shadow-sm">
-                <table className="w-full text-sm">
+              <div className="rounded-2xl border border-[var(--color-border)] overflow-x-auto shadow-sm">
+                <table className="w-full min-w-[560px] text-sm">
                   <thead className="bg-[var(--color-muted)] border-b border-[var(--color-border)]">
                     <tr>
                       <th className="px-5 py-3 text-left font-medium text-[var(--color-muted-foreground)] w-1/2">Feature</th>
@@ -143,7 +143,7 @@ export default function ComparePage() {
             {[
               { title: "Price shock",         body: "TrueProfit starts at $39. BeProfit at $25. GetProfitCalc starts at $3. For 90% of small sellers, you'll pay 90% less." },
               { title: "CSV import support", body: "Most profit trackers stop at a dashboard. GetProfitCalc adds CSV import, live webhooks and courier analytics in one place." },
-              { title: "AI insights",         body: "No competitor at this price point offers AI analysis. We use GPT-4 to proactively explain profit changes in plain English." },
+              { title: "AI insights",         body: "No competitor at this price point offers AI analysis. Our AI proactively explains profit changes in plain English." },
               { title: "No credit card trial",body: "Most tools require Shopify billing or a credit card to start a trial. We don't — just your email." },
             ].map(({ title, body }) => (
               <div key={title} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5">
@@ -158,7 +158,7 @@ export default function ComparePage() {
       {/* CTA */}
       <section className="py-16 bg-[var(--color-primary)]">
         <div className="mx-auto max-w-3xl px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-3">Try GetProfitCalc free for 14 days</h2>
+          <h2 className="text-3xl font-bold text-white mb-3">Try GetProfitCalc free for 7 days</h2>
           <p className="text-green-100 mb-6">No credit card. No Shopify billing required. Just your email.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild size="lg" variant="secondary" className="font-semibold gap-2">

@@ -48,7 +48,7 @@ const comparisonRows: {
 ];
 
 const features = [
-  { icon: Sparkles,   title: "AI Profit Insights",       desc: "GPT-4 reads your data and tells you exactly why your margin dropped and what to fix. No other profit tracker has this." },
+  { icon: Sparkles,   title: "AI Profit Insights",       desc: "AI reads your data and tells you exactly why your margin dropped and what to fix. No other profit tracker has this." },
   { icon: BarChart2,  title: "Shopify Profit Tracking",  desc: "Your Shopify store, plus CSV import for historical data. Built for one ecosystem, done properly." },
   { icon: TrendingUp, title: "What-If Simulator",        desc: "Drag a slider to simulate a price increase, COGS change, or ad spend cut — see projected profit before you commit." },
   { icon: ShoppingBag,title: "Ad Creative Profitability",desc: "See which specific ad creative is actually profitable after COGS, not just which has the best ROAS." },
@@ -107,7 +107,7 @@ export default function HomePage() {
             Free profit calculators for every business model. Plus a full profit-tracking SaaS that actually costs less than a coffee subscription — starting at <strong className="text-[var(--color-foreground)]">$3/month</strong>.
           </p>
           <p className="text-sm text-[var(--color-muted-foreground)] mb-8">
-            Real Shopify profit tracking, without the <s className="text-red-500 text-bold">$39–$349/month</s> price tag.
+            Real Shopify profit tracking, without the <s className="text-red-500 font-bold">$39–$349/month</s> price tag.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button asChild size="lg" className="w-full sm:w-auto text-base font-semibold px-8 gap-2">
