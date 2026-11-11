@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { toIsoDateTime } from "@/lib/dates";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import { useRole } from "@/components/dashboard/RoleContext";
 
@@ -645,7 +646,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderNumber:     form.orderNumber.trim() || undefined,
-          orderDate:       form.orderDate,
+          orderDate:       toIsoDateTime(form.orderDate),
           status:          form.status,
           customerEmail:   form.customerEmail.trim() || undefined,
           grossRevenue:    n(form.grossRevenue),
@@ -684,7 +685,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderNumber:     form.orderNumber.trim() || undefined,
-          orderDate:       form.orderDate,
+          orderDate:       toIsoDateTime(form.orderDate),
           status:          form.status,
           customerEmail:   form.customerEmail.trim() || undefined,
           grossRevenue:    n(form.grossRevenue),
