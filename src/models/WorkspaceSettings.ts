@@ -3,7 +3,16 @@ import mongoose, { Schema, Document, model, models } from "mongoose";
 /** Workspace-level settings that do not belong on Team itself:
  *  fiscal month start, default date range, profit-definition toggles,
  *  tax/VAT mode and per-country VAT rates, FX source + manual overrides.
- *  One document per team (upsert by teamId). */
+ *  One document per team (upsert by teamId).
+ *
+ *  Two currency fields, different jobs:
+ *   - reportingCurrency: what server reports are aggregated in.
+ *   - displayCurrency: what money figures are SHOWN in on the
+ *     dashboard (the header switcher's choice). It never changes
+ *     stored numbers — figures are converted at display time from
+ *     the report base currency at the live FX rate. Migration-safe:
+ *     defaults to USD on new documents, and readers fall back to
+ *     reportingCurrency when an older document has no value. */
 export interface IWorkspaceSettings extends Document {
   teamId: mongoose.Types.ObjectId;
   fiscalMonthStartDay: number;
@@ -15,6 +24,7 @@ export interface IWorkspaceSettings extends Document {
   reverseCharge: boolean;
   vatRates: { country: string; rate: number }[];
   reportingCurrency: string;
+  displayCurrency: string;
   fxSource: string;
   fxOverrides: { currency: string; rate: number; effectiveFrom: Date }[];
   updatedAt: Date;
@@ -38,6 +48,7 @@ const WorkspaceSettingsSchema = new Schema<IWorkspaceSettings>(
     reverseCharge: { type: Boolean, default: false },
     vatRates: { type: [VatRateSchema], default: [] },
     reportingCurrency: { type: String, default: "USD" },
+    displayCurrency: { type: String, default: "USD" },
     fxSource: { type: String, default: "currencyapi.net" },
     fxOverrides: { type: [FxOverrideSchema], default: [] },
   },

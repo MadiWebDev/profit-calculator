@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { formatPercent, cn } from "@/lib/utils";
 import { toIsoDateTime } from "@/lib/dates";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import { useRole } from "@/components/dashboard/RoleContext";
@@ -20,6 +20,7 @@ import { useRole } from "@/components/dashboard/RoleContext";
 
 interface OrderRow {
   id: string;
+  currency?: string;
   externalId: string;
   orderNumber?: string;
   orderDate: string;
@@ -133,7 +134,7 @@ function OrderFormModal({
   onClose, onSubmit, loading, error,
 }: OrderFormProps) {
   const [form, setForm] = useState<OrderFormState>(initialValues);
-  const { currency, symbol } = useCurrency();
+  const { currency, symbol, formatMoney } = useCurrency();
 
   const set = (key: keyof OrderFormState, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -293,7 +294,7 @@ function OrderFormModal({
                 netProfitPreview >= 0 ? "text-green-700 dark:text-green-400" : "text-red-600"
               )}
             >
-              {formatCurrency(netProfitPreview, currency)}
+              {formatMoney(netProfitPreview, currency)}
             </span>
           </div>
 
@@ -580,7 +581,7 @@ function CsvImportModal({ onClose, onImported }: CsvImportModalProps) {
 export function OrdersClient({ data }: { data: OrdersData }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currency } = useCurrency();
+  const { formatMoney, baseCurrency } = useCurrency();
   const { canWrite } = useRole();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [isPending, startTransition] = useTransition();
@@ -885,10 +886,10 @@ export function OrdersClient({ data }: { data: OrdersData }) {
                     </td>
                     <td className="px-4 py-3">{statusBadge(order.status)}</td>
                     <td className="px-4 py-3 text-[var(--color-foreground)]">
-                      {formatCurrency(order.grossRevenue, currency)}
+                      {formatMoney(order.grossRevenue, order.currency ?? baseCurrency)}
                     </td>
                     <td className="px-4 py-3 text-[var(--color-muted-foreground)]">
-                      {formatCurrency(order.totalCogs, currency)}
+                      {formatMoney(order.totalCogs, order.currency ?? baseCurrency)}
                     </td>
                     <td
                       className={cn(
@@ -896,7 +897,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
                         order.netProfit >= 0 ? "text-[var(--color-primary)]" : "text-red-500"
                       )}
                     >
-                      {formatCurrency(order.netProfit, currency)}
+                      {formatMoney(order.netProfit, order.currency ?? baseCurrency)}
                     </td>
                     <td
                       className={cn(
@@ -911,7 +912,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
                       {formatPercent(order.profitMargin)}
                     </td>
                     <td className="px-4 py-3 text-[var(--color-muted-foreground)]">
-                      {formatCurrency(order.adSpendAllocated, currency)}
+                      {formatMoney(order.adSpendAllocated, order.currency ?? baseCurrency)}
                     </td>
 
                     {/* Action buttons (canWrite) */}

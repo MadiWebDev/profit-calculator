@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Stats {
   byBand: Record<string, number>;
@@ -29,6 +29,7 @@ interface RiskOrder {
 }
 
 export function RiskClient() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [stats, setStats] = useState<Stats | null>(null);
   const [orders, setOrders] = useState<RiskOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +117,7 @@ export function RiskClient() {
           <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Precision (reviewed)</CardTitle></CardHeader>
             <CardContent><p className="text-xl font-bold tabular-nums">{stats.precision}%</p><p className="text-xs text-[var(--color-muted-foreground)]">{stats.reviewed} reviewed</p></CardContent></Card>
           <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Money saved</CardTitle></CardHeader>
-            <CardContent><p className="text-xl font-bold tabular-nums">{formatCurrency(stats.moneySaved)}</p><p className="text-xs text-[var(--color-muted-foreground)]">Value protected: {formatCurrency(stats.valueProtected)} · RTO loss realised: {formatCurrency(stats.realisedRtoLoss)}</p></CardContent></Card>
+            <CardContent><p className="text-xl font-bold tabular-nums">{formatMoney(stats.moneySaved, baseCurrency)}</p><p className="text-xs text-[var(--color-muted-foreground)]">Value protected: {formatMoney(stats.valueProtected, baseCurrency)} · RTO loss realised: {formatMoney(stats.realisedRtoLoss, baseCurrency)}</p></CardContent></Card>
         </div>
       )}
 
@@ -139,7 +140,7 @@ export function RiskClient() {
                   </Badge>
                   {o.riskHoldFulfillment && <Badge variant="destructive">Hold fulfilment</Badge>}
                   <Badge variant="outline">{o.riskStatus}</Badge>
-                  <span className="ml-auto text-sm tabular-nums">{formatCurrency(o.grossRevenue ?? 0)}</span>
+                  <span className="ml-auto text-sm tabular-nums">{formatMoney(o.grossRevenue ?? 0, baseCurrency)}</span>
                 </div>
                 {o.customerEmail && <p className="text-xs text-[var(--color-muted-foreground)] mt-1">{o.customerEmail}</p>}
                 <ul className="mt-2 space-y-1 text-xs text-[var(--color-muted-foreground)]">

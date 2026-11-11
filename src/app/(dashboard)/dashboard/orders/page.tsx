@@ -34,6 +34,7 @@ async function getOrders(teamId: string, page: number, search: string) {
       orderNumber: o.orderNumber ?? o.externalId,
       orderDate: o.orderDate ? new Date(o.orderDate).toISOString() : new Date().toISOString(),
       status: o.status,
+      currency: o.currency ?? "USD",
       grossRevenue: o.grossRevenue ?? 0,
       netRevenue: o.netRevenue ?? 0,
       totalCogs: o.totalCogs ?? 0,

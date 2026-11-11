@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Expense { id: string; name: string; category: string; amount: number; currency: string; startDate: string; endDate?: string | null; isRecurring: boolean; allocation: string }
 
 export default function MonthlyExpensesPage() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [allocated, setAllocated] = useState(0);
   const [before, setBefore] = useState(0);
@@ -53,9 +54,9 @@ export default function MonthlyExpensesPage() {
         <p className="text-sm text-[var(--color-muted-foreground)]">Recurring and one-off operating costs (rent, salaries, software, agency, freelancers, shipping subscriptions). Allocated per day into the period below — profit before and after operating expenses are both shown, so the headline profit formula never changes silently.</p>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Allocated (last 30 days)</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatCurrency(allocated)}</CardContent></Card>
-        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Profit before operating expenses</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatCurrency(before)}</CardContent></Card>
-        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Profit after operating expenses</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatCurrency(after)}</CardContent></Card>
+        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Allocated (last 30 days)</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatMoney(allocated, baseCurrency)}</CardContent></Card>
+        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Profit before operating expenses</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatMoney(before, baseCurrency)}</CardContent></Card>
+        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Profit after operating expenses</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatMoney(after, baseCurrency)}</CardContent></Card>
       </div>
       <Card><CardHeader><CardTitle>Add an expense</CardTitle></CardHeader><CardContent>
         <form onSubmit={submit} className="grid sm:grid-cols-2 gap-3">
@@ -70,7 +71,7 @@ export default function MonthlyExpensesPage() {
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Expenses</CardTitle></CardHeader><CardContent className="space-y-2">
         {expenses.length === 0 && <p className="text-sm text-[var(--color-muted-foreground)]">No expenses yet. Add your first one above — rent, salaries, or software.</p>}
-        {expenses.map((e) => (<div key={e.id} className="flex justify-between gap-3 text-sm border-b border-[var(--color-border)] pb-2 last:border-0"><span>{e.name} · {e.category}{e.isRecurring ? " · recurring" : ""}</span><span>{formatCurrency(e.amount)} · {e.allocation}</span></div>))}
+        {expenses.map((e) => (<div key={e.id} className="flex justify-between gap-3 text-sm border-b border-[var(--color-border)] pb-2 last:border-0"><span>{e.name} · {e.category}{e.isRecurring ? " · recurring" : ""}</span><span>{formatMoney(e.amount, e.currency ?? baseCurrency)} · {e.allocation}</span></div>))}
       </CardContent></Card>
     </div>
   );

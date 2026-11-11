@@ -14,6 +14,7 @@ async function getProducts(teamId: string) {
   return products.map((p) => ({
     id: p._id.toString(),
     name: p.name,
+    currency: p.currency ?? "USD",
     sku: p.sku,
     defaultCogs: p.defaultCogs,
     totalRevenue: p.totalRevenue,

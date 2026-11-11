@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 export default function CopilotPage() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [numbers, setNumbers] = useState<Record<string, number | string> | null>(null);
@@ -44,12 +45,12 @@ export default function CopilotPage() {
           <p className="text-sm">{answer}</p>
           {numbers && (
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <span>Revenue: {formatCurrency(Number(numbers.revenue))}</span>
-              <span>Net profit: {formatCurrency(Number(numbers.netProfit))}</span>
+              <span>Revenue: {formatMoney(Number(numbers.revenue), baseCurrency)}</span>
+              <span>Net profit: {formatMoney(Number(numbers.netProfit), baseCurrency)}</span>
               <span>Margin: {numbers.netMargin}%</span>
               <span>Orders: {numbers.orders}</span>
-              <span>AOV: {formatCurrency(Number(numbers.aov))}</span>
-              <span>Ad spend: {formatCurrency(Number(numbers.adSpend))}</span>
+              <span>AOV: {formatMoney(Number(numbers.aov), baseCurrency)}</span>
+              <span>Ad spend: {formatMoney(Number(numbers.adSpend), baseCurrency)}</span>
             </div>
           )}
           <p className="text-xs text-[var(--color-muted-foreground)]">Numbers behind this answer, from the last 30 days of orders. Verify them on Revenue By Date, Country Analysis, or the Leak Detector.</p>

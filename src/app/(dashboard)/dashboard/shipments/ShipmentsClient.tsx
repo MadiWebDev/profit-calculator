@@ -6,21 +6,15 @@ import {
   Ship,
   Search,
   Truck,
-  CheckCircle2,
   AlertTriangle,
-  Clock,
-  ArrowUpDown,
-  Filter,
-  Plus,
   Loader2,
   RefreshCw,
-  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface ShipmentItem {
   id: string;
@@ -39,6 +33,7 @@ interface ShipmentItem {
 }
 
 export function ShipmentsClient() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [shipments, setShipments] = useState<ShipmentItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -72,9 +67,11 @@ export function ShipmentsClient() {
     }
   }, [page, statusFilter, search]);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- initial load */
   useEffect(() => {
     fetchShipments();
   }, [fetchShipments]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const deliveredCount = shipments.filter((s) => s.status === "delivered").length;
   const inTransitCount = shipments.filter((s) => ["in_transit", "out_for_delivery", "booked"].includes(s.status)).length;
@@ -262,11 +259,11 @@ export function ShipmentsClient() {
                       {s.city ? `${s.city}${s.region ? `, ${s.region}` : ""}` : "—"}
                     </td>
                     <td className="py-3 px-4">{getStatusBadge(s.status)}</td>
-                    <td className="py-3 px-4 font-medium">{formatCurrency(s.cost)}</td>
+                    <td className="py-3 px-4 font-medium">{formatMoney(s.cost, baseCurrency)}</td>
                     <td className="py-3 px-4">
                       {s.codAmount > 0 ? (
                         <span className={s.codCollected ? "text-green-600 font-medium" : "text-amber-500 font-medium"}>
-                          {formatCurrency(s.codAmount)} {s.codCollected ? "(Settled)" : "(Pending)"}
+                          {formatMoney(s.codAmount, baseCurrency)} {s.codCollected ? "(Settled)" : "(Pending)"}
                         </span>
                       ) : (
                         <span className="text-[var(--color-muted-foreground)]">Prepaid</span>

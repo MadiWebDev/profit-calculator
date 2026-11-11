@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { formatPercent, cn } from "@/lib/utils";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface BundleComponent { productId?: string; name: string; cogs: number; quantity: number }
@@ -29,7 +29,7 @@ function marginColor(m: number) {
 }
 
 export default function BundlesPage() {
-  const { currency } = useCurrency();
+  const { currency, formatMoney } = useCurrency();
   const [bundles, setBundles] = useState<BundleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -334,7 +334,7 @@ export default function BundlesPage() {
               <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--color-accent)] border border-[var(--color-border)]">
                 <div className="space-y-0.5">
                   <p className="text-xs text-[var(--color-muted-foreground)]">Total COGS</p>
-                  <p className="font-semibold text-[var(--color-foreground)]">{formatCurrency(computedCogs, currency)}</p>
+                  <p className="font-semibold text-[var(--color-foreground)]">{formatMoney(computedCogs, currency)}</p>
                 </div>
                 <div className="space-y-0.5 text-right">
                   <p className="text-xs text-[var(--color-muted-foreground)]">Gross Margin</p>
@@ -345,7 +345,7 @@ export default function BundlesPage() {
                 <div className="space-y-0.5 text-right">
                   <p className="text-xs text-[var(--color-muted-foreground)]">Gross Profit / Bundle</p>
                   <p className="font-semibold text-[var(--color-foreground)]">
-                    {formatCurrency(previewSellingPrice - computedCogs, currency)}
+                    {formatMoney(previewSellingPrice - computedCogs, currency)}
                   </p>
                 </div>
               </div>
@@ -449,16 +449,16 @@ export default function BundlesPage() {
                         <Badge variant={marginColor(b.grossMargin) as "success" | "warning" | "destructive"}>{formatPercent(b.grossMargin)} margin</Badge>
                       </div>
                       <div className="flex flex-wrap gap-3 text-sm text-[var(--color-muted-foreground)]">
-                        <span>Sell: <strong className="text-[var(--color-foreground)]">{formatCurrency(b.sellingPrice, bundleCurrency)}</strong></span>
-                        <span>COGS: <strong className="text-[var(--color-foreground)]">{formatCurrency(b.totalCogs, bundleCurrency)}</strong></span>
+                        <span>Sell: <strong className="text-[var(--color-foreground)]">{formatMoney(b.sellingPrice, bundleCurrency)}</strong></span>
+                        <span>COGS: <strong className="text-[var(--color-foreground)]">{formatMoney(b.totalCogs, bundleCurrency)}</strong></span>
                         <span>Profit: <strong className={cn(b.sellingPrice - b.totalCogs >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                          {formatCurrency(b.sellingPrice - b.totalCogs, bundleCurrency)}
+                          {formatMoney(b.sellingPrice - b.totalCogs, bundleCurrency)}
                         </strong></span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {b.components.map((c, i) => (
                           <span key={i} className="text-xs bg-[var(--color-muted)] px-2 py-0.5 rounded-full text-[var(--color-muted-foreground)]">
-                            {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.name} ({formatCurrency(c.cogs * c.quantity, bundleCurrency)})
+                            {c.quantity > 1 ? `${c.quantity}× ` : ""}{c.name} ({formatMoney(c.cogs * c.quantity, bundleCurrency)})
                           </span>
                         ))}
                       </div>

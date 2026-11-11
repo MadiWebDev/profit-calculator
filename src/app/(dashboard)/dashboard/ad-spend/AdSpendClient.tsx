@@ -10,7 +10,7 @@ import { Megaphone, HelpCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { formatCurrency, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 type AttributionModel = "last_click" | "first_click" | "linear";
@@ -77,7 +77,7 @@ export function AdSpendClient({ data }: { data: AdData }) {
   const router = useRouter();
   const [attribution, setAttribution] = useState<AttributionModel>("last_click");
   const { summary, byPlatform, byDay, byCampaign } = data;
-  const { currency } = useCurrency();
+  const { formatMoney, baseCurrency } = useCurrency();
 
   const adjustedPlatforms = useMemo(() => applyAttribution(byPlatform, attribution), [byPlatform, attribution]);
 
@@ -136,8 +136,8 @@ export function AdSpendClient({ data }: { data: AdData }) {
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Ad Spend"    value={formatCurrency(summary.totalSpend, currency)} />
-        <StatCard label="Attributed Revenue" value={formatCurrency(summary.totalRevenue, currency)} highlight />
+        <StatCard label="Total Ad Spend"    value={formatMoney(summary.totalSpend, baseCurrency)} />
+        <StatCard label="Attributed Revenue" value={formatMoney(summary.totalRevenue, baseCurrency)} highlight />
         <StatCard label="Overall ROAS"       value={`${summary.overallRoas.toFixed(2)}x`} />
         <StatCard label="Total Conversions"  value={summary.totalConversions.toLocaleString()} />
       </div>
@@ -180,7 +180,7 @@ export function AdSpendClient({ data }: { data: AdData }) {
                   <YAxis tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                     tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                   <Tooltip
-                    formatter={(value, name) => [formatCurrency(typeof value === "number" ? value : 0, currency), name === "revenue" ? "Revenue" : "Spend"]}
+                    formatter={(value, name) => [formatMoney(typeof value === "number" ? value : 0, baseCurrency), name === "revenue" ? "Revenue" : "Spend"]}
                     contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
                   />
                   <Legend formatter={(v) => <span style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{v}</span>} />
@@ -218,12 +218,12 @@ export function AdSpendClient({ data }: { data: AdData }) {
                               <span className="font-medium capitalize text-[var(--color-foreground)]">{p._id}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-2.5">{formatCurrency(p.spend, currency)}</td>
-                          <td className="px-4 py-2.5">{formatCurrency(p.revenue, currency)}</td>
+                          <td className="px-4 py-2.5">{formatMoney(p.spend, baseCurrency)}</td>
+                          <td className="px-4 py-2.5">{formatMoney(p.revenue, baseCurrency)}</td>
                           <td className={cn("px-4 py-2.5 font-semibold", roas >= 3 ? "text-[var(--color-primary)]" : roas >= 2 ? "text-yellow-600" : "text-red-500")}>
                             {roas.toFixed(2)}x
                           </td>
-                          <td className="px-4 py-2.5">{formatCurrency(cpa, currency)}</td>
+                          <td className="px-4 py-2.5">{formatMoney(cpa, baseCurrency)}</td>
                           <td className="px-4 py-2.5 text-[var(--color-muted-foreground)]">{p.conversions}</td>
                         </tr>
                       );
@@ -267,7 +267,7 @@ export function AdSpendClient({ data }: { data: AdData }) {
                 <CardTitle className="text-base">Meta True Profit per Campaign</CardTitle>
                 <p className="text-xs text-[var(--color-muted-foreground)]">
                   Spend attributed to orders by UTM only. Profit = attributed revenue − COGS − fees − spend.
-                  Unattributed spend: {formatCurrency(metaAttr.unattributedSpend, currency)}.
+                  Unattributed spend: {formatMoney(metaAttr.unattributedSpend, baseCurrency)}.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -289,10 +289,10 @@ export function AdSpendClient({ data }: { data: AdData }) {
                       {metaAttr.campaigns.map((c) => (
                         <tr key={c.campaignId} className="hover:bg-[var(--color-muted)]/30">
                           <td className="px-4 py-2.5 max-w-[200px] truncate font-medium">{c.campaignId}</td>
-                          <td className="px-4 py-2.5">{formatCurrency(c.spend, currency)}</td>
-                          <td className="px-4 py-2.5">{formatCurrency(c.attributedRevenue, currency)}</td>
+                          <td className="px-4 py-2.5">{formatMoney(c.spend, baseCurrency)}</td>
+                          <td className="px-4 py-2.5">{formatMoney(c.attributedRevenue, baseCurrency)}</td>
                           <td className="px-4 py-2.5">{c.attributedOrders}</td>
-                          <td className={cn("px-4 py-2.5 font-semibold", c.profit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>{formatCurrency(c.profit, currency)}</td>
+                          <td className={cn("px-4 py-2.5 font-semibold", c.profit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>{formatMoney(c.profit, baseCurrency)}</td>
                           <td className="px-4 py-2.5">{c.roas.toFixed(2)}x</td>
                           <td className="px-4 py-2.5">{c.breakEvenRoas.toFixed(2)}x</td>
                         </tr>
@@ -332,14 +332,14 @@ export function AdSpendClient({ data }: { data: AdData }) {
                             <td className="px-4 py-2.5">
                               <span className="capitalize text-[var(--color-muted-foreground)]">{c._id.platform}</span>
                             </td>
-                            <td className="px-4 py-2.5">{formatCurrency(c.spend, currency)}</td>
-                            <td className="px-4 py-2.5">{formatCurrency(c.revenue, currency)}</td>
+                            <td className="px-4 py-2.5">{formatMoney(c.spend, baseCurrency)}</td>
+                            <td className="px-4 py-2.5">{formatMoney(c.revenue, baseCurrency)}</td>
                             <td className={cn("px-4 py-2.5 font-semibold", roas >= 3 ? "text-[var(--color-primary)]" : roas >= 2 ? "text-yellow-600" : "text-red-500")}>
                               {roas.toFixed(2)}x
                             </td>
-                            <td className="px-4 py-2.5">{formatCurrency(cpa, currency)}</td>
+                            <td className="px-4 py-2.5">{formatMoney(cpa, baseCurrency)}</td>
                             <td className={cn("px-4 py-2.5 font-semibold", c.profitAttributed >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                              {formatCurrency(c.profitAttributed, currency)}
+                              {formatMoney(c.profitAttributed, baseCurrency)}
                             </td>
                           </tr>
                         );

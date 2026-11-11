@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Leak { id: string; severity: string; title: string; detail: string; amount: number; actionLabel: string; actionHref: string }
 
 export default function LeaksPage() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [leaks, setLeaks] = useState<Leak[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ export default function LeaksPage() {
         <h1 className="text-2xl font-bold">Profit Leak Detector</h1>
         <p className="text-sm text-[var(--color-muted-foreground)]">Every finding names a real amount from your orders. Fix the biggest leak first — it feeds Mission Control&apos;s action list.</p>
       </div>
-      <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Total at risk in this period</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatCurrency(total)}</CardContent></Card>
+      <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Total at risk in this period</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatMoney(total, baseCurrency)}</CardContent></Card>
       {leaks.length === 0 && (
         <Card><CardContent className="py-10 text-center space-y-3">
           <p className="text-sm text-[var(--color-muted-foreground)]">No leaks found in this period. Keep COGS up to date and review high-risk orders to stay here.</p>
@@ -51,7 +52,7 @@ export default function LeaksPage() {
             <p className="font-medium text-sm">{l.title} <span className="text-xs text-[var(--color-muted-foreground)]">({l.severity})</span></p>
             <p className="text-xs text-[var(--color-muted-foreground)]">{l.detail}</p>
           </div>
-          <span className="font-bold">{formatCurrency(l.amount)}</span>
+          <span className="font-bold">{formatMoney(l.amount, baseCurrency)}</span>
           <Link href={l.actionHref} className="text-sm font-medium text-[var(--color-primary)] underline">{l.actionLabel} →</Link>
         </CardContent></Card>
       ))}

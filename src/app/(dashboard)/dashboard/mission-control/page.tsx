@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Action { title: string; detail: string; amount: number; actionLabel: string; actionHref: string }
 interface Integration { name: string; status: string; lastSuccess: string | null; error: string | null }
@@ -19,6 +19,7 @@ interface Data {
 }
 
 export default function MissionControlPage() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,9 +49,9 @@ export default function MissionControlPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Today&apos;s profit</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatCurrency(data.today.netProfit)}</CardContent></Card>
-        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Today&apos;s revenue</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatCurrency(data.today.revenue)}</CardContent></Card>
-        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Profit target</CardTitle></CardHeader><CardContent className="text-xl font-bold">{data.target > 0 ? formatCurrency(data.target) : "No goal set"}</CardContent></Card>
+        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Today&apos;s profit</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatMoney(data.today.netProfit, baseCurrency)}</CardContent></Card>
+        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Today&apos;s revenue</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatMoney(data.today.revenue, baseCurrency)}</CardContent></Card>
+        <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Profit target</CardTitle></CardHeader><CardContent className="text-xl font-bold">{data.target > 0 ? formatMoney(data.target, baseCurrency) : "No goal set"}</CardContent></Card>
         <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Target progress</CardTitle></CardHeader><CardContent className="text-xl font-bold">{data.target > 0 ? `${data.targetProgress}%` : "Set a goal"}</CardContent></Card>
       </div>
 
