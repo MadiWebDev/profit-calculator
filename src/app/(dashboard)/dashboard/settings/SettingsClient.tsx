@@ -81,7 +81,7 @@ interface SettingsData {
     syncStatus: string; lastSyncAt?: string; ordersCount: number; domain?: string;
   }[];
   adAccounts: AdAccountRow[];
-  user: { name: string; email: string; image?: string };
+  user: { name: string; email: string; image?: string; phone?: string };
 }
 
 type Tab = "profile" | "billing" | "stores" | "ad-accounts" | "notifications";
@@ -255,6 +255,8 @@ export function SettingsClient({
 
   // ── Profile state ─────────────────────────────────────────────────────────
   const [displayName,   setDisplayName]   = useState(data.user.name);
+  // Optional WhatsApp number for admin campaigns (E.164). Empty = no number on file.
+  const [phone,         setPhone]         = useState(data.user.phone ?? "");
   const [savingProfile, setSavingProfile] = useState(false);
 
   // ── Workspace state ───────────────────────────────────────────────────────
@@ -306,7 +308,7 @@ export function SettingsClient({
       const res = await fetch("/api/user", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: displayName.trim() }),
+        body: JSON.stringify({ name: displayName.trim(), phone: phone.trim() }),
       });
       if (res.ok) { setFeedback("ok", "Profile updated."); router.refresh(); }
       else { const j = await res.json(); setFeedback("err", j.error ?? "Save failed."); }
@@ -549,9 +551,16 @@ export function SettingsClient({
                   <Input defaultValue={data.user.email} type="email" className="h-9" disabled />
                   <p className="text-xs text-[var(--color-muted-foreground)]">Email cannot be changed after registration.</p>
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">WhatsApp Number (optional)</Label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+923001234567" className="h-9" />
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    E.164 format, e.g. +923001234567. Only used to receive admin WhatsApp announcements — leave blank to opt out.
+                  </p>
+                </div>
                 <Button
                   size="sm" className="w-fit gap-2" onClick={saveProfile}
-                  disabled={savingProfile || !displayName.trim() || displayName.trim() === data.user.name}
+                  disabled={savingProfile || !displayName.trim() || (displayName.trim() === data.user.name && phone.trim() === (data.user.phone ?? ""))}
                 >
                   {savingProfile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                   Save Changes

@@ -20,6 +20,14 @@ export interface IUser extends Document {
   plan: "free" | "starter" | "growth" | "pro";
   trialEndsAt?: Date;
   onboardingCompleted: boolean;
+  /**
+   * Optional WhatsApp number (E.164, e.g. +923001234567) the user sets
+   * in Dashboard → Settings → Profile. Only used as the audience for
+   * admin WhatsApp campaigns — never for order notifications, which use
+   * the phone on the order itself. Users without a number are skipped
+   * (and counted) by campaign sends, never errored.
+   */
+  phone?: string;
   // Auth hardening (Phase 4)
   failedLoginAttempts: number;
   lockoutUntil?: Date;
@@ -62,6 +70,7 @@ const UserSchema = new Schema<IUser>(
     plan: { type: String, enum: ["free", "starter", "growth", "pro"], default: "free" },
     trialEndsAt: Date,
     onboardingCompleted: { type: Boolean, default: false },
+    phone: { type: String, trim: true, maxlength: 20 },
     failedLoginAttempts: { type: Number, default: 0 },
     lockoutUntil: Date,
     passwordChangedAt: Date,
