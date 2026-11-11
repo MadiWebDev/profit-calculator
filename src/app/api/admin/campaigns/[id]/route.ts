@@ -38,6 +38,10 @@ export async function GET(
     audienceType: campaign.audienceType,
     audiencePlan: campaign.audiencePlan ?? null,
     audienceTeamId: campaign.audienceTeamId?.toString() ?? null,
+    audienceUserIds: (campaign.audienceUserIds ?? []).map((id: mongoose.Types.ObjectId) =>
+      id.toString()
+    ),
+    audienceLimit: campaign.audienceLimit ?? null,
     status: campaign.status,
     stats: campaign.stats,
     error: campaign.error ?? null,

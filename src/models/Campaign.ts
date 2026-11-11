@@ -30,7 +30,7 @@ export type CampaignTemplateType =
   | "billing_notice"
   | "feature_launch";
 
-export type CampaignAudienceType = "all" | "plan" | "team";
+export type CampaignAudienceType = "all" | "plan" | "team" | "users" | "limited";
 
 export type CampaignStatus = "draft" | "sending" | "sent" | "failed";
 
@@ -64,6 +64,19 @@ export interface ICampaign extends Document {
   audienceType: CampaignAudienceType;
   audiencePlan?: "free" | "starter" | "growth" | "pro";
   audienceTeamId?: mongoose.Types.ObjectId;
+  /**
+   * "users" only: the specific users targeted. De-duplicated and
+   * validated against the DB at create time; re-checked at send time —
+   * a user deleted between create and send is recorded as a skipped
+   * recipient, never silently dropped. Capped at 500.
+   */
+  audienceUserIds?: mongoose.Types.ObjectId[];
+  /**
+   * "limited" only: how many of the oldest users (by createdAt) to
+   * target. Admin-picked 1–500, default 25. Enforced server-side at
+   * create and clamped again at send time.
+   */
+  audienceLimit?: number;
   status: CampaignStatus;
   createdBy: mongoose.Types.ObjectId;
   /** Totals from the last send attempt (0 while a draft). */
@@ -108,9 +121,11 @@ const CampaignSchema = new Schema<ICampaign>(
     subject: { type: String, trim: true, maxlength: 200 },
     body: { type: String, required: true, maxlength: 5000 },
     whatsappTemplateName: { type: String, trim: true, maxlength: 512 },
-    audienceType: { type: String, enum: ["all", "plan", "team"], required: true, default: "all" },
+    audienceType: { type: String, enum: ["all", "plan", "team", "users", "limited"], required: true, default: "all" },
     audiencePlan: { type: String, enum: ["free", "starter", "growth", "pro"] },
     audienceTeamId: { type: Schema.Types.ObjectId, ref: "Team" },
+    audienceUserIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    audienceLimit: { type: Number, min: 1, max: 500, default: 25 },
     status: {
       type: String,
       enum: ["draft", "sending", "sent", "failed"],

@@ -2,13 +2,22 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import mongoose from "mongoose";
 import {
   buildAudienceFilter,
+  buildLastMessageMap,
   capAudience,
   CAMPAIGN_AUDIENCE_CAP,
+  CAMPAIGN_AUDIENCE_LIMIT_DEFAULT,
+  CAMPAIGN_AUDIENCE_LIMIT_MAX,
+  computeAudienceEstimate,
+  dedupeObjectIdStrings,
   defaultSubjectFor,
   escapeHtml,
+  findMissingUserIds,
   firstNameOf,
   isValidWhatsAppTemplateName,
+  type LastMessageRow,
+  orderUsersByStoredIds,
   renderCampaignEmailHtml,
+  resolveAudienceLimit,
   resolveCampaignSubject,
   UNSUBSCRIBE_FOOTER_TEXT,
   whatsappTemplateBodyParameters,
@@ -56,6 +65,201 @@ describe("buildAudienceFilter", () => {
     const filter = buildAudienceFilter({ audienceType: "plan", audiencePlan: "pro", channel: "whatsapp" });
     expect(filter.plan).toBe("pro");
     expect(filter.phone).toEqual({ $exists: true, $ne: "" });
+  });
+
+  it("users: filters on the de-duplicated ids as ObjectIds", () => {
+    const a = new mongoose.Types.ObjectId().toString();
+    const b = new mongoose.Types.ObjectId().toString();
+    const filter = buildAudienceFilter({
+      audienceType: "users",
+      audienceUserIds: [a, b, a],
+      channel: "email",
+    });
+    expect(filter._id).toEqual({
+      $in: [expect.any(mongoose.Types.ObjectId), expect.any(mongoose.Types.ObjectId)],
+    });
+    const ids = (filter._id.$in as mongoose.Types.ObjectId[]).map((id) => id.toString());
+    expect(ids).toEqual([a, b]);
+  });
+
+  it("users + whatsapp: combines the id list with the phone condition", () => {
+    const a = new mongoose.Types.ObjectId().toString();
+    const filter = buildAudienceFilter({
+      audienceType: "users",
+      audienceUserIds: [a],
+      channel: "whatsapp",
+    });
+    expect((filter._id.$in as mongoose.Types.ObjectId[]).map((id) => id.toString())).toEqual([a]);
+    expect(filter.phone).toEqual({ $exists: true, $ne: "" });
+  });
+
+  it("limited: no audience filter for email — the batch size is a query limit, not a filter", () => {
+    expect(buildAudienceFilter({ audienceType: "limited", channel: "email" })).toEqual({});
+  });
+
+  it("limited + whatsapp: only the phone condition", () => {
+    expect(buildAudienceFilter({ audienceType: "limited", channel: "whatsapp" })).toEqual({
+      phone: { $exists: true, $ne: "" },
+    });
+  });
+});
+
+describe("dedupeObjectIdStrings", () => {
+  it("de-duplicates while keeping first-occurrence order", () => {
+    const a = new mongoose.Types.ObjectId().toString();
+    const b = new mongoose.Types.ObjectId().toString();
+    expect(dedupeObjectIdStrings([a, b, a, b, a])).toEqual([a, b]);
+    expect(dedupeObjectIdStrings([])).toEqual([]);
+  });
+});
+
+describe("resolveAudienceLimit", () => {
+  it("defaults to 25 when omitted", () => {
+    expect(CAMPAIGN_AUDIENCE_LIMIT_DEFAULT).toBe(25);
+    expect(resolveAudienceLimit(undefined)).toBe(25);
+    expect(resolveAudienceLimit(null)).toBe(25);
+  });
+
+  it("caps a limit above 500 at 500", () => {
+    expect(CAMPAIGN_AUDIENCE_LIMIT_MAX).toBe(500);
+    expect(resolveAudienceLimit(501)).toBe(500);
+    expect(resolveAudienceLimit(10000)).toBe(500);
+    expect(resolveAudienceLimit(500)).toBe(500);
+  });
+
+  it("floors a limit below 1 at 1 and passes through in-range values", () => {
+    expect(resolveAudienceLimit(0)).toBe(1);
+    expect(resolveAudienceLimit(-7)).toBe(1);
+    expect(resolveAudienceLimit(1)).toBe(1);
+    expect(resolveAudienceLimit(25)).toBe(25);
+    expect(resolveAudienceLimit(499)).toBe(499);
+  });
+
+  it("truncates fractional limits", () => {
+    expect(resolveAudienceLimit(10.9)).toBe(10);
+  });
+});
+
+describe("findMissingUserIds", () => {
+  it("reports stored ids not present in the fetched set", () => {
+    const a = new mongoose.Types.ObjectId().toString();
+    const b = new mongoose.Types.ObjectId().toString();
+    const c = new mongoose.Types.ObjectId().toString();
+    expect(findMissingUserIds([a, b, c], [a, c])).toEqual([b]);
+    expect(findMissingUserIds([a], [a])).toEqual([]);
+    expect(findMissingUserIds([], [])).toEqual([]);
+  });
+
+  it("de-duplicates the stored list before comparing", () => {
+    const a = new mongoose.Types.ObjectId().toString();
+    const b = new mongoose.Types.ObjectId().toString();
+    expect(findMissingUserIds([b, b, a], [a])).toEqual([b]);
+  });
+});
+
+describe("orderUsersByStoredIds", () => {
+  const user = (id: string) => ({ _id: new mongoose.Types.ObjectId(id), name: id.slice(0, 4) });
+
+  it("re-orders fetched users into the admin's stored order", () => {
+    const a = new mongoose.Types.ObjectId().toString();
+    const b = new mongoose.Types.ObjectId().toString();
+    const c = new mongoose.Types.ObjectId().toString();
+    // Fetched in createdAt order; stored order is c, a, b.
+    expect(orderUsersByStoredIds([user(a), user(b), user(c)], [c, a, b]).map((u) => u._id.toString())).toEqual([
+      c, a, b,
+    ]);
+  });
+
+  it("keeps users missing from the stored list at the end", () => {
+    const a = new mongoose.Types.ObjectId().toString();
+    const b = new mongoose.Types.ObjectId().toString();
+    expect(orderUsersByStoredIds([user(b), user(a)], [a]).map((u) => u._id.toString())).toEqual([a, b]);
+  });
+});
+
+describe("computeAudienceEstimate", () => {
+  it("users audience: matched is the de-duplicated count, willSend is capped at 500", () => {
+    // 3 selected users, all with a contact for email.
+    expect(computeAudienceEstimate(3, 3)).toEqual({
+      matched: 3,
+      withContact: 3,
+      withoutContact: 0,
+      willSend: 3,
+      capped: 0,
+    });
+    // Same 3 selected for WhatsApp, only 2 have a phone on file.
+    expect(computeAudienceEstimate(3, 2)).toEqual({
+      matched: 3,
+      withContact: 2,
+      withoutContact: 1,
+      willSend: 2,
+      capped: 0,
+    });
+  });
+
+  it("limited audience: matched is min(limit, total users) — e.g. 25 of 1000, or 3 of 3", () => {
+    expect(computeAudienceEstimate(25, 25)).toEqual({
+      matched: 25,
+      withContact: 25,
+      withoutContact: 0,
+      willSend: 25,
+      capped: 0,
+    });
+    expect(computeAudienceEstimate(3, 3)).toEqual({
+      matched: 3,
+      withContact: 3,
+      withoutContact: 0,
+      willSend: 3,
+      capped: 0,
+    });
+  });
+
+  it("caps willSend at 500 and reports the overflow", () => {
+    expect(computeAudienceEstimate(750, 700)).toEqual({
+      matched: 750,
+      withContact: 700,
+      withoutContact: 50,
+      willSend: 500,
+      capped: 200,
+    });
+  });
+});
+
+describe("buildLastMessageMap", () => {
+  const row = (overrides: Partial<LastMessageRow>): LastMessageRow => ({
+    userId: new mongoose.Types.ObjectId().toString(),
+    campaignId: new mongoose.Types.ObjectId().toString(),
+    campaignName: "November launch",
+    channel: "email",
+    status: "sent",
+    sentAt: "2026-11-11T10:00:00.000Z",
+    ...overrides,
+  });
+
+  it("keys rows by userId", () => {
+    const a = row({});
+    const b = row({ channel: "whatsapp", status: "skipped" });
+    const map = buildLastMessageMap([a, b]);
+    expect(Object.keys(map)).toHaveLength(2);
+    expect(map[a.userId]).toEqual(a);
+    expect(map[b.userId].channel).toBe("whatsapp");
+    expect(map[b.userId].status).toBe("skipped");
+  });
+
+  it("keeps the first (newest) row per user and ignores later duplicates", () => {
+    const userId = new mongoose.Types.ObjectId().toString();
+    const newest = row({ userId, campaignName: "Newest", sentAt: "2026-11-11T10:00:00.000Z" });
+    const older = row({ userId, campaignName: "Older", sentAt: "2026-11-01T10:00:00.000Z" });
+    expect(buildLastMessageMap([newest, older])[userId].campaignName).toBe("Newest");
+  });
+
+  it("drops rows with a missing userId", () => {
+    const good = row({});
+    expect(buildLastMessageMap([row({ userId: "" }), good])).toEqual({ [good.userId]: good });
+  });
+
+  it("returns an empty map for no rows", () => {
+    expect(buildLastMessageMap([])).toEqual({});
   });
 });
 

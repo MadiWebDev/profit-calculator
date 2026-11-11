@@ -5,6 +5,7 @@
  * superAdmin-only. Sending is a separate step: POST /api/admin/campaigns/[id]/send.
  */
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import CampaignModel from "@/models/Campaign";
 import TeamModel from "@/models/Team";
@@ -17,7 +18,10 @@ import { logger, toLogError } from "@/lib/logger";
 import {
   buildAudienceFilter,
   CAMPAIGN_AUDIENCE_CAP,
+  computeAudienceEstimate,
+  dedupeObjectIdStrings,
   isValidWhatsAppTemplateName,
+  resolveAudienceLimit,
 } from "@/lib/campaigns";
 import { z } from "zod";
 
@@ -35,9 +39,15 @@ const CreateSchema = z
     subject: z.string().trim().max(200, "Subject too long").optional(),
     body: z.string().trim().min(1, "Message body is required").max(5000, "Body too long"),
     whatsappTemplateName: z.string().trim().max(512).optional(),
-    audienceType: z.enum(["all", "plan", "team"]),
+    audienceType: z.enum(["all", "plan", "team", "users", "limited"]),
     audiencePlan: z.enum(["free", "starter", "growth", "pro"]).optional(),
     audienceTeamId: objectIdString("audienceTeamId").optional(),
+    audienceUserIds: z
+      .array(objectIdString("audienceUserIds"))
+      .min(1, "Select at least one user")
+      .max(500, "At most 500 users can be selected")
+      .optional(),
+    audienceLimit: z.number().int().min(1).max(500).default(25),
   })
   .strict();
 
@@ -73,6 +83,9 @@ export async function GET(req: Request) {
       audienceType: c.audienceType,
       audiencePlan: c.audiencePlan ?? null,
       audienceTeamId: c.audienceTeamId?.toString() ?? null,
+      audienceUserIds:
+        (c.audienceUserIds ?? []).map((id: mongoose.Types.ObjectId) => id.toString()),
+      audienceLimit: c.audienceLimit ?? null,
       status: c.status,
       stats: c.stats,
       error: c.error ?? null,
@@ -94,7 +107,8 @@ export async function GET(req: Request) {
 
 // ── POST /api/admin/campaigns ────────────────────────────────────────────────
 // Body: { name, channel, templateType, subject?, body, whatsappTemplateName?,
-//         audienceType, audiencePlan?, audienceTeamId? }
+//         audienceType, audiencePlan?, audienceTeamId?, audienceUserIds?,
+//         audienceLimit? }
 // Creates a DRAFT only. Response includes the audience estimate so the
 // admin sees who will (and will not) receive it before hitting Send.
 export async function POST(req: Request) {
@@ -126,6 +140,16 @@ export async function POST(req: Request) {
   if (data.audienceType === "team" && !data.audienceTeamId) {
     return fail("audienceTeamId is required when audience is by team", 400, "AUDIENCE_TEAM_REQUIRED");
   }
+  if (data.audienceType === "users" && !data.audienceUserIds?.length) {
+    return fail("audienceUserIds is required when audience is specific users", 400, "AUDIENCE_USERS_REQUIRED");
+  }
+
+  // De-duplicate the selected users (the create-time count and the
+  // stored list both use the de-duplicated set).
+  const audienceUserIds =
+    data.audienceType === "users" ? dedupeObjectIdStrings(data.audienceUserIds ?? []) : [];
+  // Clamp the limit server-side: above 500 it becomes 500, never more.
+  const audienceLimit = resolveAudienceLimit(data.audienceLimit);
 
   try {
     await connectDB();
@@ -133,6 +157,20 @@ export async function POST(req: Request) {
     if (data.audienceType === "team" && data.audienceTeamId) {
       const team = await TeamModel.findById(data.audienceTeamId).select("_id").lean();
       if (!team) return fail("Team not found", 400, "TEAM_NOT_FOUND");
+    }
+
+    if (data.audienceType === "users") {
+      // Re-check every selected id against the DB — the client list is
+      // never trusted as-is. Reject the create if any selected user
+      // does not exist.
+      const existing = await UserModel.find({
+        _id: { $in: audienceUserIds },
+      })
+        .select("_id")
+        .lean();
+      if (existing.length !== audienceUserIds.length) {
+        return fail("One or more selected users no longer exist", 400, "AUDIENCE_USER_NOT_FOUND");
+      }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -148,6 +186,8 @@ export async function POST(req: Request) {
       audienceType: data.audienceType,
       audiencePlan: data.audienceType === "plan" ? data.audiencePlan : undefined,
       audienceTeamId: data.audienceType === "team" ? data.audienceTeamId : undefined,
+      audienceUserIds: data.audienceType === "users" ? audienceUserIds : undefined,
+      audienceLimit: data.audienceType === "limited" ? audienceLimit : undefined,
       status: "draft",
       createdBy: adminId,
     });
@@ -156,29 +196,43 @@ export async function POST(req: Request) {
     // have a usable contact for the channel, and whether the cap bites.
     // The "without phone filter" count comes from the same filter with
     // the email channel, which adds no phone condition.
-    const baseFilter = buildAudienceFilter({
-      audienceType: data.audienceType,
-      audiencePlan: data.audiencePlan,
-      audienceTeamId: data.audienceTeamId,
-      channel: "email",
-    });
-    const contactFilter = buildAudienceFilter({
-      audienceType: data.audienceType,
-      audiencePlan: data.audiencePlan,
-      audienceTeamId: data.audienceTeamId,
-      channel: data.channel,
-    });
-    const [matched, withContact] = await Promise.all([
-      UserModel.countDocuments(baseFilter),
-      UserModel.countDocuments(contactFilter),
-    ]);
-    const audience = {
-      matched,
-      withContact,
-      withoutContact: matched - withContact,
-      willSend: Math.min(withContact, CAMPAIGN_AUDIENCE_CAP),
-      capped: Math.max(0, withContact - CAMPAIGN_AUDIENCE_CAP),
-    };
+    // "limited" is different: the audience is the N oldest users, so
+    // the estimate fetches exactly those N and counts contacts among
+    // them instead of counting the whole user base.
+    let matched: number;
+    let withContact: number;
+    if (data.audienceType === "limited") {
+      const oldest = await UserModel.find({})
+        .sort({ createdAt: 1 })
+        .limit(audienceLimit)
+        .select("phone")
+        .lean();
+      matched = oldest.length;
+      withContact =
+        data.channel === "whatsapp"
+          ? oldest.filter((u) => (u.phone ?? "").trim() !== "").length
+          : matched;
+    } else {
+      const baseFilter = buildAudienceFilter({
+        audienceType: data.audienceType,
+        audiencePlan: data.audiencePlan,
+        audienceTeamId: data.audienceTeamId,
+        audienceUserIds,
+        channel: "email",
+      });
+      const contactFilter = buildAudienceFilter({
+        audienceType: data.audienceType,
+        audiencePlan: data.audiencePlan,
+        audienceTeamId: data.audienceTeamId,
+        audienceUserIds,
+        channel: data.channel,
+      });
+      [matched, withContact] = await Promise.all([
+        UserModel.countDocuments(baseFilter),
+        UserModel.countDocuments(contactFilter),
+      ]);
+    }
+    const audience = computeAudienceEstimate(matched, withContact);
 
     const teamId = await resolveAdminTeamId(session);
     if (teamId) {
