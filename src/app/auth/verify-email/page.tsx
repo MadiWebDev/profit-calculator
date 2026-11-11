@@ -5,21 +5,24 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import Image from "next/image";
+import VerifyResendForm from "@/components/auth/VerifyResendForm";
 
 function VerifyEmailInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
 
-  const [state, setState] = useState<"loading" | "success" | "expired" | "error">("loading");
-  const [errorMsg, setErrorMsg] = useState("Verification failed.");
+  // Derive the initial state from the token so the effect never has to
+  // setState synchronously (react-hooks/set-state-in-effect).
+  const [state, setState] = useState<"loading" | "success" | "expired" | "error">(() =>
+    token ? "loading" : "error"
+  );
+  const [errorMsg, setErrorMsg] = useState(
+    token ? "Verification failed." : "No verification token provided."
+  );
 
   useEffect(() => {
-    if (!token) {
-      setState("error");
-      setErrorMsg("No verification token provided.");
-      return;
-    }
+    if (!token) return;
 
     (async () => {
       try {
@@ -102,13 +105,15 @@ function VerifyEmailInner() {
                 <XCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
               </div>
               <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-2">Link expired</h2>
-              <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
-                This verification link has expired.{" "}
+              <p className="text-sm text-[var(--color-muted-foreground)]">
+                This verification link has expired. Request a new one below,
+                or{" "}
                 <Link href="/auth/login" className="text-[var(--color-primary)] font-medium hover:underline">
-                  Return to sign in to request a new one
+                  return to sign in
                 </Link>
                 .
               </p>
+              <VerifyResendForm />
             </>
           )}
 
@@ -118,10 +123,14 @@ function VerifyEmailInner() {
                 <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
               </div>
               <h2 className="text-xl font-bold text-[var(--color-foreground)] mb-2">Verification failed</h2>
-              <p className="text-sm text-[var(--color-muted-foreground)] mb-6">{errorMsg}</p>
+              <p className="text-sm text-[var(--color-muted-foreground)]">{errorMsg}</p>
+              <p className="text-sm text-[var(--color-muted-foreground)] mt-2">
+                If the link never arrived or was lost, send yourself a new one:
+              </p>
+              <VerifyResendForm />
               <Link
                 href="/auth/login"
-                className="inline-flex items-center justify-center h-10 px-6 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                className="mt-4 inline-flex items-center justify-center h-10 px-6 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Return to Sign In
               </Link>
