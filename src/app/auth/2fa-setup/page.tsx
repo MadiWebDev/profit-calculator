@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, Shield, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
+import { resolvePostLoginRedirect } from "@/lib/post-login-redirect";
 
 /**
  * Team-enforced 2FA enrolment. Reached from the dashboard layout redirect
@@ -18,8 +19,10 @@ import Image from "next/image";
  * authenticator app accepts pasting the secret shown here.
  */
 export default function TwoFactorSetupPage() {
-  const { status, update } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
+  // Landing page from the server-issued session role (superAdmin → /admin).
+  const destination = resolvePostLoginRedirect({ role: session?.user?.role });
   const [secret, setSecret] = useState<string | null>(null);
   const [otpauthUrl, setOtpauthUrl] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -37,7 +40,7 @@ export default function TwoFactorSetupPage() {
         const j = await res.json();
         if (j.error === "Two-factor is already enabled") {
           await update({ user: { twoFactorPending: false, twoFactorSetupRequired: false } });
-          router.push("/dashboard");
+          router.push(destination);
           return;
         }
         if (!res.ok) throw new Error(j.error ?? "Setup failed");
@@ -49,7 +52,7 @@ export default function TwoFactorSetupPage() {
         setLoading(false);
       }
     })();
-  }, [status, router, update]);
+  }, [status, router, update, destination]);
 
   const submit = async () => {
     setError(null);
@@ -73,7 +76,7 @@ export default function TwoFactorSetupPage() {
 
   const finish = async () => {
     await update({ user: { twoFactorPending: false, twoFactorSetupRequired: false } });
-    router.push("/dashboard");
+    router.push(destination);
   };
 
   /* ── Loading states ── */
@@ -155,7 +158,7 @@ export default function TwoFactorSetupPage() {
               onClick={finish}
               className="w-full h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Continue to dashboard
+              {session?.user?.role === "superAdmin" ? "Continue to admin panel" : "Continue to dashboard"}
             </button>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, ShieldCheck } from "lucide-react";
 import Image from "next/image";
+import { resolvePostLoginRedirect } from "@/lib/post-login-redirect";
 
 /**
  * 2FA login step (S1.1). Reached after a password login when the user
@@ -14,8 +15,10 @@ import Image from "next/image";
  * session.update() to clear the flag. API routes reject pending sessions.
  */
 export default function TwoFactorVerifyPage() {
-  const { update, status } = useSession();
+  const { data: session, update, status } = useSession();
   const router = useRouter();
+  // Landing page from the server-issued session role (superAdmin → /admin).
+  const destination = resolvePostLoginRedirect({ role: session?.user?.role });
   const [code, setCode] = useState("");
   const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,13 +40,13 @@ export default function TwoFactorVerifyPage() {
         const j = await res.json();
         if (j.trusted) {
           await update({ user: { twoFactorPending: false } });
-          router.push("/dashboard");
+          router.push(destination);
           return;
         }
       } catch { /* fall through to code entry */ }
       setChecking(false);
     })();
-  }, [update, router, status]);
+  }, [update, router, status, destination]);
 
   const submit = async () => {
     setError(null);
@@ -59,7 +62,7 @@ export default function TwoFactorVerifyPage() {
         return;
       }
       await update({ user: { twoFactorPending: false } });
-      router.push("/dashboard");
+      router.push(destination);
     } finally {
       setSubmitting(false);
     }

@@ -1,17 +1,34 @@
 "use client";
 
 import { useState, useRef, useEffect, Suspense } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
+import { resolvePostLoginRedirect } from "@/lib/post-login-redirect";
 
 function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+  const { data: session, status } = useSession();
+  const explicitCallbackUrl = searchParams.get("callbackUrl");
+  const hasExplicitCallbackUrl = explicitCallbackUrl !== null;
+
+  /* Already signed in (e.g. a superAdmin who revisits /auth/login):
+     send them straight to their landing page instead of showing the form. */
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace(
+        resolvePostLoginRedirect({
+          role: session?.user?.role,
+          callbackUrl: explicitCallbackUrl,
+          hasExplicitCallbackUrl,
+        })
+      );
+    }
+  }, [status, session, router, explicitCallbackUrl, hasExplicitCallbackUrl]);
   const justRegistered = searchParams.get("registered") === "1";
 
   const [showPass, setShowPass] = useState(false);
@@ -50,7 +67,15 @@ function LoginInner() {
         toast.error("Invalid email or password."); return;
       }
       toast.success("Welcome back!");
-      router.push(callbackUrl);
+      // Role comes from the fresh server-issued session, never from the client.
+      const freshSession = await getSession();
+      router.push(
+        resolvePostLoginRedirect({
+          role: freshSession?.user?.role,
+          callbackUrl: explicitCallbackUrl,
+          hasExplicitCallbackUrl,
+        })
+      );
       router.refresh();
     } catch { toast.error("Something went wrong. Try again."); }
     finally { setLoading(false); }
