@@ -46,7 +46,7 @@ export async function GET(req: Request) {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select("name email role plan onboardingCompleted createdAt trialEndsAt teamId")
+      .select("name email role plan onboardingCompleted createdAt trialEndsAt teamId phone")
       .lean(),
     UserModel.countDocuments(filter),
   ]);
@@ -71,6 +71,9 @@ export async function GET(req: Request) {
       trialEndsAt:          u.trialEndsAt ?? null,
       teamPlan:             team?.plan ?? null,
       hasSubscription:      !!team?.subscriptionId,
+      // Phone presence only — the raw number is never needed by the
+      // admin directory (WhatsApp readiness badge + picker warning).
+      hasPhone:             !!(u.phone ?? "").trim(),
     };
   });
 

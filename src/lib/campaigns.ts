@@ -13,11 +13,18 @@ import { renderTemplate, type TemplateVars } from "@/lib/whatsapp";
 import type {
   CampaignAudienceType,
   CampaignChannel,
+  CampaignRecipientStatus,
   CampaignTemplateType,
 } from "@/models/Campaign";
 
 /** Hard cap on recipients per send — a send can never run unbounded. */
 export const CAMPAIGN_AUDIENCE_CAP = 500;
+
+/** Default size of a "limited" audience when the admin omits the limit. */
+export const CAMPAIGN_AUDIENCE_LIMIT_DEFAULT = 25;
+
+/** Hard cap on a "limited" audience — same bound as the per-send cap. */
+export const CAMPAIGN_AUDIENCE_LIMIT_MAX = 500;
 
 export const CAMPAIGN_TEMPLATE_TYPES: {
   value: CampaignTemplateType;
@@ -125,7 +132,89 @@ export interface CampaignAudienceInput {
   audienceType: CampaignAudienceType;
   audiencePlan?: "free" | "starter" | "growth" | "pro";
   audienceTeamId?: string;
+  /** "users" only: the specific user ids targeted (de-duplicated by the filter). */
+  audienceUserIds?: string[];
+  /** "limited" only: the batch size — applied as a query limit, not a filter. */
+  audienceLimit?: number;
   channel: CampaignChannel;
+}
+
+/**
+ * De-duplicate a list of user ObjectId strings, keeping the first
+ * occurrence order. Assumes every entry already passed ObjectId
+ * validation (zod `objectIdString` at the route layer).
+ */
+export function dedupeObjectIdStrings(ids: string[]): string[] {
+  return [...new Set(ids)];
+}
+
+/**
+ * Resolve the effective "limited" audience size: the admin-picked
+ * limit, defaulting to CAMPAIGN_AUDIENCE_LIMIT_DEFAULT when omitted,
+ * clamped into 1..CAMPAIGN_AUDIENCE_LIMIT_MAX. The clamp is the
+ * server-side enforcement — a limit above the cap is silently reduced
+ * to the cap, never rejected (the create-time zod schema already
+ * rejects out-of-range values, but a stored value is re-clamped at
+ * send time so it can never grow past the cap).
+ */
+export function resolveAudienceLimit(limit?: number | null): number {
+  const n = limit ?? CAMPAIGN_AUDIENCE_LIMIT_DEFAULT;
+  if (!Number.isFinite(n)) return CAMPAIGN_AUDIENCE_LIMIT_DEFAULT;
+  return Math.min(CAMPAIGN_AUDIENCE_LIMIT_MAX, Math.max(1, Math.floor(n)));
+}
+
+/**
+ * Which of the user ids stored on a campaign at create time are no
+ * longer present in the users fetched at send time — i.e. users deleted
+ * between create and send. The send route records each of these as a
+ * skipped recipient with an error, never silently drops them.
+ */
+export function findMissingUserIds(storedIds: string[], foundIds: string[]): string[] {
+  const found = new Set(foundIds);
+  return dedupeObjectIdStrings(storedIds).filter((id) => !found.has(id));
+}
+
+/**
+ * Re-order fetched users to match the order of the ids stored on the
+ * campaign, so a "users" send goes out in the admin's chosen order.
+ * Users not in the stored list (should not happen) keep their place
+ * at the end, in their original order.
+ */
+export function orderUsersByStoredIds<T extends { _id: { toString(): string } }>(
+  users: T[],
+  storedIds: string[]
+): T[] {
+  const order = new Map(dedupeObjectIdStrings(storedIds).map((id, i) => [id, i]));
+  return [...users].sort((a, b) => {
+    const ai = order.get(a._id.toString());
+    const bi = order.get(b._id.toString());
+    if (ai === undefined && bi === undefined) return 0;
+    if (ai === undefined) return 1;
+    if (bi === undefined) return -1;
+    return ai - bi;
+  });
+}
+
+/**
+ * Create-time audience estimate from the two counts the route queries:
+ * how many users match the audience, and how many of them have a usable
+ * contact for the channel. The "without contact" users are the ones the
+ * send route will record as skipped.
+ */
+export function computeAudienceEstimate(matched: number, withContact: number): {
+  matched: number;
+  withContact: number;
+  withoutContact: number;
+  willSend: number;
+  capped: number;
+} {
+  return {
+    matched,
+    withContact,
+    withoutContact: matched - withContact,
+    willSend: Math.min(withContact, CAMPAIGN_AUDIENCE_CAP),
+    capped: Math.max(0, withContact - CAMPAIGN_AUDIENCE_CAP),
+  };
 }
 
 /**
@@ -133,6 +222,9 @@ export interface CampaignAudienceInput {
  * - all: every user.
  * - plan: users on that plan.
  * - team: users on that team.
+ * - users: exactly the listed users (de-duplicated, as ObjectIds).
+ * - limited: every user — the batch size is a query limit (oldest
+ *   first), not a filter, so this filter is empty.
  * - WhatsApp additionally requires a phone number on file; users without
  *   one are excluded here and never counted as "targeted" — the skipped
  *   count is reported separately by the send route (matched users with
@@ -149,6 +241,13 @@ export function buildAudienceFilter(
   }
   if (input.audienceType === "team" && input.audienceTeamId) {
     filter.teamId = new mongoose.Types.ObjectId(input.audienceTeamId);
+  }
+  if (input.audienceType === "users" && input.audienceUserIds?.length) {
+    filter._id = {
+      $in: dedupeObjectIdStrings(input.audienceUserIds).map(
+        (id) => new mongoose.Types.ObjectId(id)
+      ),
+    };
   }
   if (input.channel === "whatsapp") {
     filter.phone = { $exists: true, $ne: "" };
@@ -169,4 +268,36 @@ export function capAudience<T>(recipients: T[]): { send: T[]; capped: number } {
     send: recipients.slice(0, CAMPAIGN_AUDIENCE_CAP),
     capped: recipients.length - CAMPAIGN_AUDIENCE_CAP,
   };
+}
+
+/**
+ * One row of the "last message per user" lookup: the most recent
+ * campaign a user was a recipient of, with that recipient's outcome.
+ * Produced by the aggregation in GET /api/admin/campaigns/last-message
+ * (one query for a page of users — never one fetch per user).
+ */
+export interface LastMessageRow {
+  userId: string;
+  campaignId: string;
+  campaignName: string;
+  channel: CampaignChannel;
+  status: CampaignRecipientStatus;
+  /** ISO date the message went out (campaign sentAt, falling back to the recipient's sentAt). */
+  sentAt: string | null;
+}
+
+/**
+ * Build the per-user latest-message map from aggregation rows. Rows
+ * are expected newest-first per user; the first row seen for a user
+ * wins, later rows for the same user are ignored. Rows with a missing
+ * userId are dropped — a recipient row always carries one, so a
+ * missing id means a malformed row, not a user with no message.
+ */
+export function buildLastMessageMap(rows: LastMessageRow[]): Record<string, LastMessageRow> {
+  const map: Record<string, LastMessageRow> = {};
+  for (const row of rows) {
+    if (!row.userId) continue;
+    if (!(row.userId in map)) map[row.userId] = row;
+  }
+  return map;
 }

@@ -11,6 +11,11 @@
  *   stays a draft.
  * - Audience is capped at CAMPAIGN_AUDIENCE_CAP (500) recipients per
  *   send, oldest users first; the overflow is reported, never sent.
+ *   "limited" audiences target the N oldest users (N picked by the
+ *   admin, 1–500, default 25); "users" audiences target exactly the
+ *   users stored at create time — a user deleted between create and
+ *   send is recorded as a skipped recipient with an error, never
+ *   silently dropped.
  * - WhatsApp recipients without a phone number, or with a number that is
  *   not valid E.164, are recorded as "skipped" with the reason — never
  *   treated as failures, never retried silently.
@@ -34,7 +39,10 @@ import { logger, toLogError } from "@/lib/logger";
 import {
   buildAudienceFilter,
   CAMPAIGN_AUDIENCE_CAP,
+  findMissingUserIds,
+  orderUsersByStoredIds,
   renderCampaignEmailHtml,
+  resolveAudienceLimit,
   resolveCampaignSubject,
 } from "@/lib/campaigns";
 import {
@@ -95,27 +103,73 @@ export async function POST(
     // Audience: same base filter as the create-time estimate (no phone
     // condition), oldest first, capped. Skips are decided per recipient
     // below so the admin sees the honest skipped count.
+    //
+    // - "limited": the audience is the N oldest users — the batch size
+    //   is the query limit (clamped server-side), not a filter, so
+    //   there is no cap overflow to report.
+    // - "users": re-fetch the stored ids from the DB. A user deleted
+    //   between create and send is recorded as a skipped recipient
+    //   with an error, never silently dropped; the rest go out in the
+    //   admin's stored order.
+    const isLimited = campaign.audienceType === "limited";
+    const isUsers = campaign.audienceType === "users";
     const baseFilter = buildAudienceFilter({
       audienceType: campaign.audienceType,
       audiencePlan: campaign.audiencePlan,
       audienceTeamId: campaign.audienceTeamId?.toString(),
+      audienceUserIds: (campaign.audienceUserIds ?? []).map((id: mongoose.Types.ObjectId) => id.toString()),
       channel: "email",
     });
-    const totalMatched = await UserModel.countDocuments(baseFilter);
-    const users = await UserModel.find(baseFilter)
-      .sort({ createdAt: 1 })
-      .limit(CAMPAIGN_AUDIENCE_CAP)
-      .select("name email phone")
-      .lean();
-    const overflow = totalMatched > CAMPAIGN_AUDIENCE_CAP ? totalMatched - CAMPAIGN_AUDIENCE_CAP : 0;
+
+    let users;
+    let overflow = 0;
+    let missingRecipients: ICampaignRecipient[] = [];
+    if (isLimited) {
+      const limit = resolveAudienceLimit(campaign.audienceLimit);
+      users = await UserModel.find(baseFilter)
+        .sort({ createdAt: 1 })
+        .limit(limit)
+        .select("name email phone")
+        .lean();
+    } else {
+      const totalMatched = await UserModel.countDocuments(baseFilter);
+      users = await UserModel.find(baseFilter)
+        .sort({ createdAt: 1 })
+        .limit(CAMPAIGN_AUDIENCE_CAP)
+        .select("name email phone")
+        .lean();
+      overflow = totalMatched > CAMPAIGN_AUDIENCE_CAP ? totalMatched - CAMPAIGN_AUDIENCE_CAP : 0;
+      if (isUsers) {
+        const storedIds = (campaign.audienceUserIds ?? []).map((id: mongoose.Types.ObjectId) =>
+          id.toString()
+        );
+        users = orderUsersByStoredIds(users, storedIds);
+        missingRecipients = findMissingUserIds(
+          storedIds,
+          users.map((u) => u._id.toString())
+        ).map((id) => ({
+          userId: new mongoose.Types.ObjectId(id),
+          identifier: id,
+          status: "skipped" as const,
+          error: "User no longer exists",
+        }));
+      }
+    }
 
     const subject =
       campaign.channel === "email"
         ? resolveCampaignSubject(campaign.templateType, campaign.subject)
         : undefined;
 
-    const recipients: ICampaignRecipient[] = [];
-    const counts = { targeted: users.length, sent: 0, failed: 0, skipped: 0 };
+    // Deleted users (users audience only) are already recorded as
+    // skipped before the first message goes out.
+    const recipients: ICampaignRecipient[] = [...missingRecipients];
+    const counts = {
+      targeted: users.length + missingRecipients.length,
+      sent: 0,
+      failed: 0,
+      skipped: missingRecipients.length,
+    };
 
     for (let i = 0; i < users.length; i += SEND_BATCH_SIZE) {
       const batch = users.slice(i, i + SEND_BATCH_SIZE);
