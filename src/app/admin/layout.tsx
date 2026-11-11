@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
-import { Calculator, Users, LogOut, LayoutDashboard, FileText, Mail } from "lucide-react";
+import { Calculator, Users, LogOut, LayoutDashboard, FileText, Megaphone, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -36,10 +36,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           {[
-            { href: "/admin",       label: "Overview",  icon: LayoutDashboard, exact: true },
-            { href: "/admin/users", label: "Users",     icon: Users },
-            { href: "/admin/messages", label: "Messages", icon: Mail },
-            { href: "/admin/blogs", label: "Blogs",     icon: FileText },
+            { href: "/admin",           label: "Overview",  icon: LayoutDashboard, exact: true },
+            { href: "/admin/users",     label: "Users",     icon: Users },
+            { href: "/admin/campaigns", label: "Campaigns", icon: Megaphone },
+            { href: "/admin/messages",  label: "Messages",  icon: Mail },
+            { href: "/admin/blogs",     label: "Blogs",     icon: FileText },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={href}

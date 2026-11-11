@@ -31,6 +31,8 @@ export type AuditAction =
   | "api_key.revoked"
   | "webhook.created"
   | "webhook.deleted"
+  | "campaign.created"
+  | "campaign.sent"
   | "support.replied"
   | "support.status_changed";
 
