@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import { RFM_SEGMENTS, type RfmCustomer, type RfmSegment, type RfmSegments } from "@/lib/rfm";
 
 type CustomerRow = Omit<RfmCustomer, "firstOrderDate" | "lastOrderDate"> & {
@@ -28,6 +28,7 @@ export function CustomersClient({
   customers: CustomerRow[];
   segments: RfmSegments;
 }) {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [filter, setFilter] = useState<RfmSegment | "all">("all");
   const visible =
     filter === "all" ? customers : customers.filter((c) => c.segment === filter);
@@ -67,8 +68,8 @@ export function CustomersClient({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm text-muted-foreground space-y-0.5">
-                  <p>Revenue: {formatCurrency(s.totalRevenue)}</p>
-                  <p>Profit: {formatCurrency(s.totalProfit)}</p>
+                  <p>Revenue: {formatMoney(s.totalRevenue, baseCurrency)}</p>
+                  <p>Profit: {formatMoney(s.totalProfit, baseCurrency)}</p>
                   <p>Avg recency: {s.avgRecencyDays.toFixed(0)} days</p>
                 </CardContent>
               </Card>
@@ -109,8 +110,8 @@ export function CustomersClient({
                       <Badge variant="secondary">{SEGMENT_LABELS[c.segment]}</Badge>
                     </td>
                     <td className="py-2 pr-3 text-right">{c.orders}</td>
-                    <td className="py-2 pr-3 text-right">{formatCurrency(c.totalRevenue)}</td>
-                    <td className="py-2 pr-3 text-right">{formatCurrency(c.totalProfit)}</td>
+                    <td className="py-2 pr-3 text-right">{formatMoney(c.totalRevenue, baseCurrency)}</td>
+                    <td className="py-2 pr-3 text-right">{formatMoney(c.totalProfit, baseCurrency)}</td>
                     <td className="py-2 pr-3 text-right">{c.recencyDays}d</td>
                     <td className="py-2 pr-3 text-right">
                       {c.scoreR} / {c.scoreF} / {c.scoreM}

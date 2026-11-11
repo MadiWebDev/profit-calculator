@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { formatPercent, cn } from "@/lib/utils";
 import { useRole } from "@/components/dashboard/RoleContext";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
@@ -19,6 +19,7 @@ import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface ProductRow {
   id: string;
+  currency?: string;
   name: string;
   sku?: string;
   defaultCogs: number;
@@ -263,7 +264,7 @@ function DeleteProductModal({ product, onClose, onDeleted }: DeleteProductModalP
 
 export function ProductsClient({ products: initialProducts }: { products: ProductRow[] }) {
   const { canEditCogs, canWrite } = useRole();
-  const { currency } = useCurrency();
+  const { formatMoney, baseCurrency } = useCurrency();
   const router = useRouter();
   const [, startTransition] = useTransition();
 
@@ -481,7 +482,7 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                             className="flex items-center gap-1.5 text-[var(--color-foreground)] hover:text-[var(--color-primary)] group/cogs"
                             title="Click to edit COGS"
                           >
-                            <span>{formatCurrency(p.defaultCogs, currency)}</span>
+                            <span>{formatMoney(p.defaultCogs, p.currency ?? baseCurrency)}</span>
                             <Edit2 className="h-3 w-3 opacity-0 group-hover/cogs:opacity-60 transition-opacity" />
                           </button>
                         )
@@ -490,7 +491,7 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                           className="inline-flex items-center gap-1.5 text-[var(--color-foreground)] cursor-not-allowed"
                           title="Read-only"
                         >
-                          {formatCurrency(p.defaultCogs, currency)}
+                          {formatMoney(p.defaultCogs, p.currency ?? baseCurrency)}
                           <Lock className="h-3 w-3 text-[var(--color-muted-foreground)] opacity-40" />
                         </span>
                       )}
@@ -498,7 +499,7 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
 
                     {/* Revenue */}
                     <td className="px-4 py-3 text-[var(--color-foreground)]">
-                      {formatCurrency(p.totalRevenue, currency)}
+                      {formatMoney(p.totalRevenue, baseCurrency)}
                     </td>
 
                     {/* Net Profit */}
@@ -508,7 +509,7 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                         p.totalProfit >= 0 ? "text-[var(--color-primary)]" : "text-red-500"
                       )}
                     >
-                      {formatCurrency(p.totalProfit, currency)}
+                      {formatMoney(p.totalProfit, baseCurrency)}
                     </td>
 
                     {/* Margin */}
@@ -550,10 +551,7 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
             <span>
               Total revenue:{" "}
               <span className="font-medium text-[var(--color-foreground)]">
-                {formatCurrency(
-                  filtered.reduce((s, p) => s + p.totalRevenue, 0),
-                  currency
-                )}
+                {formatMoney(filtered.reduce((s, p) => s + p.totalRevenue, 0), baseCurrency)}
               </span>
               {" · "}
               Total profit:{" "}
@@ -565,10 +563,7 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                     : "text-red-500"
                 )}
               >
-                {formatCurrency(
-                  filtered.reduce((s, p) => s + p.totalProfit, 0),
-                  currency
-                )}
+                {formatMoney(filtered.reduce((s, p) => s + p.totalProfit, 0), baseCurrency)}
               </span>
             </span>
           </div>

@@ -16,7 +16,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatPercent, cn } from "@/lib/utils";
+import { formatPercent, cn } from "@/lib/utils";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -126,11 +126,11 @@ function exportCsv(topCustomers: CustomerRow[]) {
 // Partial: recharts injects active/payload/label at render time when the
 // tooltip is passed as an element (<Tooltip content={<ChartTip .../>} />).
 interface ChartTipProps extends Partial<TooltipContentProps> {
-  currency: string;
   isMonth?: boolean;
 }
 
-function ChartTip({ active, payload, label, currency, isMonth = false }: ChartTipProps) {
+function ChartTip({ active, payload, label, isMonth = false }: ChartTipProps) {
+  const { formatMoney, baseCurrency } = useCurrency();
   if (!active || !payload?.length) return null;
   const title = isMonth && label ? fmtMonth(label) : (label ?? "");
   return (
@@ -142,7 +142,7 @@ function ChartTip({ active, payload, label, currency, isMonth = false }: ChartTi
           typeof v === "number"
             ? p.name === "Repeat Rate"
               ? `${v.toFixed(1)}%`
-              : formatCurrency(v, currency)
+              : formatMoney(v, baseCurrency)
             : p.name === "Repeat Rate"
               ? `${Number(v ?? 0).toFixed(1)}%`
               : String(v ?? "");
@@ -166,7 +166,7 @@ function ChartTip({ active, payload, label, currency, isMonth = false }: ChartTi
 
 export function LtvClient({ data }: { data: LtvData }) {
   const { cohorts, topCustomers, trend, frequency, summary } = data;
-  const { currency } = useCurrency();
+  const { formatMoney, baseCurrency } = useCurrency();
   const hasCohorts  = cohorts.length > 0;
   const hasCustomers = topCustomers.length > 0;
 
@@ -252,7 +252,7 @@ export function LtvClient({ data }: { data: LtvData }) {
         />
         <StatCard
           label="Avg Profit LTV"
-          value={formatCurrency(summary.avgLtv, currency)}
+          value={formatMoney(summary.avgLtv, baseCurrency)}
           icon={TrendingUp}
           highlight
         />
@@ -273,7 +273,7 @@ export function LtvClient({ data }: { data: LtvData }) {
         {[
           {
             label: "Avg Revenue LTV",
-            value: formatCurrency(summary.avgRevLtv, currency),
+            value: formatMoney(summary.avgRevLtv, baseCurrency),
             icon: BarChart3,
             color: "text-blue-500",
             bg:    "bg-blue-50 dark:bg-blue-950/50",
@@ -338,7 +338,7 @@ export function LtvClient({ data }: { data: LtvData }) {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                 <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} tickLine={false} axisLine={false} width={44} />
-                <Tooltip content={(props) => <ChartTip {...props} currency={currency} isMonth />} />
+                <Tooltip content={(props) => <ChartTip {...props} isMonth />} />
                 <Legend formatter={(v) => <span style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{v}</span>} />
                 <Area type="monotone" name="Revenue"    dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fill="url(#gRevLtv)"  dot={false} />
                 <Area type="monotone" name="Net Profit" dataKey="profit"  stroke="#22c55e" strokeWidth={2} fill="url(#gProfLtv)" dot={false} />
@@ -383,7 +383,7 @@ export function LtvClient({ data }: { data: LtvData }) {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                     <XAxis dataKey="cohort" tickFormatter={fmtMonth} tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} tickLine={false} axisLine={false} width={40} />
-                    <Tooltip content={(props) => <ChartTip {...props} currency={currency} isMonth />} />
+                    <Tooltip content={(props) => <ChartTip {...props} isMonth />} />
                     <Bar dataKey="avgLtv" name="Avg Profit LTV" radius={[3, 3, 0, 0]} maxBarSize={28}>
                       {cohorts.map((c, i) => (
                         <Cell key={i} fill={`hsl(${142 - (c.avgLtv / maxLtv) * 60}, 65%, 50%)`} />
@@ -404,7 +404,7 @@ export function LtvClient({ data }: { data: LtvData }) {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                     <XAxis dataKey="cohort" tickFormatter={fmtMonth} tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v.toFixed(0)}%`} domain={[0, 100]} tickLine={false} axisLine={false} width={36} />
-                    <Tooltip content={(props) => <ChartTip {...props} currency={currency} isMonth />} />
+                    <Tooltip content={(props) => <ChartTip {...props} isMonth />} />
                     <Line type="monotone" name="Repeat Rate" dataKey="repeatRate" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3, fill: "#3b82f6" }} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -437,9 +437,9 @@ export function LtvClient({ data }: { data: LtvData }) {
                           {fmtMonth(c.cohort)}
                         </td>
                         <td className="px-4 py-3 text-[var(--color-muted-foreground)]">{c.customers}</td>
-                        <td className="px-4 py-3 tabular-nums">{formatCurrency(c.revenue, currency)}</td>
+                        <td className="px-4 py-3 tabular-nums">{formatMoney(c.revenue, baseCurrency)}</td>
                         <td className={cn("px-4 py-3 font-semibold tabular-nums", c.profit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                          {formatCurrency(c.profit, currency)}
+                          {formatMoney(c.profit, baseCurrency)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -447,10 +447,10 @@ export function LtvClient({ data }: { data: LtvData }) {
                               <div className="h-full bg-[var(--color-primary)] rounded-full transition-all"
                                 style={{ width: `${Math.min(100, (c.avgLtv / maxLtv) * 100)}%` }} />
                             </div>
-                            <span className="tabular-nums whitespace-nowrap">{formatCurrency(c.avgLtv, currency)}</span>
+                            <span className="tabular-nums whitespace-nowrap">{formatMoney(c.avgLtv, baseCurrency)}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 tabular-nums">{formatCurrency(c.avgRevPerCustomer, currency)}</td>
+                        <td className="px-4 py-3 tabular-nums">{formatMoney(c.avgRevPerCustomer, baseCurrency)}</td>
                         <td className="px-4 py-3 tabular-nums text-[var(--color-muted-foreground)]">{c.avgOrdersPerCustomer.toFixed(1)}</td>
                         <td className="px-4 py-3">
                           <span className={cn("font-semibold",
@@ -532,14 +532,14 @@ export function LtvClient({ data }: { data: LtvData }) {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-[var(--color-muted-foreground)] tabular-nums">{c.orderCount}</td>
-                        <td className="px-4 py-3 tabular-nums">{formatCurrency(c.totalRevenue, currency)}</td>
+                        <td className="px-4 py-3 tabular-nums">{formatMoney(c.totalRevenue, baseCurrency)}</td>
                         <td className={cn("px-4 py-3 font-bold tabular-nums", c.totalProfit >= 0 ? "text-[var(--color-primary)]" : "text-red-500")}>
-                          {formatCurrency(c.totalProfit, currency)}
+                          {formatMoney(c.totalProfit, baseCurrency)}
                         </td>
                         <td className="px-4 py-3 tabular-nums text-[var(--color-muted-foreground)]">
-                          {c.estimatedAnnualLtv > 0 ? formatCurrency(c.estimatedAnnualLtv, currency) : "—"}
+                          {c.estimatedAnnualLtv > 0 ? formatMoney(c.estimatedAnnualLtv, baseCurrency) : "—"}
                         </td>
-                        <td className="px-4 py-3 tabular-nums">{formatCurrency(c.avgOrderValue, currency)}</td>
+                        <td className="px-4 py-3 tabular-nums">{formatMoney(c.avgOrderValue, baseCurrency)}</td>
                         <td className="px-4 py-3 text-[var(--color-muted-foreground)] whitespace-nowrap">{fmtDate(c.firstOrderDate)}</td>
                         <td className="px-4 py-3 tabular-nums">
                           <span className={cn("font-medium",

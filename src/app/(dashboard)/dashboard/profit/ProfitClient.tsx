@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Metrics {
   revenue: number; netProfit: number; netMargin: number; orderCount: number;
@@ -36,6 +36,7 @@ function deltaBadge(v: number | undefined): React.ReactNode {
 }
 
 export function ProfitClient() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10));
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [data, setData] = useState<ProfitData | null>(null);
@@ -118,18 +119,18 @@ export function ProfitClient() {
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {([
-              ["Revenue", formatCurrency(m.revenue), data.deltas.revenue],
-              ["Net profit", formatCurrency(m.netProfit), data.deltas.netProfit],
+              ["Revenue", formatMoney(m.revenue, baseCurrency), data.deltas.revenue],
+              ["Net profit", formatMoney(m.netProfit, baseCurrency), data.deltas.netProfit],
               ["Margin", `${m.netMargin}%`, undefined],
               ["Orders", String(m.orderCount), data.deltas.orderCount],
-              ["AOV", formatCurrency(m.aov), data.deltas.aov],
+              ["AOV", formatMoney(m.aov, baseCurrency), data.deltas.aov],
               ["ROAS", `${m.roas}x`, undefined],
               ["Break-even ROAS", `${m.breakEvenRoas}x`, undefined],
-              ["CAC", formatCurrency(m.cac), undefined],
-              ["LTV (profit)", formatCurrency(m.ltv), undefined],
+              ["CAC", formatMoney(m.cac, baseCurrency), undefined],
+              ["LTV (profit)", formatMoney(m.ltv, baseCurrency), undefined],
               ["Return rate", `${m.returnRate}%`, undefined],
               ["RTO rate", `${m.rtoRate}%`, undefined],
-              ["COD cash pending", formatCurrency(m.cashPending), undefined],
+              ["COD cash pending", formatMoney(m.cashPending, baseCurrency), undefined],
             ] as const).map(([label, value, delta]) => (
               <Card key={label}>
                 <CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">{label}</CardTitle></CardHeader>
@@ -150,7 +151,7 @@ export function ProfitClient() {
                   {data.winners.map((p) => (
                     <li key={p.productId} className="flex justify-between gap-2">
                       <span className="truncate">{p.name} <span className="text-[var(--color-muted-foreground)]">×{p.units}</span></span>
-                      <span className="tabular-nums font-semibold">{formatCurrency(p.grossProfit)} ({p.margin}%)</span>
+                      <span className="tabular-nums font-semibold">{formatMoney(p.grossProfit, baseCurrency)} ({p.margin}%)</span>
                     </li>
                   ))}
                 </ul>
@@ -164,7 +165,7 @@ export function ProfitClient() {
                   {data.losers.map((p) => (
                     <li key={p.productId} className="flex justify-between gap-2">
                       <span className="truncate">{p.name} <span className="text-[var(--color-muted-foreground)]">×{p.units}</span></span>
-                      <span className="tabular-nums font-semibold">{formatCurrency(p.grossProfit)} ({p.margin}%)</span>
+                      <span className="tabular-nums font-semibold">{formatMoney(p.grossProfit, baseCurrency)} ({p.margin}%)</span>
                     </li>
                   ))}
                 </ul>
@@ -173,7 +174,7 @@ export function ProfitClient() {
           </div>
 
           <p className="text-xs text-[var(--color-muted-foreground)]">
-            COD cash collected this period: {formatCurrency(m.cashCollected)} · MER: {m.mer}x ·
+            COD cash collected this period: {formatMoney(m.cashCollected, baseCurrency)} · MER: {m.mer}x ·
             Profit figures exclude cancelled orders. Taxes are pass-through and never count as profit.
           </p>
         </>

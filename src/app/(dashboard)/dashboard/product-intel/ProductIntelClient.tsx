@@ -4,13 +4,10 @@ import { useState } from "react";
 import { PackageSearch, TrendingUp, TrendingDown, Sparkles, Skull } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatPercent } from "@/lib/utils";
+import { formatPercent } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import type { ProductIntelRow } from "@/lib/product-intel-server";
 import type { ProductMover } from "@/lib/product-intel";
-
-function money(n: number) {
-  return formatCurrency(n);
-}
 
 export function ProductIntelClient({
   products,
@@ -19,6 +16,9 @@ export function ProductIntelClient({
   products: ProductIntelRow[];
   movers: ProductMover[];
 }) {
+  const { formatMoney, baseCurrency } = useCurrency();
+  // Product-intel aggregates arrive in the report base currency.
+  const money = (n: number) => formatMoney(n, baseCurrency);
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? products : products.slice(0, 20);
 

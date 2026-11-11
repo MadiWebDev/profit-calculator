@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface CourierRow {
   courier: string; total: number; deliverySuccessRate: number; rtoRate: number;
@@ -21,6 +21,7 @@ interface Recommend {
 }
 
 export function CouriersClient() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [byCourier, setByCourier] = useState<CourierRow[]>([]);
   const [byCity, setByCity] = useState<CityRow[]>([]);
   const [couriers, setCouriers] = useState<{ id: string; name: string; hasApiKey: boolean }[]>([]);
@@ -135,7 +136,7 @@ export function CouriersClient() {
                 <>
                   <p>Route via <strong>{recommend.recommendation.courier}</strong> (score {recommend.recommendation.score}, confidence {recommend.recommendation.confidence}, {recommend.recommendation.sample} shipments).</p>
                   {recommend.switchingProfitImpact.eligible && (
-                    <p>Switching saves about {formatCurrency(recommend.switchingProfitImpact.extraProfitPerShipment)} per shipment ({formatCurrency(recommend.switchingProfitImpact.extraProfitPer100Shipments)} per 100).</p>
+                    <p>Switching saves about {formatMoney(recommend.switchingProfitImpact.extraProfitPerShipment, baseCurrency)} per shipment ({formatMoney(recommend.switchingProfitImpact.extraProfitPer100Shipments, baseCurrency)} per 100).</p>
                   )}
                 </>
               ) : (
@@ -171,7 +172,7 @@ export function CouriersClient() {
                       <td className="px-4 py-2.5">{c.rtoRate}%</td>
                       <td className="px-4 py-2.5">{c.avgDeliveryDays}</td>
                       <td className="px-4 py-2.5">{c.firstAttemptSuccessRate}%</td>
-                      <td className="px-4 py-2.5">{formatCurrency(c.costPerShipment)}</td>
+                      <td className="px-4 py-2.5">{formatMoney(c.costPerShipment, baseCurrency)}</td>
                       <td className="px-4 py-2.5">{c.avgCodSettlementDays}</td>
                     </tr>
                   ))}
@@ -202,7 +203,7 @@ export function CouriersClient() {
                       <td className="px-4 py-2.5">{c.deliverySuccessRate}%</td>
                       <td className="px-4 py-2.5">{c.rtoRate}%</td>
                       <td className="px-4 py-2.5">{c.avgDeliveryDays}</td>
-                      <td className="px-4 py-2.5">{formatCurrency(c.costPerShipment)}</td>
+                      <td className="px-4 py-2.5">{formatMoney(c.costPerShipment, baseCurrency)}</td>
                     </tr>
                   ))}
                 </tbody>

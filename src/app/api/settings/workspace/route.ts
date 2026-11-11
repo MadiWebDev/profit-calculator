@@ -3,7 +3,8 @@
  * (defaults when none saved yet); PATCH upserts them. One document
  * per team, always team-scoped. Covers: fiscal month start, default
  * date range, profit-definition toggles, tax/VAT mode + rates,
- * reverse charge, reporting currency, FX source + manual overrides.
+ * reverse charge, reporting currency, display currency, FX source
+ * + manual overrides.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -22,6 +23,10 @@ const PatchSchema = z.object({
   reverseCharge: z.boolean().optional(),
   vatRates: z.array(z.object({ country: z.string().max(100), rate: z.number().min(0).max(100) })).max(100).optional(),
   reportingCurrency: z.string().length(3).optional(),
+  // Display currency (header switcher): what money figures are shown
+  // in. Upper-cased on write; the client falls back to reportingCurrency
+  // for documents saved before this field existed.
+  displayCurrency: z.string().trim().length(3).regex(/^[A-Za-z]{3}$/).transform((s) => s.toUpperCase()).optional(),
   fxSource: z.string().max(200).optional(),
   fxOverrides: z.array(z.object({ currency: z.string().length(3), rate: z.number().min(0), effectiveFrom: z.string() })).max(50).optional(),
 }).strict();
@@ -31,12 +36,24 @@ export async function GET(req: Request) {
   if (authed instanceof NextResponse) return authed;
   await connectDB();
   const doc = await WorkspaceSettingsModel.findOne({ teamId: toObjectId(authed.session.teamId) }).lean();
-  return NextResponse.json({ settings: doc ?? {
+  const defaults = {
     fiscalMonthStartDay: 1, defaultDateRangeDays: 30,
     includeShippingRevenueInProfit: true, includeTaxesInProfit: false, includeAdSpendInProfit: true,
     taxMode: "exclusive", reverseCharge: false, vatRates: [], reportingCurrency: "USD",
-    fxSource: "currencyapi.net", fxOverrides: [],
-  } });
+    displayCurrency: "USD", fxSource: "currencyapi.net", fxOverrides: [],
+  };
+  if (!doc) return NextResponse.json({ settings: defaults });
+  // Migration-safe: documents saved before displayCurrency existed
+  // fall back to the reporting (store/base) currency, never to a
+  // blank or unconverted default.
+  const d = doc as { reportingCurrency?: string; displayCurrency?: string };
+  return NextResponse.json({
+    settings: {
+      ...defaults,
+      ...doc,
+      displayCurrency: d.displayCurrency ?? d.reportingCurrency ?? "USD",
+    },
+  });
 }
 
 export async function PATCH(req: Request) {

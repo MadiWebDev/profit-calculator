@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { FooterInstallButton } from "./pwa/footer-install-button";
+import { CurrencyConverter } from "@/components/currency/CurrencyConverter";
 import { motion } from 'framer-motion';
 const productLinks = [
   { href: "/features",            label: "Features" },
@@ -149,6 +150,11 @@ export function Footer() {
           </motion.div> }
             </div>
           </div>
+        </div>
+
+        {/* Live currency converter — same live rates as the dashboard */}
+        <div className="border-t border-[var(--color-border)] pt-8 mb-8 max-w-xl">
+          <CurrencyConverter variant="inline" />
         </div>
 
         <div className="pt-6 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--color-muted-foreground)]">

@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Rule { id: string; name: string; feeType: string; kind: string; value: number; country?: string; paymentMethod?: string; preview: number }
 
 export default function OtherFeesPage() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export default function OtherFeesPage() {
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Fee rules</CardTitle></CardHeader><CardContent className="space-y-2">
         {rules.length === 0 && <p className="text-sm text-[var(--color-muted-foreground)]">No fee rules yet. Add your first one above.</p>}
-        {rules.map((r) => (<div key={r.id} className="flex justify-between gap-3 text-sm border-b border-[var(--color-border)] pb-2 last:border-0"><span>{r.name} · {r.feeType} · {r.kind === "percent" ? `${r.value}%` : formatCurrency(r.value)}{r.country ? ` · ${r.country}` : ""}</span><span>Preview (30d): {formatCurrency(r.preview)}</span></div>))}
+        {rules.map((r) => (<div key={r.id} className="flex justify-between gap-3 text-sm border-b border-[var(--color-border)] pb-2 last:border-0"><span>{r.name} · {r.feeType} · {r.kind === "percent" ? `${r.value}%` : formatMoney(r.value, baseCurrency)}{r.country ? ` · ${r.country}` : ""}</span><span>Preview (30d): {formatMoney(r.preview, baseCurrency)}</span></div>))}
       </CardContent></Card>
     </div>
   );

@@ -6,12 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Product { id: string; name: string; sku?: string; defaultCogs: number; totalRevenue: number; totalOrders: number; avgProfitMargin: number }
 interface Rule { productName: string; cogs: number; history?: { cogs: number; effectiveFrom: string }[] }
 
 export default function CogsHubPage() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const [products, setProducts] = useState<Product[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,8 +112,8 @@ export default function CogsHubPage() {
                 <tr key={r.id} className="border-b border-[var(--color-border)] last:border-0">
                   <td className="px-4 py-2.5">{r.name}</td>
                   <td className="px-4 py-2.5">{r.sku ?? "—"}</td>
-                  <td className="px-4 py-2.5">{formatCurrency(r.cogs)}</td>
-                  <td className="px-4 py-2.5">{formatCurrency(r.avgPrice)}</td>
+                  <td className="px-4 py-2.5">{formatMoney(r.cogs, baseCurrency)}</td>
+                  <td className="px-4 py-2.5">{formatMoney(r.avgPrice, baseCurrency)}</td>
                   <td className="px-4 py-2.5">{r.margin}%</td>
                   <td className="px-4 py-2.5">{r.source}</td>
                   <td className="px-4 py-2.5">{r.lastChanged ? new Date(r.lastChanged).toLocaleDateString() : "—"}</td>

@@ -6,10 +6,16 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { convertCurrency } from "@/lib/profit-engine";
+import {
+  isValidCurrencyCode,
+  mostCommonCurrency,
+  parseFxRatesPayload,
+} from "@/lib/display-currency";
 
 // ── Currency registry ─────────────────────────────────────────────────────────
 
@@ -199,6 +205,24 @@ export interface CurrencyContextValue {
   /** Change the active currency — persisted to localStorage */
   setCurrency: (code: string) => void;
   /**
+   * Report base currency: the team's most common store currency (the
+   * same rule the server uses when aggregating reports). Money figures
+   * arrive in the client in this currency; formatMoney converts FROM
+   * it into the display currency. "USD" until the stores list
+   * resolves — see the convert() guard for why that is safe.
+   */
+  baseCurrency: string;
+  /** ISO timestamp of the provider data behind the current rates, or null when unknown. */
+  ratesAsOf: string | null;
+  /** True once a rates table has loaded (refreshed every 60s while open). */
+  ratesAvailable: boolean;
+  /**
+   * Convert between any two currencies at the live rate — the
+   * converter widget's engine. Fail-open like convert(): unknown
+   * currencies or missing rates return the amount unchanged.
+   */
+  convertTo: (amount: number, fromCurrency: string, toCurrency: string) => number;
+  /**
    * Convert an amount FROM the given currency INTO the display currency
    * using cached FX rates. Returns the amount unchanged when rates are
    * unavailable or the currencies match — never throws in the UI.
@@ -215,6 +239,10 @@ export const CurrencyContext = createContext<CurrencyContextValue>({
   symbol:      FALLBACK.symbol,
   currencyDef: FALLBACK,
   setCurrency: () => {},
+  baseCurrency: FALLBACK.code,
+  ratesAsOf: null,
+  ratesAvailable: false,
+  convertTo: (amount) => amount,
   convert: (amount) => amount,
   formatMoney: (amount, fromCurrency) => formatCurrency(amount, fromCurrency),
 });
@@ -240,6 +268,27 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   // on the client with a value the server never saw.
   const [currencyCode, setCurrencyCode] = useState<string>(FALLBACK.code);
 
+  // Report base currency: the team's most common active store currency
+  // (the same rule the server uses when aggregating reports, see
+  // getReportBaseCurrency). "USD" until the stores list resolves.
+  // baseLoaded stays false until that fetch SUCCEEDS, so convert()
+  // never converts from a guessed base (see the guard there).
+  const [baseCurrency, setBaseCurrency] = useState<string>(FALLBACK.code);
+  const [baseLoaded, setBaseLoaded] = useState(false);
+
+  // ISO timestamp of the provider data behind the current rates —
+  // the "Rates as of HH:MM" stamp. Null until the first rates load.
+  const [ratesAsOf, setRatesAsOf] = useState<string | null>(null);
+
+  // True once the workspace settings GET succeeded (the viewer is
+  // signed in and has a team): only then is the choice persisted
+  // server-side. Logged-out visitors keep the localStorage-only
+  // choice, and nothing is ever POSTed for them.
+  const serverSyncedRef = useRef(false);
+  // The user picked a currency before the server value arrived — the
+  // server hydration must not overwrite an explicit choice.
+  const userChangedRef = useRef(false);
+
   // On mount: hydrate from localStorage (client-only, runs after first render)
   useEffect(() => {
     try {
@@ -257,6 +306,55 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // On mount: hydrate the display currency from the team's saved
+  // workspace settings — the server value wins over localStorage
+  // (unless the user already picked something this session).
+  // A 401 (signed out) or network failure leaves the local choice.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings/workspace")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled) return;
+        const server = j?.settings?.displayCurrency;
+        if (typeof server === "string" && isValidCurrencyCode(server)) {
+          serverSyncedRef.current = true;
+          if (!userChangedRef.current) {
+            setCurrencyCode(server.toUpperCase());
+          }
+        }
+      })
+      .catch(() => {
+        // Signed out / offline — localStorage choice stands
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // On mount: resolve the report base currency from the team's active
+  // stores (most common store currency, USD when there is none).
+  // A 401 (signed out) or network failure leaves baseLoaded false,
+  // which keeps convert() fail-open rather than guessing.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/stores")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled) return;
+        const stores = Array.isArray(j?.stores) ? j.stores : null;
+        if (!stores) return;
+        setBaseCurrency(mostCommonCurrency(stores.map((s: { currency?: string }) => s?.currency)));
+        setBaseLoaded(true);
+      })
+      .catch(() => {
+        // Stores unknown — convert() stays fail-open
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Sync to localStorage whenever the user picks a new currency
   useEffect(() => {
     try {
@@ -270,13 +368,26 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   const setCurrency = (code: string) => {
     const resolved = getCurrencyDef(code).code; // validates & falls back
+    userChangedRef.current = true;
     setCurrencyCode(resolved);
+    // Persist server-side when the team settings are reachable; the
+    // localStorage write above is the offline fallback. Fire-and-forget.
+    if (serverSyncedRef.current) {
+      fetch("/api/settings/workspace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayCurrency: resolved }),
+      }).catch(() => {
+        // Local storage already holds the choice
+      });
+    }
   };
 
   // FX rates for display conversion — re-fetched every 60 seconds while
   // the dashboard is open, matching /api/fx/rates' browser cache (60s),
   // so display conversion tracks live rates without a page reload.
-  // Missing rates = no conversion.
+  // Missing rates = no conversion. The provider's fetchedAt timestamp
+  // is kept alongside the rates for the "Rates as of" stamp.
   const [fxRates, setFxRates] = useState<Record<string, number> | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -284,8 +395,11 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       fetch("/api/fx/rates?base=USD")
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => {
-          if (!cancelled && j?.rates && typeof j.rates === "object") {
-            setFxRates(j.rates as Record<string, number>);
+          if (cancelled) return;
+          const parsed = parseFxRatesPayload(j);
+          if (parsed) {
+            setFxRates(parsed.rates);
+            setRatesAsOf(parsed.fetchedAt);
           }
         })
         .catch(() => {
@@ -303,13 +417,33 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const convert = useCallback(
     (amount: number, fromCurrency: string): number => {
       if (!fxRates) return amount;
+      // The base currency is still a guess (stores list unresolved):
+      // never convert FROM it — a "USD" guess for a PKR team would
+      // inflate every figure ~278x. Showing the raw figure in the
+      // display currency until the base resolves is the least wrong
+      // rendering, and identical to the final one when display == base.
+      if (!baseLoaded && fromCurrency.toUpperCase().trim() === baseCurrency) return amount;
       try {
         return convertCurrency(amount, fromCurrency, def.code, fxRates);
       } catch {
         return amount;
       }
     },
-    [fxRates, def.code]
+    [fxRates, def.code, baseCurrency, baseLoaded]
+  );
+
+  // Convert between any two currencies at the live rate — the
+  // converter widget's engine. Fail-open like convert().
+  const convertTo = useCallback(
+    (amount: number, fromCurrency: string, toCurrency: string): number => {
+      if (!fxRates) return amount;
+      try {
+        return convertCurrency(amount, fromCurrency, toCurrency, fxRates);
+      } catch {
+        return amount;
+      }
+    },
+    [fxRates]
   );
 
   const formatMoney = useCallback(
@@ -325,6 +459,10 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         symbol:      def.symbol,
         currencyDef: def,
         setCurrency,
+        baseCurrency,
+        ratesAsOf,
+        ratesAvailable: fxRates !== null,
+        convertTo,
         convert,
         formatMoney,
       }}

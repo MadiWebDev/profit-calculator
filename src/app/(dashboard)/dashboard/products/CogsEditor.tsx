@@ -6,7 +6,8 @@ import { Loader2, ChevronDown, ChevronUp, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatCurrency, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface CogsFormValues {
   supplierCost: number;
@@ -50,6 +51,7 @@ export function CogsEditor({
   productId, variantId, productName, variantTitle, sku, storeId,
   currentCogs, history = [], currency = "USD", onSaved,
 }: CogsEditorProps) {
+  const { formatMoney } = useCurrency();
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -101,7 +103,7 @@ export function CogsEditor({
         </div>
         <div className="flex items-center gap-3">
           <span className={cn("font-semibold", currentCogs > 0 ? "text-[var(--color-foreground)]" : "text-yellow-600")}>
-            {currentCogs > 0 ? formatCurrency(currentCogs, currency) : "No COGS set"}
+            {currentCogs > 0 ? formatMoney(currentCogs, currency) : "No COGS set"}
           </span>
           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </div>
@@ -114,7 +116,7 @@ export function CogsEditor({
           )}
           {success && (
             <div className="text-sm text-green-600 bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg px-3 py-2">
-              ✓ COGS updated to {formatCurrency(computedCogs, currency)}
+              ✓ COGS updated to {formatMoney(computedCogs, currency)}
             </div>
           )}
 
@@ -142,7 +144,7 @@ export function CogsEditor({
 
             <div className="flex items-center justify-between py-2 px-3 bg-[var(--color-accent)] rounded-lg">
               <span className="text-sm font-medium text-[var(--color-foreground)]">Total COGS</span>
-              <span className="text-lg font-bold text-[var(--color-primary)]">{formatCurrency(computedCogs, currency)}</span>
+              <span className="text-lg font-bold text-[var(--color-primary)]">{formatMoney(computedCogs, currency)}</span>
             </div>
 
             <div className="space-y-1">
@@ -170,7 +172,7 @@ export function CogsEditor({
               {history.map((h, i) => (
                 <div key={i} className="flex items-center justify-between text-xs text-[var(--color-muted-foreground)] py-1.5 px-2 rounded hover:bg-[var(--color-muted)]">
                   <span>{new Date(h.effectiveFrom).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
-                  <span className="font-medium text-[var(--color-foreground)]">{formatCurrency(h.cogs, currency)}</span>
+                  <span className="font-medium text-[var(--color-foreground)]">{formatMoney(h.cogs, currency)}</span>
                   {h.note && <span className="truncate max-w-[200px] italic">{h.note}</span>}
                 </div>
               ))}

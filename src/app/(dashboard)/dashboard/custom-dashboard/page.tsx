@@ -5,9 +5,10 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 function CustomDashboardInner() {
+  const { formatMoney, baseCurrency } = useCurrency();
   const params = useSearchParams();
   const viewId = params.get("view");
   const [view, setView] = useState<{ name: string; kpis: string[] } | null>(null);
@@ -45,7 +46,7 @@ function CustomDashboardInner() {
     if (k === "netMargin" || k === "refundRate" || k === "rtoRate") return `${v}%`;
     if (k === "orderCount") return String(v);
     if (k === "roas") return `${v}x`;
-    return formatCurrency(v);
+    return formatMoney(v, baseCurrency);
   };
 
   return (

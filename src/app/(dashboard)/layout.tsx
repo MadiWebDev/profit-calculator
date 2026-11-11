@@ -4,6 +4,8 @@ import { getAccountStatus } from "@/lib/trial";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardTopbar } from "@/components/dashboard/DashboardTopbar";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
+import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
+import { CurrencyConverter } from "@/components/currency/CurrencyConverter";
 import { RoleProvider } from "@/components/dashboard/RoleContext";
 import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
 import { ArchivedWall } from "@/components/billing/ArchivedWall";
@@ -98,6 +100,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           {/* Desktop topbar strip */}
           <div className="hidden lg:flex items-center justify-end gap-2 px-6 py-3 border-b border-[var(--color-border)] bg-[var(--color-card)] flex-shrink-0">
+            <CurrencyConverter />
+            <CurrencySelector size="md" />
             <NotificationBell />
           </div>
 
