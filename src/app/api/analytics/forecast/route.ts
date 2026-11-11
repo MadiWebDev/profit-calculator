@@ -6,6 +6,11 @@ import { withRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { forecastSeries, type DailyPoint } from "@/lib/analytics";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 const QuerySchema = z
   .object({
@@ -41,8 +46,14 @@ export async function GET(req: Request) {
     orderDate: { $gte: since },
     status: { $ne: "cancelled" },
   })
-    .select("orderDate grossRevenue refundAmount chargebackAmount")
+    .select("currency orderDate grossRevenue refundAmount chargebackAmount")
     .lean();
+
+  // Daily net revenue is summed across orders; convert each order
+  // into the report base currency first (multi-currency teams would
+  // otherwise forecast on a 1:1 mixed sum).
+  const base = await getReportBaseCurrency(session.teamId);
+  const rates = await getReportRates(base);
 
   const byDay = new Map<string, number>();
   const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -54,10 +65,11 @@ export async function GET(req: Request) {
     const k = dayKey(new Date(o.orderDate));
     const cur = byDay.get(k);
     if (cur !== undefined) {
-      const t = o as { grossRevenue?: number; refundAmount?: number; chargebackAmount?: number };
+      const t = o as { currency?: string; grossRevenue?: number; refundAmount?: number; chargebackAmount?: number };
+      const conv = (v?: number) => convertAmount(v ?? 0, t.currency, base, rates);
       byDay.set(
         k,
-        cur + (t.grossRevenue ?? 0) - (t.refundAmount ?? 0) - (t.chargebackAmount ?? 0)
+        cur + conv(t.grossRevenue) - conv(t.refundAmount) - conv(t.chargebackAmount)
       );
     }
   }

@@ -6,6 +6,11 @@ import { withRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { buildCohorts } from "@/lib/analytics";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 const QuerySchema = z
   .object({
@@ -42,19 +47,25 @@ export async function GET(req: Request) {
     status: { $ne: "cancelled" },
     $or: [{ customerId: { $ne: null } }, { customerEmail: { $ne: null } }],
   })
-    .select("orderDate customerId customerEmail grossRevenue refundAmount chargebackAmount")
+    .select("currency orderDate customerId customerEmail grossRevenue refundAmount chargebackAmount")
     .lean();
+
+  // Cohort revenue sums orders per customer; convert each order into
+  // the report base currency first.
+  const base = await getReportBaseCurrency(session.teamId);
+  const rates = await getReportRates(base);
 
   const cohorts = buildCohorts(
     orders.map((o) => {
       const t = o as {
-        orderDate: Date; customerId?: string; customerEmail?: string;
+        orderDate: Date; customerId?: string; customerEmail?: string; currency?: string;
         grossRevenue?: number; refundAmount?: number; chargebackAmount?: number;
       };
+      const conv = (v?: number) => convertAmount(v ?? 0, t.currency, base, rates);
       return {
         orderDate: new Date(t.orderDate).toISOString(),
         customerId: t.customerId ?? t.customerEmail ?? "unknown",
-        netRevenue: (t.grossRevenue ?? 0) - (t.refundAmount ?? 0) - (t.chargebackAmount ?? 0),
+        netRevenue: conv(t.grossRevenue) - conv(t.refundAmount) - conv(t.chargebackAmount),
       };
     })
   );

@@ -6,6 +6,12 @@ import { parseQuery, toObjectId } from "@/lib/validation";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import type { ReportOrderInput } from "@/lib/parity-reports";
+import {
+  convertAmount,
+  convertOrdersToBase,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 export const ReportQuerySchema = z
   .object({
@@ -67,42 +73,77 @@ export function orderFilter(ctx: ReportContext): Record<string, unknown> {
   return f;
 }
 
-/** Load orders for a report, mapped to the parity engine input shape. */
+/**
+ * Load orders for a report, mapped to the parity engine input shape.
+ *
+ * Every order is converted into the report's base currency BEFORE the
+ * engine sums anything: the explicit `currency` filter when given
+ * (orders are already single-currency then, so conversion is a no-op),
+ * otherwise the team's most common store currency (or the selected
+ * store's currency). Without this, a multi-currency team got 1:1 sums
+ * labelled with one currency. On an FX failure orders pass through
+ * unconverted rather than failing the report.
+ */
 export async function loadReportOrders(ctx: ReportContext): Promise<ReportOrderInput[]> {
   await connectDB();
   const docs = await OrderModel.find(orderFilter(ctx)).lean();
-  return docs.map((o) => ({
-    currency: o.currency,
-    grossRevenue: o.grossRevenue ?? 0,
-    discounts: o.discounts ?? 0,
-    shippingRevenue: o.shippingRevenue ?? 0,
-    shippingCost: o.shippingCost ?? 0,
-    totalCogs: o.totalCogs ?? 0,
-    transactionFees: o.transactionFees ?? 0,
-    taxes: o.taxes ?? 0,
-    refundAmount: o.refundAmount ?? 0,
-    chargebackAmount: o.chargebackAmount ?? 0,
-    adSpendAllocated: o.adSpendAllocated ?? 0,
-    otherCosts: o.otherCosts ?? 0,
-    packagingCost: o.packagingCost ?? 0,
-    codFee: o.codFee ?? 0,
-    subscriptionShare: o.subscriptionShare ?? 0,
-    rtoLoss: o.rtoLoss ?? 0,
-    expenseAllocation: o.expenseAllocation ?? 0,
-    taxMode: o.taxMode,
-    orderDate: o.orderDate,
-    status: o.status,
-    shippingCountry: o.shippingCountry,
-    shippingCity: o.shippingCity,
-    source: o.source,
-    utmCampaign: o.utmCampaign,
-    paymentMethod: o.paymentMethod,
-    riskBand: o.riskBand,
-    fulfillmentStatus: o.fulfillmentStatus,
-    lineItems: (o.lineItems ?? []).map((li: { productId?: string; name?: string; price?: number; cogs?: number; quantity?: number }) => ({
-      productId: li.productId, name: li.name, price: li.price, cogs: li.cogs, quantity: li.quantity,
+  const base = ctx.currency ?? (await getReportBaseCurrency(ctx.session.teamId, ctx.storeId));
+  const rates = await getReportRates(base);
+  const converted = convertOrdersToBase(
+    docs.map((o) => ({
+      currency: o.currency,
+      grossRevenue: o.grossRevenue ?? 0,
+      discounts: o.discounts ?? 0,
+      shippingRevenue: o.shippingRevenue ?? 0,
+      shippingCost: o.shippingCost ?? 0,
+      totalCogs: o.totalCogs ?? 0,
+      transactionFees: o.transactionFees ?? 0,
+      taxes: o.taxes ?? 0,
+      refundAmount: o.refundAmount ?? 0,
+      chargebackAmount: o.chargebackAmount ?? 0,
+      adSpendAllocated: o.adSpendAllocated ?? 0,
+      otherCosts: o.otherCosts ?? 0,
     })),
-  }));
+    base,
+    rates,
+  );
+  return docs.map((o, i) => {
+    const c = converted[i];
+    const from = o.currency ?? base;
+    const conv = (v?: number | null) => convertAmount(v ?? 0, from, base, rates);
+    return {
+      currency: base,
+      grossRevenue: c.grossRevenue,
+      discounts: c.discounts,
+      shippingRevenue: c.shippingRevenue,
+      shippingCost: c.shippingCost,
+      totalCogs: c.totalCogs,
+      transactionFees: c.transactionFees,
+      taxes: c.taxes,
+      refundAmount: c.refundAmount,
+      chargebackAmount: c.chargebackAmount,
+      adSpendAllocated: c.adSpendAllocated,
+      otherCosts: c.otherCosts,
+      packagingCost: conv(o.packagingCost),
+      codFee: conv(o.codFee),
+      subscriptionShare: conv(o.subscriptionShare),
+      rtoLoss: conv(o.rtoLoss),
+      expenseAllocation: conv(o.expenseAllocation),
+      taxMode: o.taxMode,
+      orderDate: o.orderDate,
+      status: o.status,
+      shippingCountry: o.shippingCountry,
+      shippingCity: o.shippingCity,
+      source: o.source,
+      utmCampaign: o.utmCampaign,
+      paymentMethod: o.paymentMethod,
+      riskBand: o.riskBand,
+      fulfillmentStatus: o.fulfillmentStatus,
+      lineItems: (o.lineItems ?? []).map((li: { productId?: string; name?: string; price?: number; cogs?: number; quantity?: number }) => ({
+        productId: li.productId, name: li.name, price: conv(li.price), cogs: conv(li.cogs), quantity: li.quantity,
+      })),
+    };
+  });
 }
 
 export function csvResponse(filename: string, header: string, rows: string[]): NextResponse {
