@@ -9,13 +9,17 @@ import StoreModel from "@/models/Store";
 import { calcOrderProfit } from "@/lib/profit-engine";
 import { logAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
+import { isoDateTimeField } from "@/lib/dates";
 
 const Money = z.number().min(0).max(1_000_000_000).default(0);
 
 const CreateOrderSchema = z
   .object({
     orderNumber: z.string().trim().max(100).optional(),
-    orderDate: z.iso.datetime(),
+    // The order form sends a calendar date ("2026-11-11") from
+    // <input type="date">; isoDateTimeField normalizes it to midnight
+    // UTC so the strict ISO datetime check does not reject manual orders.
+    orderDate: isoDateTimeField,
     status: z.enum(["pending", "fulfilled", "refunded", "cancelled"]).default("fulfilled"),
     grossRevenue: z.number().min(0).max(1_000_000_000),
     discounts: Money,
