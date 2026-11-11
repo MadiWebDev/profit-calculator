@@ -8,6 +8,10 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { resolvePostLoginRedirect } from "@/lib/post-login-redirect";
+import {
+  isEmailNotVerifiedSignIn,
+  requestVerificationResend,
+} from "@/lib/email-verification";
 
 function LoginInner() {
   const router = useRouter();
@@ -60,8 +64,13 @@ function LoginInner() {
     try {
       const res = await signIn("credentials", { email: email.toLowerCase(), password, redirect: false });
       if (!res || res.error) {
-        if (res?.error && res.error.includes("EMAIL_NOT_VERIFIED")) {
+        if (res && isEmailNotVerifiedSignIn(res)) {
+          // Registered, correct password, email not verified yet — say so
+          // (and show the verify panel) instead of the generic error.
+          // A wrong password still gets only the generic toast below, so
+          // the unverified state can never be probed without the password.
           setNeedsVerify(email.toLowerCase());
+          toast.info("Your email isn't verified yet — check your inbox for the verification link.");
           return;
         }
         toast.error("Invalid email or password."); return;
@@ -85,14 +94,13 @@ function LoginInner() {
     if (!needsVerify || resending) return;
     setResending(true);
     try {
-      await fetch("/api/auth/verify-email/resend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: needsVerify }),
-      });
-      toast.success("Verification email sent — check your inbox.");
-    } catch {
-      toast.error("Could not resend the email. Try again.");
+      // Honest feedback: the outcome only claims "sent" when the server
+      // confirmed the email was accepted — a rate limit or send failure
+      // is surfaced as an error, never as a false success.
+      const outcome = await requestVerificationResend(needsVerify);
+      if (outcome.kind === "sent") toast.success(outcome.message);
+      else if (outcome.kind === "queued") toast.info(outcome.message);
+      else toast.error(outcome.message);
     } finally {
       setResending(false);
     }

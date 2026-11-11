@@ -1,10 +1,25 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import UserModel from "@/models/User";
 import { authConfig } from "@/lib/auth.config";
+import { EMAIL_NOT_VERIFIED_CODE } from "@/lib/email-verification";
+
+/**
+ * Distinct credentials-sign-in failure for a registered-but-unverified
+ * account. Auth.js appends `code=email_not_verified` to the sign-in
+ * redirect URL (and next-auth/react returns it as `res.code`), which is
+ * how the login page tells this apart from a wrong password. A plain
+ * Error thrown here is wrapped as `error=Configuration` and the signal
+ * is lost — that was why unverified sign-ins showed "Invalid email or
+ * password". The throw site is AFTER password validation, so the code
+ * can never be used to probe whether an address is registered.
+ */
+class EmailNotVerifiedError extends CredentialsSignin {
+  code = EMAIL_NOT_VERIFIED_CODE;
+}
 
 /**
  * Full auth config — Node.js runtime only.
@@ -76,8 +91,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Email verification gate — checked AFTER password validation so an
         // attacker can't probe which addresses are registered-but-unverified.
         // In development, skip the gate so you can log in without email setup.
+        // Thrown as a CredentialsSignin with a distinct `code` (see
+        // EmailNotVerifiedError above) so the login page can tell this
+        // apart from a wrong password.
         if (!user.emailVerified && process.env.NODE_ENV !== "development") {
-          throw new Error("EMAIL_NOT_VERIFIED");
+          throw new EmailNotVerifiedError();
         }
 
         // Resolve the team-level role for permission checks
