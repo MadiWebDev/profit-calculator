@@ -67,6 +67,21 @@ type SyncWindowMode = "full" | "incremental";
 const API_VERSION = "v21.0";
 const DEFAULT_MAX_PAGES = 50;
 
+/**
+ * Meta Graph node id for an ad account — "act_<id>".
+ *
+ * AdAccount.accountId is stored exactly as Meta returns it from
+ * /me/adaccounts, WITH the "act_" prefix ("act_1163341752483210").
+ * Interpolating it as `act_${accountId}` therefore produced the
+ * nonexistent node "act_act_1163341752483210" and every sync failed
+ * with "Unsupported get request. Object with ID 'act_act_…' does not
+ * exist". Strip a leading "act_" first so both stored forms
+ * ("act_123" and bare "123") build the same node id.
+ */
+function metaAdAccountNodeId(accountId: string): string {
+  return `act_${accountId.replace(/^act_/, "")}`;
+}
+
 interface MetaInsightRow {
   campaign_id?: string;
   campaign_name?: string;
@@ -226,6 +241,9 @@ export async function syncMetaAdSpend(
     let accessToken = safeDecrypt(adAccount.accessToken);
     if (!accessToken) throw new Error("Ad account is disconnected (no access token)");
 
+    // Node id for every Graph call below (see metaAdAccountNodeId).
+    const accountNodeId = metaAdAccountNodeId(adAccount.accountId);
+
     // Proactive refresh when the token expires within 7 days.
     const expiresSoon =
       adAccount.tokenExpiresAt && adAccount.tokenExpiresAt.getTime() - Date.now() < 7 * 864e5;
@@ -240,7 +258,7 @@ export async function syncMetaAdSpend(
     if (!timezone) {
       try {
         const tzRes = await fetch(
-          `https://graph.facebook.com/${API_VERSION}/act_${adAccount.accountId}?fields=timezone_name&access_token=${encodeURIComponent(accessToken)}`
+          `https://graph.facebook.com/${API_VERSION}/${accountNodeId}?fields=timezone_name&access_token=${encodeURIComponent(accessToken)}`
         );
         const tzJson = (await tzRes.json().catch(() => ({}))) as { timezone_name?: string };
         if (tzJson.timezone_name) {
@@ -263,7 +281,7 @@ export async function syncMetaAdSpend(
       access_token: accessToken,
     });
     let url: string | null =
-      `https://graph.facebook.com/${API_VERSION}/act_${adAccount.accountId}/insights?${params.toString()}`;
+      `https://graph.facebook.com/${API_VERSION}/${accountNodeId}/insights?${params.toString()}`;
 
     const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
     let pages = 0;
@@ -286,7 +304,7 @@ export async function syncMetaAdSpend(
             accessToken = refreshed;
             const retryParams = new URLSearchParams(params);
             retryParams.set("access_token", accessToken);
-            url = `https://graph.facebook.com/${API_VERSION}/act_${adAccount.accountId}/insights?${retryParams.toString()}`;
+            url = `https://graph.facebook.com/${API_VERSION}/${accountNodeId}/insights?${retryParams.toString()}`;
             continue;
           }
         }
