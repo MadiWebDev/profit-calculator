@@ -136,6 +136,25 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ── Reduced motion: simplify/disable the loading-system animations ──
+ * Covers the new spinner (animate-spin), skeletons (animate-pulse) and
+ * the route progress bar's opacity fade, plus the global theme transitions
+ * above. Applied only when the user asked for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-spin,
+  .animate-pulse {
+    animation: none !important;
+  }
+}
+
 body {
   background: var(--color-background);
   color: var(--color-foreground);
