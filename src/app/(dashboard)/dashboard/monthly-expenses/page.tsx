@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
+import { FormSkeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Expense { id: string; name: string; category: string; amount: number; currency: string; startDate: string; endDate?: string | null; isRecurring: boolean; allocation: string }
@@ -35,16 +37,20 @@ export default function MonthlyExpensesPage() {
   useEffect(() => { load(); }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setMsg(null);
+  const submitAction = useAsyncAction(async () => {
     const res = await fetch("/api/monthly-expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, amount: Number(form.amount), currency: "USD" }) });
     if (!res.ok) { setMsg("Could not save that expense — check the fields and try again."); return; }
     setMsg("Expense saved. It is allocated into the last 30 days above and into Revenue By Date / P&L as profit after operating expenses.");
     setForm({ ...form, name: "", amount: "" });
     await load();
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault(); setMsg(null);
+    void submitAction.run();
   };
 
-  if (loading) return <div className="grid gap-4" role="status" aria-label="Loading">{Array.from({ length: 3 }).map((_, i) => (<Card key={i}><CardContent className="h-20 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
+  if (loading) return <FormSkeleton fields={5} />;
   if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
 
   return (
@@ -59,14 +65,16 @@ export default function MonthlyExpensesPage() {
         <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Profit after operating expenses</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatMoney(after, baseCurrency)}</CardContent></Card>
       </div>
       <Card><CardHeader><CardTitle>Add an expense</CardTitle></CardHeader><CardContent>
-        <form onSubmit={submit} className="grid sm:grid-cols-2 gap-3">
+        <form onSubmit={submit}>
+          <fieldset disabled={submitAction.loading} className="grid sm:grid-cols-2 gap-3 border-0 m-0 min-w-0 p-0">
           <div className="space-y-1"><Label htmlFor="exp-name">Name</Label><Input id="exp-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Shopify apps" /></div>
           <div className="space-y-1"><Label htmlFor="exp-category">Category</Label><Input id="exp-category" required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="exp-amount">Amount</Label><Input id="exp-amount" type="number" min="0" step="0.01" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="exp-start">Start date</Label><Input id="exp-start" type="date" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="exp-alloc">Allocation</Label><select id="exp-alloc" value={form.allocation} onChange={(e) => setForm({ ...form, allocation: e.target.value })} className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-sm"><option value="per_day">Per day</option><option value="per_order">Per order</option><option value="by_revenue">By revenue share</option></select></div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isRecurring} onChange={(e) => setForm({ ...form, isRecurring: e.target.checked })} /> Recurring</label>
-          <div className="sm:col-span-2"><Button type="submit">Save expense</Button>{msg && <p className="text-sm text-[var(--color-muted-foreground)] mt-2">{msg}</p>}</div>
+          <div className="sm:col-span-2"><Button type="submit" loading={submitAction.loading} loadingText="Saving…">Save expense</Button>{msg && <p className="text-sm text-[var(--color-muted-foreground)] mt-2">{msg}</p>}</div>
+          </fieldset>
         </form>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Expenses</CardTitle></CardHeader><CardContent className="space-y-2">

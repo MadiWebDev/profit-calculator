@@ -2,28 +2,18 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
-import { Calculator, Loader2, ArrowLeft, Mail } from "lucide-react";
+import { Calculator, ArrowLeft, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
 
 export default function ForgotPasswordPage() {
   const emailRef = useRef<HTMLInputElement>(null);
-  const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [sentEmail, setSentEmail] = useState("");
   const [emailErr, setEmailErr] = useState("");
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const email = emailRef.current?.value?.trim() ?? "";
-    if (!email) {
-      setEmailErr("Email is required");
-      return;
-    }
-    setEmailErr("");
-    setSentEmail(email);
-    setLoading(true);
-
+  const sendResetAction = useAsyncAction(async (email: string) => {
     try {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
@@ -40,9 +30,20 @@ export default function ForgotPasswordPage() {
       setSent(true);
     } catch {
       toast.error("Network error. Please try again.");
-    } finally {
-      setLoading(false);
     }
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const email = emailRef.current?.value?.trim() ?? "";
+    if (!email) {
+      setEmailErr("Email is required");
+      return;
+    }
+    setEmailErr("");
+    setSentEmail(email);
+    void sendResetAction.run(email);
   };
 
   return (
@@ -117,23 +118,20 @@ export default function ForgotPasswordPage() {
                     autoFocus
                     placeholder="you@example.com"
                     ref={emailRef}
-                    disabled={loading}
+                    disabled={sendResetAction.loading}
                     className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
                   />
                   {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
                 </div>
 
-                <button
+                <Button
                   type="submit"
-                  disabled={loading}
-                  className="w-full h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                  loading={sendResetAction.loading}
+                  loadingText="Sending…"
+                  className="w-full"
                 >
-                  {loading ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Sending…</>
-                  ) : (
-                    "Send Reset Link"
-                  )}
-                </button>
+                  Send Reset Link
+                </Button>
               </form>
 
               <div className="mt-6 text-center">

@@ -116,7 +116,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <div role="alert" className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" />
               {error}
             </div>
@@ -131,6 +131,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
               onChange={(e) => setName(e.target.value)}
               autoFocus
               required
+              disabled={loading}
             />
           </div>
 
@@ -142,6 +143,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
               value={sku}
               onChange={(e) => setSku(e.target.value)}
               className="font-mono"
+              disabled={loading}
             />
           </div>
 
@@ -156,6 +158,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
                 placeholder="0.00"
                 value={defaultCogs}
                 onChange={(e) => setDefaultCogs(e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="space-y-1.5">
@@ -167,6 +170,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value.toUpperCase())}
                 className="uppercase font-mono"
+                disabled={loading}
               />
             </div>
           </div>
@@ -175,9 +179,9 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="gap-2 min-w-[100px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {loading ? "Saving…" : "Add Product"}
+            <Button type="submit" loading={loading} loadingText="Saving…" className="gap-2 min-w-[100px]">
+              <Plus className="h-4 w-4" />
+              Add Product
             </Button>
           </div>
         </form>
@@ -240,7 +244,7 @@ function DeleteProductModal({ product, onClose, onDeleted }: DeleteProductModalP
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <p role="alert" className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
@@ -249,9 +253,9 @@ function DeleteProductModal({ product, onClose, onDeleted }: DeleteProductModalP
             <Button variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={loading} className="gap-2 min-w-[90px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              {loading ? "Deleting…" : "Delete"}
+            <Button variant="destructive" onClick={handleDelete} loading={loading} loadingText="Deleting…" className="gap-2 min-w-[90px]">
+              <Trash2 className="h-4 w-4" />
+              Delete
             </Button>
           </div>
         </div>
@@ -456,21 +460,24 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                                 if (e.key === "Escape") cancelEdit();
                               }}
                               autoFocus
+                              disabled={savingId === p.id}
                             />
                             <Button
                               size="sm"
                               className="h-7 w-7 p-0"
                               onClick={() => saveCogs(p.id)}
                               disabled={savingId === p.id}
+                              aria-busy={savingId === p.id || undefined}
                               title="Save"
                             >
-                              <Check className="h-3.5 w-3.5" />
+                              {savingId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                             </Button>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="h-7 w-7 p-0"
                               onClick={cancelEdit}
+                              disabled={savingId === p.id}
                               title="Cancel"
                             >
                               <X className="h-3.5 w-3.5" />

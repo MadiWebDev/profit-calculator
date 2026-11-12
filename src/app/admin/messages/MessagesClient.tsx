@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  Search, Loader2, AlertCircle,
+  Search, AlertCircle,
   ChevronLeft, ChevronRight, RefreshCw, MailCheck, MailX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
@@ -120,7 +121,7 @@ export function MessagesClient() {
 
       {/* Feedback */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" /> {error}
           <button className="ml-auto opacity-60 hover:opacity-100" onClick={() => setError(null)}>✕</button>
         </div>
@@ -169,9 +170,7 @@ export function MessagesClient() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-muted-foreground)]" />
-            </div>
+            <div className="p-5"><ListSkeleton rows={5} /></div>
           ) : messages.length === 0 ? (
             <div className="py-14 text-center text-sm text-[var(--color-muted-foreground)]">
               No messages found.

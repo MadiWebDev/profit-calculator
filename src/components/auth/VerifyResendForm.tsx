@@ -5,6 +5,8 @@ import {
   requestVerificationResend,
   type ResendOutcome,
 } from "@/lib/email-verification";
+import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
 
 /**
  * Inline "send me a new verification link" form, shared by the
@@ -14,11 +16,14 @@ import {
  */
 export default function VerifyResendForm({ initialEmail = "" }: { initialEmail?: string }) {
   const [email, setEmail] = useState(initialEmail);
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ResendOutcome | null>(null);
 
-  const onSubmit = async (e: React.FormEvent) => {
+  const sendAction = useAsyncAction(async (value: string) => {
+    setResult(await requestVerificationResend(value.toLowerCase()));
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const value = email.trim();
     if (!value) {
@@ -26,12 +31,7 @@ export default function VerifyResendForm({ initialEmail = "" }: { initialEmail?:
       return;
     }
     setError("");
-    setSending(true);
-    try {
-      setResult(await requestVerificationResend(value.toLowerCase()));
-    } finally {
-      setSending(false);
-    }
+    void sendAction.run(value);
   };
 
   return (
@@ -48,19 +48,20 @@ export default function VerifyResendForm({ initialEmail = "" }: { initialEmail?:
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          disabled={sending}
+          disabled={sendAction.loading}
           className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
         />
         {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
 
-      <button
+      <Button
         type="submit"
-        disabled={sending}
-        className="w-full h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+        loading={sendAction.loading}
+        loadingText="Sending…"
+        className="w-full"
       >
-        {sending ? "Sending…" : "Send a new verification link"}
-      </button>
+        Send a new verification link
+      </Button>
 
       {result && (
         <p

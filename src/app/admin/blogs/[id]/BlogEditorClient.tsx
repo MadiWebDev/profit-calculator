@@ -32,6 +32,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import { logger } from "@/lib/logger";
+import { FormSkeleton } from "@/components/ui/skeleton";
+import { useAsyncAction } from "@/hooks/use-async-action";
 
 interface BlogFormData {
   title: string;
@@ -60,7 +62,6 @@ interface BlogEditorClientProps {
 export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(!!blogId);
-  const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const [formData, setFormData] = useState<BlogFormData>({
@@ -255,7 +256,7 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
     }));
   };
 
-  const handleSave = async (publish: boolean = false) => {
+  const saveBlog = async (publish: boolean = false) => {
     // Validation
     if (!formData.title.trim()) {
       toast.error("Title is required");
@@ -271,8 +272,6 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
     }
 
     try {
-      setSaving(true);
-
       const payload = {
         ...formData,
         status: publish ? "published" : formData.status,
@@ -308,15 +307,23 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
     } catch (error) {
       logger.error("Error saving blog", error);
       toast.error(error instanceof Error ? error.message : "Failed to save blog");
-    } finally {
-      setSaving(false);
     }
+  };
+
+  // Separate actions so "Save Draft" and "Publish" each show their own
+  // progress text; the other button is disabled while one runs.
+  const saveDraftAction = useAsyncAction(async () => { await saveBlog(false); });
+  const publishAction = useAsyncAction(async () => { await saveBlog(true); });
+
+  const handleSave = (publish: boolean = false) => {
+    if (publish) void publishAction.run();
+    else void saveDraftAction.run();
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-[var(--color-muted-foreground)]">Loading...</div>
+      <div className="max-w-5xl mx-auto space-y-6">
+        <FormSkeleton fields={6} />
       </div>
     );
   }
@@ -362,7 +369,9 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
             variant="outline"
             size="sm"
             onClick={() => handleSave(false)}
-            disabled={saving}
+            loading={saveDraftAction.loading}
+            loadingText="Saving…"
+            disabled={publishAction.loading}
           >
             <Save className="h-4 w-4 mr-2" />
             Save Draft
@@ -370,7 +379,9 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
           <Button
             size="sm"
             onClick={() => handleSave(true)}
-            disabled={saving}
+            loading={publishAction.loading}
+            loadingText="Publishing…"
+            disabled={saveDraftAction.loading}
           >
             <Sparkles className="h-4 w-4 mr-2" />
             {formData.status === "published" ? "Update" : "Publish"}
@@ -378,7 +389,8 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content — disabled while a save/publish is in flight */}
+      <fieldset disabled={saveDraftAction.loading || publishAction.loading} className="border-0 m-0 min-w-0 p-0">
       <Tabs defaultValue="content" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="content">Content</TabsTrigger>
@@ -818,6 +830,7 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
           </div>
         </TabsContent>
       </Tabs>
+      </fieldset>
     </div>
   );
 }

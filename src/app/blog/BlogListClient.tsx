@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CardSkeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 
@@ -319,8 +320,10 @@ export default function BlogListClient() {
 
             {/* Blog Grid */}
             {loading ? (
-              <div className="text-center py-12 text-[var(--color-muted-foreground)]">
-                Loading articles...
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <CardSkeleton key={i} />
+                ))}
               </div>
             ) : blogs.length === 0 ? (
               <div className="text-center py-12">
