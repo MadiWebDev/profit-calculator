@@ -193,16 +193,7 @@ export function DashboardSidebar({
 
   return (
     <aside className="flex flex-col h-full w-64 bg-[var(--color-card)] border-r border-[var(--color-border)]">
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-[var(--color-border)]">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white flex-shrink-0">
-          <Calculator className="h-4 w-4" />
-        </span>
-        <span className="font-bold text-lg text-[var(--color-foreground)]">
-          Profit<span className="text-[var(--color-primary)]">Calc</span>
-        </span>
-      </div>
-
-      <div className="px-4 py-2.5 border-b border-[var(--color-border)]">
+      <div className="px-4 py-2.5">
         <div className={cn(
           "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full",
           "bg-[var(--color-muted)] border border-[var(--color-border)]",
