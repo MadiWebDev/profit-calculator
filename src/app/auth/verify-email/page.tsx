@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import Image from "next/image";
+import { Spinner } from "@/components/ui/spinner";
 import VerifyResendForm from "@/components/auth/VerifyResendForm";
 
 function VerifyEmailInner() {
@@ -76,7 +77,7 @@ function VerifyEmailInner() {
 
           {state === "loading" && (
             <>
-              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-primary)] mx-auto mb-4" />
+              <Spinner size="md" className="mx-auto mb-4 text-[var(--color-primary)]" />
               <p className="text-sm text-[var(--color-muted-foreground)]">Verifying your email…</p>
             </>
           )}

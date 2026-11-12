@@ -4,9 +4,11 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import { signIn, getSession, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { resolvePostLoginRedirect } from "@/lib/post-login-redirect";
 import {
   isEmailNotVerifiedSignIn,
@@ -36,10 +38,8 @@ function LoginInner() {
   const justRegistered = searchParams.get("registered") === "1";
 
   const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<{ email?: string; password?: string }>({});
   const [needsVerify, setNeedsVerify] = useState<string | null>(null);
-  const [resending, setResending] = useState(false);
 
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -48,19 +48,7 @@ function LoginInner() {
     if (justRegistered) toast.success("Account created — sign in to continue.");
   }, []); // eslint-disable-line
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const email = emailRef.current?.value?.trim() ?? "";
-    const password = passwordRef.current?.value ?? "";
-    const errs: typeof err = {};
-    if (!email) errs.email = "Email is required";
-    if (!password) errs.password = "Password is required";
-    if (Object.keys(errs).length) { setErr(errs); return; }
-    setErr({});
-
-    setLoading(true);
-    setNeedsVerify(null);
+  const signInAction = useAsyncAction(async (email: string, password: string) => {
     try {
       const res = await signIn("credentials", { email: email.toLowerCase(), password, redirect: false });
       if (!res || res.error) {
@@ -87,23 +75,36 @@ function LoginInner() {
       );
       router.refresh();
     } catch { toast.error("Something went wrong. Try again."); }
-    finally { setLoading(false); }
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const email = emailRef.current?.value?.trim() ?? "";
+    const password = passwordRef.current?.value ?? "";
+    const errs: typeof err = {};
+    if (!email) errs.email = "Email is required";
+    if (!password) errs.password = "Password is required";
+    if (Object.keys(errs).length) { setErr(errs); return; }
+    setErr({});
+    setNeedsVerify(null);
+    void signInAction.run(email, password);
   };
 
-  const resendVerification = async () => {
-    if (!needsVerify || resending) return;
-    setResending(true);
-    try {
-      // Honest feedback: the outcome only claims "sent" when the server
-      // confirmed the email was accepted — a rate limit or send failure
-      // is surfaced as an error, never as a false success.
-      const outcome = await requestVerificationResend(needsVerify);
-      if (outcome.kind === "sent") toast.success(outcome.message);
-      else if (outcome.kind === "queued") toast.info(outcome.message);
-      else toast.error(outcome.message);
-    } finally {
-      setResending(false);
-    }
+  const resendAction = useAsyncAction(async () => {
+    if (!needsVerify) return;
+    // Honest feedback: the outcome only claims "sent" when the server
+    // confirmed the email was accepted — a rate limit or send failure
+    // is surfaced as an error, never as a false success.
+    const outcome = await requestVerificationResend(needsVerify);
+    if (outcome.kind === "sent") toast.success(outcome.message);
+    else if (outcome.kind === "queued") toast.info(outcome.message);
+    else toast.error(outcome.message);
+  });
+
+  const resendVerification = () => {
+    if (!needsVerify) return;
+    void resendAction.run();
   };
 
   return (
@@ -150,10 +151,11 @@ function LoginInner() {
                 <button
                   type="button"
                   onClick={resendVerification}
-                  disabled={resending}
+                  disabled={resendAction.loading}
+                  aria-busy={resendAction.loading || undefined}
                   className="mt-2 text-[var(--color-primary)] font-medium hover:underline disabled:opacity-50"
                 >
-                  {resending ? "Sending…" : "Resend verification email"}
+                  {resendAction.loading ? "Sending…" : "Resend verification email"}
                 </button>
               </div>
             )}
@@ -166,7 +168,7 @@ function LoginInner() {
                 autoComplete="email"
                 placeholder="you@example.com"
                 ref={emailRef}
-                disabled={loading}
+                disabled={signInAction.loading}
                 className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
               />
               {err.email && <p className="text-xs text-red-500">{err.email}</p>}
@@ -187,7 +189,7 @@ function LoginInner() {
                   autoComplete="current-password"
                   placeholder="••••••••"
                   ref={passwordRef}
-                  disabled={loading}
+                  disabled={signInAction.loading}
                   className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 pr-10 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
                 />
                 <button
@@ -202,13 +204,14 @@ function LoginInner() {
               {err.password && <p className="text-xs text-red-500">{err.password}</p>}
             </div>
 
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className="w-full h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+              loading={signInAction.loading}
+              loadingText="Signing in…"
+              className="w-full"
             >
-              {loading ? <><Loader2 className="h-4 w-4 animate-spin"/>Signing in…</> : "Sign In"}
-            </button>
+              Sign In
+            </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-[var(--color-muted-foreground)]">

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Target, Plus, Loader2, Bell, TrendingUp } from "lucide-react";
+import { Target, Plus, Bell, TrendingUp } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,7 +89,6 @@ function GoalCard({ goal }: { goal: GoalRow }) {
 export function GoalsClient({ goals }: { goals: GoalRow[] }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -97,9 +97,8 @@ export function GoalsClient({ goals }: { goals: GoalRow[] }) {
     defaultValues: { month: currentMonth, alertThreshold: 70 },
   });
 
-  const onSubmit = async (data: GoalForm) => {
+  const createAction = useAsyncAction(async (data: GoalForm) => {
     setError(null);
-    setLoading(true);
     try {
       const res = await fetch("/api/goals", {
         method: "POST",
@@ -114,9 +113,13 @@ export function GoalsClient({ goals }: { goals: GoalRow[] }) {
       reset();
       setShowForm(false);
       router.refresh();
-    } finally {
-      setLoading(false);
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
     }
+  });
+
+  const onSubmit = (data: GoalForm) => {
+    void createAction.run(data);
   };
 
   return (
@@ -144,8 +147,9 @@ export function GoalsClient({ goals }: { goals: GoalRow[] }) {
             <CardTitle className="text-base">Set Profit Goal</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {error && <div className="sm:col-span-2 lg:col-span-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-2 text-sm text-red-600">{error}</div>}
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <fieldset disabled={createAction.loading} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-0 m-0 min-w-0 p-0">
+              {error && <div role="alert" className="sm:col-span-2 lg:col-span-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-2 text-sm text-red-600">{error}</div>}
               <div className="space-y-1.5">
                 <Label htmlFor="month">Month</Label>
                 <Input id="month" type="month" {...register("month", { required: "Required" })} />
@@ -165,12 +169,13 @@ export function GoalsClient({ goals }: { goals: GoalRow[] }) {
                 <Input id="alertThreshold" type="number" min={10} max={100} step={5} {...register("alertThreshold", { valueAsNumber: true })} />
               </div>
               <div className="sm:col-span-2 lg:col-span-4 flex gap-2">
-                <Button type="submit" disabled={loading} className="gap-2">
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                <Button type="submit" loading={createAction.loading} loadingText="Creating goal…" className="gap-2">
+                  <Plus className="h-4 w-4" />
                   Create Goal
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
               </div>
+              </fieldset>
             </form>
           </CardContent>
         </Card>

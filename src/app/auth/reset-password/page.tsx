@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Calculator, Loader2, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
 
 function ResetPasswordInner() {
   const searchParams = useSearchParams();
@@ -16,30 +18,11 @@ function ResetPasswordInner() {
 
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [invalid, setInvalid] = useState(!token);
   const [errs, setErrs] = useState<{ password?: string; confirm?: string }>({});
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const password = passwordRef.current?.value ?? "";
-    const confirm = confirmRef.current?.value ?? "";
-
-    const nextErrs: typeof errs = {};
-    if (!password) nextErrs.password = "Password is required";
-    else if (password.length < 10) nextErrs.password = "At least 10 characters";
-    if (!confirm) nextErrs.confirm = "Please confirm your password";
-    else if (password !== confirm) nextErrs.confirm = "Passwords do not match";
-
-    if (Object.keys(nextErrs).length) {
-      setErrs(nextErrs);
-      return;
-    }
-    setErrs({});
-    setLoading(true);
-
+  const resetAction = useAsyncAction(async (password: string) => {
     try {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
@@ -63,9 +46,27 @@ function ResetPasswordInner() {
       setTimeout(() => router.push("/auth/login"), 2500);
     } catch {
       toast.error("Network error. Please try again.");
-    } finally {
-      setLoading(false);
     }
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const password = passwordRef.current?.value ?? "";
+    const confirm = confirmRef.current?.value ?? "";
+
+    const nextErrs: typeof errs = {};
+    if (!password) nextErrs.password = "Password is required";
+    else if (password.length < 10) nextErrs.password = "At least 10 characters";
+    if (!confirm) nextErrs.confirm = "Please confirm your password";
+    else if (password !== confirm) nextErrs.confirm = "Passwords do not match";
+
+    if (Object.keys(nextErrs).length) {
+      setErrs(nextErrs);
+      return;
+    }
+    setErrs({});
+    void resetAction.run(password);
   };
 
   /* ── Invalid / expired token ── */
@@ -135,7 +136,7 @@ function ResetPasswordInner() {
               autoFocus
               placeholder="Min. 10 characters"
               ref={passwordRef}
-              disabled={loading}
+              disabled={resetAction.loading}
               className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 pr-10 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
             />
             <button
@@ -163,7 +164,7 @@ function ResetPasswordInner() {
               autoComplete="new-password"
               placeholder="Repeat your password"
               ref={confirmRef}
-              disabled={loading}
+              disabled={resetAction.loading}
               className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 pr-10 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
             />
             <button
@@ -178,17 +179,14 @@ function ResetPasswordInner() {
           {errs.confirm && <p className="text-xs text-red-500">{errs.confirm}</p>}
         </div>
 
-        <button
+        <Button
           type="submit"
-          disabled={loading}
-          className="w-full h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+          loading={resetAction.loading}
+          loadingText="Updating…"
+          className="w-full"
         >
-          {loading ? (
-            <><Loader2 className="h-4 w-4 animate-spin" />Updating…</>
-          ) : (
-            "Update Password"
-          )}
-        </button>
+          Update Password
+        </Button>
       </form>
     </>
   );

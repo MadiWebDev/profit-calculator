@@ -51,6 +51,8 @@ import type { BadgeProps } from "@/components/ui/badge";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import { useAsyncAction } from "@/hooks/use-async-action";
 
 interface Blog {
   _id: string;
@@ -141,7 +143,7 @@ export default function BlogsClient() {
     fetchBlogs();
   };
 
-  const handleDelete = async () => {
+  const deleteAction = useAsyncAction(async () => {
     if (!blogToDelete) return;
 
     try {
@@ -160,6 +162,10 @@ export default function BlogsClient() {
       setDeleteDialogOpen(false);
       setBlogToDelete(null);
     }
+  });
+
+  const handleDelete = () => {
+    void deleteAction.run();
   };
 
   const getStatusBadge = (status: string) => {
@@ -319,9 +325,7 @@ export default function BlogsClient() {
       {/* Blogs List */}
       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-[var(--color-muted-foreground)]">
-            Loading...
-          </div>
+          <div className="p-5"><ListSkeleton rows={5} /></div>
         ) : blogs.length === 0 ? (
           <div className="p-12 text-center">
             <FileText className="h-12 w-12 mx-auto text-[var(--color-muted-foreground)] mb-4" />
@@ -537,9 +541,11 @@ export default function BlogsClient() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={deleteAction.loading}
+              aria-busy={deleteAction.loading || undefined}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {deleteAction.loading ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

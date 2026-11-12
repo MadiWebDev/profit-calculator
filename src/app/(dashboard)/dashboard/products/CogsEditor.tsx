@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
-import { Loader2, ChevronDown, ChevronUp, History } from "lucide-react";
+import { ChevronDown, ChevronUp, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
@@ -54,7 +55,6 @@ export function CogsEditor({
   const { formatMoney } = useCurrency();
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -73,8 +73,8 @@ export function CogsEditor({
   const watched = useWatch({ control });
   const computedCogs = LANDED_FIELDS.reduce((s, f) => s + (Number(watched[f.key]) || 0), 0);
 
-  const onSubmit = async (data: CogsFormValues) => {
-    setLoading(true); setError(null); setSuccess(false);
+  const saveAction = useAsyncAction(async (data: CogsFormValues) => {
+    setError(null); setSuccess(false);
     try {
       const res = await fetch("/api/cogs", {
         method: "POST",
@@ -86,7 +86,13 @@ export function CogsEditor({
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
       onSaved?.(j.cogs);
-    } finally { setLoading(false); }
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
+    }
+  });
+
+  const onSubmit = (data: CogsFormValues) => {
+    void saveAction.run(data);
   };
 
   return (
@@ -112,15 +118,16 @@ export function CogsEditor({
       {open && (
         <div className="p-4 bg-[var(--color-card)] space-y-4">
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 rounded-lg px-3 py-2">{error}</div>
+            <div role="alert" className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 rounded-lg px-3 py-2">{error}</div>
           )}
           {success && (
-            <div className="text-sm text-green-600 bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg px-3 py-2">
+            <div role="status" className="text-sm text-green-600 bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg px-3 py-2">
               ✓ COGS updated to {formatMoney(computedCogs, currency)}
             </div>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <fieldset disabled={saveAction.loading} className="space-y-3 border-0 m-0 min-w-0 p-0">
             <p className="text-xs text-[var(--color-muted-foreground)]">
               Break down your landed cost for maximum accuracy. Total COGS = sum of all fields below.
             </p>
@@ -153,8 +160,7 @@ export function CogsEditor({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button type="submit" size="sm" disabled={loading} className="gap-2">
-                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              <Button type="submit" size="sm" loading={saveAction.loading} loadingText="Saving COGS…" className="gap-2">
                 Save COGS
               </Button>
               {history.length > 0 && (
@@ -164,6 +170,7 @@ export function CogsEditor({
                 </Button>
               )}
             </div>
+            </fieldset>
           </form>
 
           {showHistory && history.length > 0 && (

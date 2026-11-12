@@ -17,6 +17,7 @@ import { useRole } from "@/components/dashboard/RoleContext";
 import { getTiers } from "@/lib/tiers";
 import type { PricingInterval } from "@/lib/tiers";
 import { usePaddlePricing } from "@/hooks/usePaddlePricing";
+import { useAsyncAction } from "@/hooks/use-async-action";
 
 // ── Static data ───────────────────────────────────────────────────────────────
 // TIERS is NOT loaded at module level — getTiers() reads env vars and would
@@ -257,13 +258,11 @@ export function SettingsClient({
   const [displayName,   setDisplayName]   = useState(data.user.name);
   // Optional WhatsApp number for admin campaigns (E.164). Empty = no number on file.
   const [phone,         setPhone]         = useState(data.user.phone ?? "");
-  const [savingProfile, setSavingProfile] = useState(false);
 
   // ── Workspace state ───────────────────────────────────────────────────────
   const [wsName,          setWsName]          = useState(data.team?.name     ?? "");
   const [wsCurrency,      setWsCurrency]      = useState(data.team?.currency ?? "USD");
   const [wsTimezone,      setWsTimezone]      = useState(data.team?.timezone ?? "UTC");
-  const [savingWorkspace, setSavingWorkspace] = useState(false);
 
   // ── Notifications state ───────────────────────────────────────────────────
   const [notifPrefs, setNotifPrefs] = useState({
@@ -275,7 +274,6 @@ export function SettingsClient({
   });
   const [slackWebhook,  setSlackWebhook]  = useState("");
   const [testingSlack,  setTestingSlack]  = useState(false);
-  const [savingNotifs,  setSavingNotifs]  = useState(false);
   const [notifsLoaded,  setNotifsLoaded]  = useState(false);
 
   useEffect(() => {
@@ -301,9 +299,8 @@ export function SettingsClient({
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
-  const saveProfile = async () => {
+  const saveProfileAction = useAsyncAction(async () => {
     if (!displayName.trim()) return;
-    setSavingProfile(true);
     try {
       const res = await fetch("/api/user", {
         method: "PATCH",
@@ -312,11 +309,14 @@ export function SettingsClient({
       });
       if (res.ok) { setFeedback("ok", "Profile updated."); router.refresh(); }
       else { const j = await res.json(); setFeedback("err", j.error ?? "Save failed."); }
-    } finally { setSavingProfile(false); }
+    } catch { setFeedback("err", "Save failed. Check your connection and try again."); }
+  });
+
+  const saveProfile = () => {
+    void saveProfileAction.run();
   };
 
-  const saveWorkspace = async () => {
-    setSavingWorkspace(true);
+  const saveWorkspaceAction = useAsyncAction(async () => {
     try {
       const res = await fetch("/api/team", {
         method: "PATCH",
@@ -325,11 +325,14 @@ export function SettingsClient({
       });
       if (res.ok) { setFeedback("ok", "Workspace settings saved."); router.refresh(); }
       else { const j = await res.json(); setFeedback("err", j.error ?? "Save failed."); }
-    } finally { setSavingWorkspace(false); }
+    } catch { setFeedback("err", "Save failed. Check your connection and try again."); }
+  });
+
+  const saveWorkspace = () => {
+    void saveWorkspaceAction.run();
   };
 
-  const saveNotifications = async () => {
-    setSavingNotifs(true);
+  const saveNotifsAction = useAsyncAction(async () => {
     try {
       const res = await fetch("/api/settings/notifications", {
         method: "PATCH",
@@ -338,7 +341,11 @@ export function SettingsClient({
       });
       if (res.ok) setFeedback("ok", "Notification preferences saved.");
       else { const j = await res.json(); setFeedback("err", j.error ?? "Save failed."); }
-    } finally { setSavingNotifs(false); }
+    } catch { setFeedback("err", "Save failed. Check your connection and try again."); }
+  });
+
+  const saveNotifications = () => {
+    void saveNotifsAction.run();
   };
 
   const cancelSubscription = async () => {
@@ -544,7 +551,7 @@ export function SettingsClient({
               <div className="grid grid-cols-1 gap-3 pt-2 border-t border-[var(--color-border)]">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Display Name</Label>
-                  <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" className="h-9" />
+                  <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" className="h-9" disabled={saveProfileAction.loading} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Email</Label>
@@ -553,16 +560,17 @@ export function SettingsClient({
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">WhatsApp Number (optional)</Label>
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+923001234567" className="h-9" />
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+923001234567" className="h-9" disabled={saveProfileAction.loading} />
                   <p className="text-xs text-[var(--color-muted-foreground)]">
                     E.164 format, e.g. +923001234567. Only used to receive admin WhatsApp announcements — leave blank to opt out.
                   </p>
                 </div>
                 <Button
                   size="sm" className="w-fit gap-2" onClick={saveProfile}
-                  disabled={savingProfile || !displayName.trim() || (displayName.trim() === data.user.name && phone.trim() === (data.user.phone ?? ""))}
+                  loading={saveProfileAction.loading} loadingText="Saving…"
+                  disabled={!displayName.trim() || (displayName.trim() === data.user.name && phone.trim() === (data.user.phone ?? ""))}
                 >
-                  {savingProfile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  <CheckCircle2 className="h-3.5 w-3.5" />
                   Save Changes
                 </Button>
               </div>
@@ -579,26 +587,26 @@ export function SettingsClient({
               <CardContent className="space-y-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Workspace Name</Label>
-                  <Input value={wsName} onChange={(e) => setWsName(e.target.value)} className="h-9" />
+                  <Input value={wsName} onChange={(e) => setWsName(e.target.value)} className="h-9" disabled={saveWorkspaceAction.loading} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs flex items-center gap-1"><Globe className="h-3 w-3" /> Currency</Label>
-                    <select value={wsCurrency} onChange={(e) => setWsCurrency(e.target.value)}
-                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm">
+                    <select value={wsCurrency} onChange={(e) => setWsCurrency(e.target.value)} disabled={saveWorkspaceAction.loading}
+                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm disabled:opacity-50">
                       {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs flex items-center gap-1"><Clock className="h-3 w-3" /> Timezone</Label>
-                    <select value={wsTimezone} onChange={(e) => setWsTimezone(e.target.value)}
-                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm">
+                    <select value={wsTimezone} onChange={(e) => setWsTimezone(e.target.value)} disabled={saveWorkspaceAction.loading}
+                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm disabled:opacity-50">
                       {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
                     </select>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="gap-2" onClick={saveWorkspace} disabled={savingWorkspace}>
-                  {savingWorkspace ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                <Button size="sm" variant="outline" className="gap-2" onClick={saveWorkspace} loading={saveWorkspaceAction.loading} loadingText="Saving…">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
                   Save Workspace Settings
                 </Button>
               </CardContent>
@@ -664,18 +672,17 @@ export function SettingsClient({
                       </Button>
                     )}
                     <Button
-                      variant="outline" size="sm" onClick={openPortal} disabled={portalLoading}
+                      variant="outline" size="sm" onClick={openPortal} loading={portalLoading} loadingText="Opening…"
                       className="w-full sm:w-auto gap-2"
                     >
-                      {portalLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+                      <ExternalLink className="h-3.5 w-3.5" />
                       Billing Portal
                     </Button>
                     {!sub.cancelAtPeriodEnd && (
                       <Button
-                        variant="outline" size="sm" onClick={cancelSubscription} disabled={cancelling}
+                        variant="outline" size="sm" onClick={cancelSubscription} loading={cancelling} loadingText="Cancelling…"
                         className="w-full sm:w-auto text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-950 gap-2"
                       >
-                        {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                         Cancel Subscription
                       </Button>
                     )}
@@ -837,14 +844,12 @@ export function SettingsClient({
                             className="w-full gap-1.5"
                             variant={isHighlighted ? "default" : "outline"}
                             disabled={anyOpening || !paddleReady}
+                            loading={isOpening}
+                            loadingText="Opening…"
                             onClick={() => handleSubscribe(tier.id)}
                             aria-label={`Subscribe to ${tier.name}`}
                           >
-                            {isOpening ? (
-                              <><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Opening…</>
-                            ) : (
-                              <>Subscribe <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></>
-                            )}
+                            Subscribe <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                           </Button>
                         )}
                       </div>
@@ -1141,7 +1146,7 @@ export function SettingsClient({
                     <p className="text-sm font-medium text-[var(--color-foreground)]">{label}</p>
                     <p className="text-xs text-[var(--color-muted-foreground)]">{desc}</p>
                   </div>
-                  <Toggle checked={notifPrefs[key]} onChange={() => setNotifPrefs((p) => ({ ...p, [key]: !p[key] }))} />
+                  <Toggle checked={notifPrefs[key]} onChange={() => setNotifPrefs((p) => ({ ...p, [key]: !p[key] }))} disabled={saveNotifsAction.loading} />
                 </div>
               ))}
             </CardContent>
@@ -1179,14 +1184,15 @@ export function SettingsClient({
                         value={slackWebhook}
                         onChange={(e) => setSlackWebhook(e.target.value)}
                         className="h-9 font-mono text-xs"
+                        disabled={saveNotifsAction.loading || testingSlack}
                       />
                       <Button
                         size="sm" variant="outline"
                         disabled={!slackWebhook || testingSlack}
+                        loading={testingSlack} loadingText="Testing…"
                         onClick={testSlack}
                         className="h-9 gap-1.5 whitespace-nowrap"
                       >
-                        {testingSlack ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                         Test
                       </Button>
                     </div>
@@ -1206,7 +1212,7 @@ export function SettingsClient({
                     ] as const).map(({ key, label }) => (
                       <div key={key} className="flex items-center justify-between">
                         <span className="text-sm text-[var(--color-muted-foreground)]">{label}</span>
-                        <Toggle checked={notifPrefs[key]} onChange={() => setNotifPrefs((p) => ({ ...p, [key]: !p[key] }))} />
+                        <Toggle checked={notifPrefs[key]} onChange={() => setNotifPrefs((p) => ({ ...p, [key]: !p[key] }))} disabled={saveNotifsAction.loading} />
                       </div>
                     ))}
                   </div>
@@ -1215,8 +1221,8 @@ export function SettingsClient({
             </CardContent>
           </Card>
 
-          <Button onClick={saveNotifications} disabled={savingNotifs} className="gap-2">
-            {savingNotifs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+          <Button onClick={saveNotifications} loading={saveNotifsAction.loading} loadingText="Saving…" className="gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5" />
             Save Notification Preferences
           </Button>
 

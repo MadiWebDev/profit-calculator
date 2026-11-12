@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Search, Loader2, Crown, AlertCircle, CheckCircle2,
+  Search, Crown, AlertCircle, CheckCircle2,
   ChevronLeft, ChevronRight, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
@@ -137,13 +138,13 @@ export function UsersClient() {
 
       {/* Feedback */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" /> {error}
           <button className="ml-auto opacity-60 hover:opacity-100" onClick={() => setError(null)}>✕</button>
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 px-4 py-3 text-sm text-green-700">
+        <div role="status" className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 px-4 py-3 text-sm text-green-700">
           <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> {success}
         </div>
       )}
@@ -169,9 +170,7 @@ export function UsersClient() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-muted-foreground)]" />
-            </div>
+            <div className="p-5"><ListSkeleton rows={5} /></div>
           ) : users.length === 0 ? (
             <div className="py-14 text-center text-sm text-[var(--color-muted-foreground)]">
               No users found.
@@ -248,43 +247,40 @@ export function UsersClient() {
                       {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          {updating === u.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-[var(--color-muted-foreground)]" />
-                          ) : (
-                            <>
-                              {/* Change plan */}
-                              <Select
-                                value={u.plan}
-                                onValueChange={(v) => updateUser(u.id, "plan", v)}
-                              >
-                                <SelectTrigger className="h-7 w-28 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="free">Free</SelectItem>
-                                  <SelectItem value="starter">Starter</SelectItem>
-                                  <SelectItem value="growth">Growth</SelectItem>
-                                  <SelectItem value="pro">Pro</SelectItem>
-                                </SelectContent>
-                              </Select>
+                          {/* Change plan */}
+                          <Select
+                            value={u.plan}
+                            onValueChange={(v) => updateUser(u.id, "plan", v)}
+                            disabled={updating === u.id}
+                          >
+                            <SelectTrigger className="h-7 w-28 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="free">Free</SelectItem>
+                              <SelectItem value="starter">Starter</SelectItem>
+                              <SelectItem value="growth">Growth</SelectItem>
+                              <SelectItem value="pro">Pro</SelectItem>
+                            </SelectContent>
+                          </Select>
 
-                              {/* Toggle superAdmin */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className={cn(
-                                  "h-7 text-xs px-2",
-                                  u.role === "superAdmin"
-                                    ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-                                    : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]"
-                                )}
-                                onClick={() => updateUser(u.id, "role", u.role === "superAdmin" ? "owner" : "superAdmin")}
-                                title={u.role === "superAdmin" ? "Remove superAdmin" : "Make superAdmin"}
-                              >
-                                {u.role === "superAdmin" ? "Demote" : "Make Admin"}
-                              </Button>
-                            </>
-                          )}
+                          {/* Toggle superAdmin */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "h-7 text-xs px-2",
+                              u.role === "superAdmin"
+                                ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+                                : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]"
+                            )}
+                            onClick={() => updateUser(u.id, "role", u.role === "superAdmin" ? "owner" : "superAdmin")}
+                            loading={updating === u.id}
+                            loadingText={u.role === "superAdmin" ? "Demoting…" : "Making admin…"}
+                            title={u.role === "superAdmin" ? "Remove superAdmin" : "Make superAdmin"}
+                          >
+                            {u.role === "superAdmin" ? "Demote" : "Make Admin"}
+                          </Button>
                         </div>
                       </td>
                     </tr>

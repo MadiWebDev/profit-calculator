@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import type { AlertEvaluation, AlertMetric, AlertOperator } from "@/lib/alerts";
 
 interface RuleRow {
@@ -42,7 +43,6 @@ export function AlertsClient({
   const [threshold, setThreshold] = useState("20");
   const [windowDays, setWindowDays] = useState("30");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   async function refresh() {
     const res = await fetch("/api/alerts");
@@ -53,10 +53,7 @@ export function AlertsClient({
     }
   }
 
-  async function createRule(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
+  const createAction = useAsyncAction(async () => {
     try {
       const res = await fetch("/api/alerts", {
         method: "POST",
@@ -79,9 +76,13 @@ export function AlertsClient({
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create rule");
-    } finally {
-      setBusy(false);
     }
+  });
+
+  function createRule(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    void createAction.run();
   }
 
   async function toggleRule(id: string, enabled: boolean) {
@@ -139,7 +140,8 @@ export function AlertsClient({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={createRule} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <form onSubmit={createRule}>
+            <fieldset disabled={createAction.loading} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 border-0 m-0 min-w-0 p-0">
             <div className="space-y-1">
               <Label htmlFor="rule-name">Name</Label>
               <Input
@@ -201,12 +203,13 @@ export function AlertsClient({
               />
             </div>
             <div className="flex items-end">
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" loading={createAction.loading} loadingText="Creating rule…">
                 Create rule
               </Button>
             </div>
+            </fieldset>
           </form>
-          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
 

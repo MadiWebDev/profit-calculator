@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, Shield, CheckCircle2 } from "lucide-react";
+import { Shield, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { resolvePostLoginRedirect } from "@/lib/post-login-redirect";
 
 /**
@@ -29,7 +32,6 @@ export default function TwoFactorSetupPage() {
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/login");
@@ -54,9 +56,8 @@ export default function TwoFactorSetupPage() {
     })();
   }, [status, router, update, destination]);
 
-  const submit = async () => {
+  const enableAction = useAsyncAction(async () => {
     setError(null);
-    setSubmitting(true);
     try {
       const res = await fetch("/api/auth/2fa/enable", {
         method: "POST",
@@ -69,9 +70,13 @@ export default function TwoFactorSetupPage() {
         return;
       }
       setRecoveryCodes(j.recoveryCodes ?? []);
-    } finally {
-      setSubmitting(false);
+    } catch {
+      setError("Could not reach the server. Try again.");
     }
+  });
+
+  const submit = () => {
+    void enableAction.run();
   };
 
   const finish = async () => {
@@ -83,7 +88,7 @@ export default function TwoFactorSetupPage() {
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-muted)] px-4 py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--color-primary)]" />
+        <Spinner size="md" className="text-[var(--color-primary)]" />
       </div>
     );
   }
@@ -235,19 +240,20 @@ export default function TwoFactorSetupPage() {
                 placeholder="123456"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                disabled={submitting}
+                disabled={enableAction.loading}
                 className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
               />
               {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
 
-            <button
+            <Button
               onClick={submit}
-              disabled={submitting}
-              className="w-full h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+              loading={enableAction.loading}
+              loadingText="Enabling…"
+              className="w-full"
             >
-              {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Enabling…</> : "Enable two-factor"}
-            </button>
+              Enable two-factor
+            </Button>
           </div>
 
           <p className="mt-4 text-xs text-center text-[var(--color-muted-foreground)]">

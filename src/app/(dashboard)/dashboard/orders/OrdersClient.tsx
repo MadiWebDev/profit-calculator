@@ -191,7 +191,7 @@ function OrderFormModal({
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <div role="alert" className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" />
               {error}
             </div>
@@ -206,6 +206,7 @@ function OrderFormModal({
                 placeholder="e.g. 1001"
                 value={form.orderNumber}
                 onChange={(e) => set("orderNumber", e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="space-y-1.5">
@@ -216,6 +217,7 @@ function OrderFormModal({
                 required
                 value={form.orderDate}
                 onChange={(e) => set("orderDate", e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -227,7 +229,8 @@ function OrderFormModal({
                 id="of-status"
                 value={form.status}
                 onChange={(e) => set("status", e.target.value)}
-                className="flex h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-1 text-sm text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] capitalize"
+                disabled={loading}
+                className="flex h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-1 text-sm text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] capitalize disabled:opacity-50"
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s} className="capitalize">
@@ -244,6 +247,7 @@ function OrderFormModal({
                 placeholder="customer@example.com"
                 value={form.customerEmail}
                 onChange={(e) => set("customerEmail", e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -271,6 +275,7 @@ function OrderFormModal({
                     value={form[key]}
                     onChange={(e) => set(key, e.target.value)}
                     required={key === "grossRevenue"}
+                    disabled={loading}
                     className="text-sm pl-7"
                   />
                 </div>
@@ -302,9 +307,8 @@ function OrderFormModal({
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="gap-2 min-w-[110px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {loading ? "Saving…" : submitLabel}
+            <Button type="submit" loading={loading} loadingText="Saving…" className="gap-2 min-w-[110px]">
+              {submitLabel}
             </Button>
           </div>
         </form>
@@ -369,7 +373,7 @@ function DeleteOrderModal({ order, onClose, onDeleted }: DeleteOrderModalProps) 
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <p role="alert" className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
@@ -378,9 +382,9 @@ function DeleteOrderModal({ order, onClose, onDeleted }: DeleteOrderModalProps) 
             <Button variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={loading} className="gap-2 min-w-[90px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              {loading ? "Deleting…" : "Delete"}
+            <Button variant="destructive" onClick={handleDelete} loading={loading} loadingText="Deleting…" className="gap-2 min-w-[90px]">
+              <Trash2 className="h-4 w-4" />
+              Delete
             </Button>
           </div>
         </div>
