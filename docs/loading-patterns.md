@@ -83,9 +83,23 @@ import { KpiSkeleton, ChartSkeleton, TableSkeleton } from "@/components/dashboar
 
 - Every skeleton reserves the **same space as the final content** (fixed
   heights/widths) so the page does not jump when content arrives.
-- Full-section skeletons carry `role="status"` + sr-only "Loading...".
-- Dashboard pages: reuse `KpiSkeleton` / `ChartSkeleton` / `TableSkeleton`
-  from `DashboardSkeleton.tsx` — they already match the dashboard layout.
+- **Which skeletons announce:** `ListSkeleton`, `FormSkeleton`,
+  `ProfileSkeleton`, `StatsSkeleton` (in `ui/skeleton.tsx`) wrap their
+  content in `role="status"` + sr-only "Loading...", so screen readers
+  announce them. The primitive `Skeleton` block and `CardSkeleton` stay
+  plain (no role) — they are layout blocks, not a status.
+- **Dashboard exception (verified Phase 2):** `KpiSkeleton`,
+  `ChartSkeleton`, `TableSkeleton` in
+  `src/components/dashboard/DashboardSkeleton.tsx` are visual-only —
+  they carry **no** `role="status"`. They are the pre-existing
+  dashboard blocks Phase 0 reused as-is, so the `(dashboard)`
+  `loading.tsx` fallback (KPI + chart + table skeletons) shows a
+  pulsing placeholder but announces nothing to screen readers. The
+  follow-up fix is one line — a single `role="status"` + sr-only
+  "Loading..." on the dashboard variant wrapper in
+  `src/components/loading-fallback.tsx` — deliberately **not** done in
+  Phase 2 (the phase was docs + verification only); it is a TODO for
+  the next loading pass, not a silent gap.
 
 ## Route changes
 
@@ -102,6 +116,14 @@ import { KpiSkeleton, ChartSkeleton, TableSkeleton } from "@/components/dashboar
   onboarding, pricing, portal, `[locale]`, and `(dashboard)`. Static
   marketing pages are covered by the root `loading.tsx` — do not create
   one per slug page.
+  - **Verified live (Phase 2 smoke):** the segment fallback shows when
+    *entering* the segment from outside it (e.g. marketing site →
+    `/dashboard` — the KPI/chart/table skeletons render while the RSC
+    payload is held). Navigating *within* a segment (e.g.
+    `/dashboard` → `/dashboard/orders`) shows **no** fallback — React
+    keeps the old page visible until the new RSC arrives. That is the
+    framework's transition behaviour, not a missing skeleton, and it
+    matches the "keep content on refetch" rule below.
 - **No `error.tsx` files were added.** Error boundaries change error
   behaviour; if a segment demonstrably needs one, that is a Phase 1
   decision, not a Phase 0 default.
@@ -117,12 +139,25 @@ import { PageLoader } from "@/components/page-loader";
 Full-screen overlay with a spinner + optional message. For **heavy**
 operations only — checkout redirects, large imports. Do NOT use it for
 ordinary data fetches; that is exactly the failure mode this system
-exists to prevent. Phase 1 wires it into the heavy call sites.
+exists to prevent. **Phase 1 did not wire it into any call site, and
+that is deliberate, not an oversight:** no heavy operation identified
+in the audit needed a full-screen overlay — checkout redirects use
+`<Button loading>` in `PricingClient` / `PricingModal`, and the CSV
+import uses `<Button loading>` + the determinate upload progress bar.
+Wire `PageLoader` in only if a future heavy operation (a long redirect
+or a multi-step import) is identified; until then it stays defined but
+unused, and the "unused" state is the verified state, not a gap.
 
 ## Accessibility
 
 - Buttons: `aria-busy` while loading; focus preserved.
-- Spinners / skeletons: `role="status"` + sr-only "Loading...".
+- Spinners: `role="status"` + sr-only "Loading..." (or decorative with
+  `label=""` and no role — e.g. the inline search spinner, which is
+  visible but not announced).
+- Skeletons: `role="status"` + sr-only "Loading..." for the
+  `ui/skeleton.tsx` section variants (`List` / `Form` / `Profile` /
+  `Stats`); the `DashboardSkeleton` blocks (`Kpi` / `Chart` / `Table`)
+  are visual-only — see the note in the Skeletons section above.
 - Errors from `useAsyncAction`: render them with `role="alert"`.
 - Reduced motion: `prefers-reduced-motion` disables the spinner spin,
   skeleton pulse, and progress-bar fade (see `globals.css`).
@@ -233,3 +268,17 @@ no layout change.
 - [ ] Reduced motion: no new animation without a `motion-reduce` /
       `prefers-reduced-motion` guard.
 - [ ] Timing: reuse the 200 ms / 400 ms constants — never hard-code them.
+
+### Enforcement — the checklist, not a lint rule
+
+No existing ESLint rule can enforce "no bare async button without
+loading": that check would need a custom AST rule that understands
+which buttons trigger async work, i.e. a custom ESLint plugin. That
+is deliberately **not** built — a custom plugin is out of scope for
+this system and would be the wrong kind of enforcement for a
+judgement call (a button is not always async; a search form needs a
+spinner in the input, not a loading button). The config
+(`eslint.config.mjs`) stays on `eslint-config-next` core-web-vitals +
+typescript only. Enforcement is this checklist in code review, plus
+the patterns above: if a reviewer cannot point at the loading state
+for a new async action, the PR is not ready.
