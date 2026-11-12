@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CardSkeleton, StatsSkeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Action { title: string; detail: string; amount: number; actionLabel: string; actionHref: string }
@@ -38,8 +39,20 @@ export default function MissionControlPage() {
   useEffect(() => { load(); }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  if (loading) return <div className="grid grid-cols-2 md:grid-cols-3 gap-4" role="status" aria-label="Loading">{Array.from({ length: 6 }).map((_, i) => (<Card key={i}><CardContent className="h-24 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
-  if (error || !data) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error ?? "No data"}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <StatsSkeleton count={4} />
+        <CardSkeleton />
+        <div className="grid md:grid-cols-2 gap-4">
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+        <CardSkeleton />
+      </div>
+    );
+  }
+  if (error || !data) return <Card><CardContent className="py-8 text-center space-y-3"><p role="alert" className="text-sm text-red-600">{error ?? "No data"}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
 
   return (
     <div className="space-y-6">

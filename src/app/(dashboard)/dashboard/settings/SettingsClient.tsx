@@ -3,11 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  CreditCard, Store, Zap, Loader2, AlertTriangle, CheckCircle2,
+  CreditCard, Store, Zap, AlertTriangle, CheckCircle2,
   RefreshCw, Plus, User, Bell, Key, ExternalLink, Lock,
   Globe, Clock, Shield, ArrowRight, Check, X, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -923,7 +924,7 @@ export function SettingsClient({
                           className="text-xs capitalize"
                         >
                           {store.syncStatus === "syncing"
-                            ? <span className="flex items-center gap-1"><Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing</span>
+                            ? <span className="flex items-center gap-1"><Spinner size="sm" className="h-2.5 w-2.5" label="" /> Syncing</span>
                             : store.syncStatus}
                         </Badge>
                         <Button
@@ -940,7 +941,7 @@ export function SettingsClient({
                           disabled={disconnectingStoreId === store.id}
                           title="Disconnect store"
                         >
-                          {disconnectingStoreId === store.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          {disconnectingStoreId === store.id ? <Spinner size="sm" className="h-3.5 w-3.5" label="" /> : <Trash2 className="h-3.5 w-3.5" />}
                         </Button>
                       </div>
                     </div>
@@ -969,7 +970,7 @@ export function SettingsClient({
                   <span className="text-lg">🎵</span> TikTok Ads
                 </CardTitle>
                 <Button size="sm" className="gap-1.5" onClick={connectTikTok} disabled={connectingTikTok}>
-                  {connectingTikTok ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  {connectingTikTok ? <Spinner size="sm" className="h-3.5 w-3.5" label="" /> : <Plus className="h-3.5 w-3.5" />}
                   Connect TikTok Ads
                 </Button>
               </div>
@@ -983,7 +984,7 @@ export function SettingsClient({
                     Connect your TikTok Ads account to pull spend data into your dashboard.
                   </p>
                   <Button size="sm" onClick={connectTikTok} disabled={connectingTikTok} className="gap-2 mt-2">
-                    {connectingTikTok ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                    {connectingTikTok ? <Spinner size="sm" className="h-3.5 w-3.5" label="" /> : <Zap className="h-3.5 w-3.5" />}
                     Connect Now
                   </Button>
                 </div>
@@ -1010,7 +1011,7 @@ export function SettingsClient({
                           className="text-xs capitalize"
                         >
                           {acc.syncStatus === "syncing"
-                            ? <span className="flex items-center gap-1"><Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing</span>
+                            ? <span className="flex items-center gap-1"><Spinner size="sm" className="h-2.5 w-2.5" label="" /> Syncing</span>
                             : acc.syncStatus}
                         </Badge>
                         <Button
@@ -1027,7 +1028,7 @@ export function SettingsClient({
                           disabled={disconnectingAdAccountId === acc.id}
                           title="Disconnect ad account"
                         >
-                          {disconnectingAdAccountId === acc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          {disconnectingAdAccountId === acc.id ? <Spinner size="sm" className="h-3.5 w-3.5" label="" /> : <Trash2 className="h-3.5 w-3.5" />}
                         </Button>
                       </div>
                     </div>
@@ -1054,7 +1055,7 @@ export function SettingsClient({
                     {label}
                   </CardTitle>
                   <Button size="sm" className="gap-1.5" onClick={() => connectAdPlatform(platform, label)} disabled={connecting}>
-                    {connecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                    {connecting ? <Spinner size="sm" className="h-3.5 w-3.5" label="" /> : <Plus className="h-3.5 w-3.5" />}
                     Connect {label}
                   </Button>
                 </div>
@@ -1068,7 +1069,7 @@ export function SettingsClient({
                       Connect your {label} account to pull spend data into your dashboard.
                     </p>
                     <Button size="sm" onClick={() => connectAdPlatform(platform, label)} disabled={connecting} className="gap-2 mt-2">
-                      {connecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                      {connecting ? <Spinner size="sm" className="h-3.5 w-3.5" label="" /> : <Zap className="h-3.5 w-3.5" />}
                       Connect Now
                     </Button>
                   </div>
@@ -1095,7 +1096,7 @@ export function SettingsClient({
                             className="text-xs capitalize"
                           >
                             {acc.syncStatus === "syncing"
-                              ? <span className="flex items-center gap-1"><Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing</span>
+                              ? <span className="flex items-center gap-1"><Spinner size="sm" className="h-2.5 w-2.5" label="" /> Syncing</span>
                               : acc.syncStatus}
                           </Badge>
                           <Button
@@ -1112,7 +1113,7 @@ export function SettingsClient({
                             disabled={disconnectingAdAccountId === acc.id}
                             title="Disconnect ad account"
                           >
-                            {disconnectingAdAccountId === acc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            {disconnectingAdAccountId === acc.id ? <Spinner size="sm" className="h-3.5 w-3.5" label="" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </Button>
                         </div>
                       </div>
@@ -1129,6 +1130,11 @@ export function SettingsClient({
       {/* ── NOTIFICATIONS TAB ────────────────────────────────────────────────── */}
       {tab === "notifications" && (
         <div className="space-y-4 max-w-xl">
+          {!notifsLoaded && (
+            <p className="text-sm text-[var(--color-muted-foreground)] flex items-center gap-2" role="status">
+              <Spinner size="sm" label="" /> Loading notification settings…
+            </p>
+          )}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">

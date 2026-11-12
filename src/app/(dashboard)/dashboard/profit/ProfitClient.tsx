@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { CardSkeleton, StatsSkeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Metrics {
@@ -73,6 +75,9 @@ export function ProfitClient() {
   };
 
   const m = data?.metrics;
+  // First load shows skeletons; a refetch keeps the existing content and
+  // only the Apply button + inline spinner show the reload.
+  const firstLoad = loading && data === null;
 
   return (
     <div className="space-y-6">
@@ -81,32 +86,42 @@ export function ProfitClient() {
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">True Profit</h1>
           <p className="text-sm text-[var(--color-muted-foreground)]">
             Revenue after discounts, minus refunds, COGS, shipping, fees, packaging, ad spend, RTO loss and allocated expenses.
+            {loading && !firstLoad && (
+              <span className="ml-2 inline-flex items-center gap-1">
+                <Spinner size="sm" label="" /> Updating…
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-end gap-3 ml-auto">
           <div className="space-y-1">
             <Label htmlFor="profit-from">From</Label>
-            <Input id="profit-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input id="profit-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} disabled={loading} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="profit-to">To</Label>
-            <Input id="profit-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <Input id="profit-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} disabled={loading} />
           </div>
-          <Button onClick={load} disabled={loading}>Apply</Button>
+          <Button onClick={load} loading={loading} loadingText="Loading…">Apply</Button>
           <Button variant="outline" onClick={exportCsv}>Export CSV</Button>
         </div>
       </div>
 
-      {loading && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4" role="status" aria-label="Loading">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Card key={i}><CardContent className="h-24 animate-pulse bg-[var(--color-muted)]/40" /></Card>
-          ))}
-        </div>
+      {firstLoad && (
+        <>
+          <StatsSkeleton count={8} />
+          <div className="grid md:grid-cols-2 gap-4">
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
+        </>
       )}
 
       {error && !loading && (
-        <Card><CardContent className="py-8 text-center text-sm text-red-600">{error}</CardContent></Card>
+        <Card><CardContent className="py-8 text-center space-y-3">
+          <p role="alert" className="text-sm text-red-600">{error}</p>
+          <Button variant="outline" onClick={load}>Retry</Button>
+        </CardContent></Card>
       )}
 
       {!loading && !error && !m && (
@@ -115,7 +130,8 @@ export function ProfitClient() {
         </CardContent></Card>
       )}
 
-      {!loading && m && data && (
+      {/* On a refetch error the previous data stays visible under the error card. */}
+      {!firstLoad && m && data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {([

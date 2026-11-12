@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import { useAsyncAction } from "@/hooks/use-async-action";
 import type { AlertEvaluation, AlertMetric, AlertOperator } from "@/lib/alerts";
 
@@ -43,13 +44,22 @@ export function AlertsClient({
   const [threshold, setThreshold] = useState("20");
   const [windowDays, setWindowDays] = useState("30");
   const [error, setError] = useState<string | null>(null);
+  // `refreshing` covers the list reload after create/toggle/delete;
+  // `actingId` marks the one rule whose toggle/delete is in flight.
+  const [refreshing, setRefreshing] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
 
   async function refresh() {
-    const res = await fetch("/api/alerts");
-    if (res.ok) {
-      const data = await res.json();
-      setRules(data.rules);
-      setEvals(data.evaluations);
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/alerts");
+      if (res.ok) {
+        const data = await res.json();
+        setRules(data.rules);
+        setEvals(data.evaluations);
+      }
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -86,18 +96,28 @@ export function AlertsClient({
   }
 
   async function toggleRule(id: string, enabled: boolean) {
-    await fetch(`/api/alerts/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    });
-    await refresh();
+    setActingId(id);
+    try {
+      await fetch(`/api/alerts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      await refresh();
+    } finally {
+      setActingId(null);
+    }
   }
 
   async function deleteRule(id: string) {
     if (!confirm("Delete this guardrail rule?")) return;
-    await fetch(`/api/alerts/${id}`, { method: "DELETE" });
-    await refresh();
+    setActingId(id);
+    try {
+      await fetch(`/api/alerts/${id}`, { method: "DELETE" });
+      await refresh();
+    } finally {
+      setActingId(null);
+    }
   }
 
   const evalByRule = new Map(evals.map((ev) => [ev.ruleId, ev]));
@@ -215,7 +235,10 @@ export function AlertsClient({
 
       <Card>
         <CardHeader>
-          <CardTitle>Your rules</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Your rules
+            {refreshing && <Spinner size="sm" label="" />}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {rules.length === 0 && (
@@ -250,11 +273,13 @@ export function AlertsClient({
                   variant="outline"
                   size="sm"
                   onClick={() => toggleRule(rule.id, !rule.enabled)}
+                  loading={actingId === rule.id}
+                  loadingText={rule.enabled ? "Pausing…" : "Resuming…"}
                 >
                   {rule.enabled ? "Pause" : "Resume"}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => deleteRule(rule.id)}>
-                  <Trash2 className="h-4 w-4" />
+                <Button variant="ghost" size="sm" onClick={() => deleteRule(rule.id)} disabled={actingId === rule.id} aria-label={`Delete rule ${rule.name}`}>
+                  {actingId === rule.id ? <Spinner size="sm" label="" /> : <Trash2 className="h-4 w-4" />}
                 </Button>
               </div>
             );

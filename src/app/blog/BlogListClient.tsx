@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
@@ -18,6 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CardSkeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { LoadingImage } from "@/components/ui/loading-image";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 
@@ -57,6 +59,14 @@ export default function BlogListClient() {
   const [searchQuery, setSearchQuery] = useState(
     searchParams.get("search") || ""
   );
+  const urlSearch = searchParams.get("search") || "";
+  // The search fires once typing settles (debounced) instead of only on
+  // submit; the input shows a spinner while the term is unsettled or the
+  // list is reloading.
+  const { debouncedValue: debouncedSearch, isPending: searchPending, flush: flushSearch } = useDebouncedValue(searchQuery);
+  // True once the first fetch has settled — refetches keep the grid.
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const firstLoad = loading && !loadedOnce;
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: parseInt(searchParams.get("page") || "1"),
     limit: 12,
@@ -95,6 +105,7 @@ export default function BlogListClient() {
       logger.error("Error fetching blogs", error);
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, [searchParams]);
 
@@ -118,6 +129,9 @@ export default function BlogListClient() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    // Apply the typed term at once (the auto-search effect below would
+    // also fire once typing settles; submit just skips the wait).
+    flushSearch();
     const params = new URLSearchParams(searchParams.toString());
     if (searchQuery) {
       params.set("search", searchQuery);
@@ -127,6 +141,27 @@ export default function BlogListClient() {
     params.set("page", "1");
     router.push(`/blog?${params.toString()}`);
   };
+
+  // Auto-search once typing settles; keeps the input in step with the URL
+  // (e.g. back/forward navigation) at the same time.
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing the URL search param into the input */
+  useEffect(() => {
+    setSearchQuery(urlSearch);
+  }, [urlSearch]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (debouncedSearch === urlSearch) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (debouncedSearch) {
+      params.set("search", debouncedSearch);
+    } else {
+      params.delete("search");
+    }
+    params.set("page", "1");
+    router.push(`/blog?${params.toString()}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, urlSearch]);
 
   const handleCategoryClick = (category: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -189,7 +224,13 @@ export default function BlogListClient() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-12 pr-24 h-14 text-lg"
+                  aria-label="Search articles"
                 />
+                {(searchPending || loading) && (
+                  <span className="absolute right-24 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                    <Spinner size="sm" label="" />
+                  </span>
+                )}
                 <Button
                   type="submit"
                   className="absolute right-2 top-1/2 -translate-y-1/2"
@@ -310,7 +351,10 @@ export default function BlogListClient() {
             {/* Results Count */}
             <div className="mb-6 text-sm text-[var(--color-muted-foreground)]">
               {loading ? (
-                "Loading..."
+                <span className="inline-flex items-center gap-2">
+                  <Spinner size="sm" label="" />
+                  {firstLoad ? "Loading articles…" : "Updating…"}
+                </span>
               ) : (
                 <>
                   Showing {blogs.length} of {pagination.total} articles
@@ -319,7 +363,7 @@ export default function BlogListClient() {
             </div>
 
             {/* Blog Grid */}
-            {loading ? (
+            {firstLoad ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <CardSkeleton key={i} />
@@ -352,12 +396,13 @@ export default function BlogListClient() {
                         {/* Featured Image */}
                         <div className="relative h-48 bg-[var(--color-muted)] overflow-hidden">
                           {blog.featuredImage ? (
-                            <Image
+                            <LoadingImage
                               src={blog.featuredImage}
                               alt={blog.featuredImageAlt || blog.title}
                               width={600}
                               height={192}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              wrapperClassName="h-full w-full"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
@@ -432,7 +477,7 @@ export default function BlogListClient() {
                         params.set("page", String(pagination.page - 1));
                         router.push(`/blog?${params.toString()}`);
                       }}
-                      disabled={pagination.page === 1}
+                      disabled={pagination.page === 1 || loading}
                     >
                       Previous
                     </Button>
@@ -453,6 +498,7 @@ export default function BlogListClient() {
                                 page === pagination.page ? "default" : "outline"
                               }
                               size="sm"
+                              disabled={loading}
                               onClick={() => {
                                 const params = new URLSearchParams(
                                   searchParams.toString()
@@ -483,7 +529,7 @@ export default function BlogListClient() {
                         params.set("page", String(pagination.page + 1));
                         router.push(`/blog?${params.toString()}`);
                       }}
-                      disabled={pagination.page === pagination.pages}
+                      disabled={pagination.page === pagination.pages || loading}
                     >
                       Next
                     </Button>

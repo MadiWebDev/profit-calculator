@@ -22,6 +22,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import { formatPercent, cn } from "@/lib/utils";
 import { useRole } from "@/components/dashboard/RoleContext";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
@@ -568,9 +569,9 @@ export function OverviewClient({ data }: { data: OverviewData }) {
             </Button>
           )}
           {storesConnected && (
-            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={syncAll} disabled={syncActive}>
-              <RefreshCw className={cn("h-3.5 w-3.5", syncActive && "animate-spin")} />
-              {syncActive ? "Syncing…" : "Sync"}
+            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={syncAll} loading={syncActive} loadingText="Syncing…">
+              <RefreshCw className="h-3.5 w-3.5" />
+              Sync
             </Button>
           )}
           {canManageBilling && plan !== "pro" && (
@@ -939,8 +940,8 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                   <Sparkles className="h-4 w-4 text-[var(--color-primary)]" /> AI Insights
                 </CardTitle>
                 {(plan === "growth" || plan === "pro") && (
-                  <Button variant="ghost" size="sm" onClick={loadInsights} disabled={insightsLoading} className="h-6 w-6 p-0">
-                    <RefreshCw className={cn("h-3.5 w-3.5", insightsLoading && "animate-spin")} />
+                  <Button variant="ghost" size="sm" onClick={loadInsights} disabled={insightsLoading} className="h-6 w-6 p-0" aria-label="Refresh AI insights">
+                    {insightsLoading ? <Spinner size="sm" label="" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   </Button>
                 )}
               </div>

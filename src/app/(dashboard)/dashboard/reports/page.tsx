@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Download, Loader2, Calendar } from "lucide-react";
+import { FileText, Download, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -87,10 +87,10 @@ export default function ReportsPage() {
               className="gap-2 ml-4 flex-shrink-0"
               onClick={() => download(report.id)}
               disabled={loading === report.id}
+              loading={loading === report.id}
+              loadingText="Preparing…"
             >
-              {loading === report.id
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <Download className="h-3.5 w-3.5" />}
+              <Download className="h-3.5 w-3.5" />
               CSV
             </Button>
           </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CardSkeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Leak { id: string; severity: string; title: string; detail: string; amount: number; actionLabel: string; actionHref: string }
@@ -30,8 +31,15 @@ export default function LeaksPage() {
   useEffect(() => { load(); }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  if (loading) return <div className="grid gap-4" role="status" aria-label="Loading">{Array.from({ length: 4 }).map((_, i) => (<Card key={i}><CardContent className="h-20 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
-  if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <CardSkeleton />
+        {[1, 2, 3].map((i) => <CardSkeleton key={i} />)}
+      </div>
+    );
+  }
+  if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p role="alert" className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
 
   return (
     <div className="space-y-6">

@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { StatsSkeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { formatCurrency } from "@/lib/utils";
 
 export function MetricTip({ label, tooltip, guideId }: { label: string; tooltip: string; guideId: string }) {
@@ -127,6 +130,9 @@ export function ParityReportPage(props: Props) {
   });
   const totals = data?.totals ?? {};
   const isEmpty = !loading && !error && rows.length === 0;
+  // First load shows skeletons; a refetch keeps the existing content and
+  // only the Apply button + inline spinner show the reload.
+  const firstLoad = loading && data === null;
 
   return (
     <div className="space-y-6">
@@ -159,22 +165,26 @@ export function ParityReportPage(props: Props) {
             </select>
           </div>
           {props.extraFilters}
-          <Button onClick={load} disabled={loading}>Apply</Button>
+          <Button onClick={load} loading={loading} loadingText="Loading…">Apply</Button>
           <Button variant="outline" onClick={exportCsv} disabled={loading}>Export CSV</Button>
+          {loading && !firstLoad && (
+            <span className="inline-flex items-center gap-1 text-xs text-[var(--color-muted-foreground)]">
+              <Spinner size="sm" label="" /> Updating…
+            </span>
+          )}
         </div>
       </div>
 
-      {loading && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4" role="status" aria-label="Loading">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Card key={i}><CardContent className="h-24 animate-pulse bg-[var(--color-muted)]/40" /></Card>
-          ))}
-        </div>
+      {firstLoad && (
+        <>
+          <StatsSkeleton count={props.metrics.length} />
+          <TableSkeleton rows={8} />
+        </>
       )}
 
       {error && !loading && (
         <Card><CardContent className="py-8 text-center space-y-3">
-          <p className="text-sm text-red-600">{error}</p>
+          <p role="alert" className="text-sm text-red-600">{error}</p>
           <Button variant="outline" onClick={load}>Retry</Button>
         </CardContent></Card>
       )}
@@ -188,7 +198,7 @@ export function ParityReportPage(props: Props) {
         </CardContent></Card>
       )}
 
-      {!loading && !error && data && rows.length > 0 && (
+      {!firstLoad && data && rows.length > 0 && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {props.metrics.map((m) => (
