@@ -9,6 +9,8 @@ import {
 
 import { useEffect, useState } from "react";
 
+import { useCalculatorCurrency } from "@/components/CalculatorCurrencyContext";
+
 interface Props {
   slug: string;
   title: string;
@@ -20,6 +22,24 @@ export function CalculatorPageActions({
 }: Props) {
   const [favorite, setFavorite] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // The calculator's own currency (page-local, from the provider that
+  // wraps [slug]/page.tsx): a shared link reproduces the currency the
+  // visitor was looking at. No persistence — this only decorates the
+  // URL being shared.
+  const { currency } = useCalculatorCurrency();
+
+  // Append ?currency= to the page URL being shared/copied so the
+  // recipient opens the calculator in the same currency.
+  function withCalculatorCurrency(href: string): string {
+    try {
+      const url = new URL(href);
+      url.searchParams.set("currency", currency);
+      return url.toString();
+    } catch {
+      return href;
+    }
+  }
 
   /*
    * Load favorite status.
@@ -79,7 +99,7 @@ export function CalculatorPageActions({
    * Share.
    */
   const share = async () => {
-    const url = window.location.href;
+    const url = withCalculatorCurrency(window.location.href);
 
     try {
       if (navigator.share) {
@@ -110,7 +130,7 @@ export function CalculatorPageActions({
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(
-        window.location.href
+        withCalculatorCurrency(window.location.href)
       );
 
       setCopied(true);
