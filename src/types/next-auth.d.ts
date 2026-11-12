@@ -18,6 +18,10 @@ declare module "next-auth" {
       role: "superAdmin" | "owner";
       /** Personal display currency (ISO 4217) or null when never set. */
       displayCurrency?: string | null;
+      /** Personal display timezone (IANA) or null when never set. Locked once set. */
+      timezone?: string | null;
+      /** True once the onboarding modal has been completed. */
+      onboardingCompleted?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -26,6 +30,8 @@ declare module "next-auth" {
     plan?: "free" | "starter" | "growth" | "pro";
     role?: "superAdmin" | "owner";
     displayCurrency?: string | null;
+    timezone?: string | null;
+    onboardingCompleted?: boolean;
   }
 }
 
@@ -36,5 +42,7 @@ declare module "next-auth/jwt" {
     plan?: string;
     role?: string;
     displayCurrency?: string | null;
+    timezone?: string | null;
+    onboardingCompleted?: boolean;
   }
 }

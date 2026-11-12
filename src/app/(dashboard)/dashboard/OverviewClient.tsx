@@ -26,6 +26,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatPercent, cn } from "@/lib/utils";
 import { useRole } from "@/components/dashboard/RoleContext";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
+import { useDisplayTimezone } from "@/components/dashboard/TimezoneContext";
 import type { PeriodSummary } from "@/lib/profit-engine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -138,13 +139,11 @@ const STATUS_BG: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function fmtDateFull(d: string) {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
+// Date cells render in the user's locked display timezone (see
+// src/lib/display-timezone.ts) — the tooltip and the main client both
+// read it from useDisplayTimezone(), so no module-level formatter with
+// a baked-in zone exists here. Report aggregation boundaries are
+// untouched: this only formats dates already on screen.
 
 function DeltaBadge({ value, suffix = "%" }: { value: number; suffix?: string }) {
   if (value === 0) return (
@@ -396,11 +395,12 @@ function ChartTooltip({ active, payload, label, baseCurrency }: {
   baseCurrency: string;
 }) {
   const { formatMoney } = useCurrency();
+  const { formatDate } = useDisplayTimezone();
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-3 text-xs space-y-1 min-w-[160px]">
       <p className="font-semibold text-[var(--color-foreground)] border-b border-[var(--color-border)] pb-1 mb-1">
-        {label ? fmtDate(label) : ""}
+        {label ? formatDate(label) : ""}
       </p>
       {payload.map((p: { name: string; value: number; color: string }) => (
         <div key={p.name} className="flex items-center justify-between gap-4">
@@ -431,6 +431,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
 
   const { plan, canManageBilling } = useRole();
   const { formatMoney } = useCurrency();
+  const { formatDate, formatDateFull } = useDisplayTimezone();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -729,7 +730,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} tickLine={false} axisLine={false} width={48} />
                   <Tooltip content={<ChartTooltip baseCurrency={baseCurrency} />} />
                   <Legend formatter={(v) => <span style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{v === "revenue" ? "Revenue" : v === "profit" ? "Net Profit" : "Ad Spend"}</span>} />
@@ -740,7 +741,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
               ) : (
                 <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                   <YAxis yAxisId="left"  tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} tickLine={false} axisLine={false} width={48} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} width={32} />
                   <Tooltip content={<ChartTooltip baseCurrency={baseCurrency} />} />
@@ -904,7 +905,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                             <p className="text-[var(--color-muted-foreground)] font-normal truncate max-w-[120px]">{o.customerEmail}</p>
                           )}
                         </td>
-                        <td className="py-2.5 pr-4 text-[var(--color-muted-foreground)] whitespace-nowrap">{fmtDateFull(o.orderDate)}</td>
+                        <td className="py-2.5 pr-4 text-[var(--color-muted-foreground)] whitespace-nowrap">{formatDateFull(o.orderDate)}</td>
                         <td className="py-2.5 pr-4 tabular-nums">{formatMoney(o.grossRevenue, o.currency ?? baseCurrency)}</td>
                         <td className={cn("py-2.5 pr-4 font-semibold tabular-nums", o.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500")}>
                           {formatMoney(o.netProfit, o.currency ?? baseCurrency)}
@@ -1012,7 +1013,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                         <p className="font-medium text-[var(--color-foreground)] truncate">{s.name}</p>
                         <p className="text-[var(--color-muted-foreground)]">
                           {s.ordersCount.toLocaleString()} orders
-                          {s.lastSyncAt && <> · {fmtDateFull(s.lastSyncAt)}</>}
+                          {s.lastSyncAt && <> · {formatDateFull(s.lastSyncAt)}</>}
                         </p>
                       </div>
                     </div>

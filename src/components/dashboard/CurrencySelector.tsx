@@ -169,9 +169,14 @@ export function CurrencySelector({ size = "md" }: CurrencySelectorProps) {
             "max-h-[70vh]",
           )}
         >
-          {/* Header */}
+          {/* Header — the converter is informational only since the
+              onboarding build: it switches a session-only view currency
+              for reference and never changes your locked currency. */}
           <p className="px-3 pt-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)] select-none">
-            Display Currency
+            View currency (reference only)
+          </p>
+          <p className="px-3 pb-1.5 text-[11px] text-[var(--color-muted-foreground)] select-none">
+            For reference — your locked currency returns on reload.
           </p>
 
           {/* Search input */}

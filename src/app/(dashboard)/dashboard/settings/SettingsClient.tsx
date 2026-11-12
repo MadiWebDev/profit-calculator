@@ -80,7 +80,7 @@ interface SettingsData {
     syncStatus: string; lastSyncAt?: string; ordersCount: number; domain?: string;
   }[];
   adAccounts: AdAccountRow[];
-  user: { name: string; email: string; image?: string; phone?: string; displayCurrency?: string | null };
+  user: { name: string; email: string; image?: string; phone?: string; displayCurrency?: string | null; timezone?: string | null; onboardingCompleted?: boolean };
 }
 
 type Tab = "profile" | "billing" | "stores" | "ad-accounts" | "notifications";
@@ -266,10 +266,14 @@ export function SettingsClient({
     currency: activeCurrency,
     detectedCurrency,
     setCurrency,
-    resetCurrencyPreference,
   } = useCurrency();
   const [pickedCurrency, setPickedCurrency] = useState(data.user.displayCurrency ?? "");
   const [currencySearch, setCurrencySearch] = useState("");
+  // LOCKED after onboarding: once the user has a displayCurrency saved,
+  // the card below becomes read-only (the API rejects any further write
+  // with 400 CURRENCY_LOCKED). While unset, the first save locks it in.
+  const currencyLocked = Boolean(data.user.displayCurrency);
+  const timezoneLocked = Boolean(data.user.timezone);
 
   // The detected country's display name for the "Detected from your
   // location" line (e.g. PK → "Pakistan").
@@ -358,12 +362,14 @@ export function SettingsClient({
   };
 
   // ── Display currency actions ────────────────────────────────────────────
-  // Save (or clear) the SIGNED-IN user's own preference via PATCH
-  // /api/user, refresh the session so the JWT carries it, then apply
-  // it locally without a second write (persist: false). A cleared
-  // preference re-resolves from the precedence rule (team → browser →
-  // detected → store → USD) via resetCurrencyPreference().
-  const persistCurrency = async (code: string | null) => {
+  // Save the SIGNED-IN user's own preference via PATCH /api/user — only
+  // while unset (the first save LOCKS it; the API rejects any later
+  // write with 400 CURRENCY_LOCKED, and the card above renders
+  // read-only). There is no reset any more: clearing a locked currency
+  // would defeat the lock. After save the session is refreshed with
+  // useSession().update() and the provider is re-pointed without a
+  // second write (persist: false — a session-only view pick).
+  const persistCurrency = async (code: string) => {
     try {
       const res = await fetch("/api/user", {
         method: "PATCH",
@@ -376,13 +382,10 @@ export function SettingsClient({
         return;
       }
       await updateSession();
-      if (code) setCurrency(code, { persist: false });
-      else resetCurrencyPreference();
+      setCurrency(code, { persist: false });
       setFeedback(
         "ok",
-        code
-          ? `Display currency saved — money figures now show in ${code}.`
-          : "Display currency reset — your location is used to pick it automatically.",
+        `Display currency saved — money figures now show in ${code}. This is now locked and cannot be changed.`,
       );
       router.refresh();
     } catch {
@@ -391,12 +394,8 @@ export function SettingsClient({
   };
 
   const saveCurrencyAction = useAsyncAction(async () => {
-    await persistCurrency(pickedCurrency || null);
-  });
-
-  const resetCurrencyAction = useAsyncAction(async () => {
-    await persistCurrency(null);
-    setPickedCurrency("");
+    if (!pickedCurrency) return;
+    await persistCurrency(pickedCurrency);
   });
 
   const saveWorkspaceAction = useAsyncAction(async () => {
@@ -668,68 +667,111 @@ export function SettingsClient({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {currencyLocked ? (
+                <>
+                  <p className="text-sm text-[var(--color-muted-foreground)]">
+                    All money figures across your dashboard show in this currency, converted at the live rate.
+                    This is your own choice — changing it never affects your teammates.
+                  </p>
+                  <div className="flex h-10 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 text-sm font-medium text-[var(--color-foreground)]">
+                    {data.user.displayCurrency} — {ALL_CURRENCIES.find((c) => c.code === data.user.displayCurrency)?.name ?? data.user.displayCurrency}
+                  </div>
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    This currency was set during onboarding and cannot be changed.
+                  </p>
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    Currently showing figures in {activeCurrency}. The switcher in the dashboard header
+                    changes the view for reference only — it never changes this locked currency.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-[var(--color-muted-foreground)]">
+                    All money figures across your dashboard show in this currency, converted at the live rate.
+                    This is your own choice — changing it never affects your teammates. Once saved, it
+                    cannot be changed — this becomes your locked display currency.
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Display currency</Label>
+                    <Input
+                      value={currencySearch}
+                      onChange={(e) => setCurrencySearch(e.target.value)}
+                      placeholder="Search currencies…"
+                      className="h-9"
+                      disabled={saveCurrencyAction.loading}
+                      aria-label="Search currencies"
+                    />
+                    <select
+                      value={pickedCurrency}
+                      onChange={(e) => setPickedCurrency(e.target.value)}
+                      disabled={saveCurrencyAction.loading}
+                      aria-label="Display currency"
+                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm disabled:opacity-50"
+                    >
+                      <option value="">Automatic (detect from your location)</option>
+                      {filteredCurrencies.map((c) => (
+                        <option key={c.code} value={c.code}>{c.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-[var(--color-muted-foreground)]">
+                      Saved preference:{" "}
+                      {pickedCurrency
+                        ? `${pickedCurrency} — ${ALL_CURRENCIES.find((c) => c.code === pickedCurrency)?.name ?? pickedCurrency}`
+                        : "Automatic"}
+                      {detectedCurrency && (
+                        <>
+                          {" · "}Detected from your location:{" "}
+                          {detectedCountryName ? `${detectedCountryName} → ` : ""}
+                          {detectedCurrency.code}
+                          {detectedCurrency.source === "language" ? " (from your browser language)" : ""}
+                        </>
+                      )}
+                    </p>
+                    <p className="text-xs text-[var(--color-muted-foreground)]">
+                      Currently showing figures in {activeCurrency}.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm" className="gap-2" onClick={() => void saveCurrencyAction.run()}
+                      loading={saveCurrencyAction.loading} loadingText="Saving…"
+                      disabled={!pickedCurrency || pickedCurrency === (data.user.displayCurrency ?? "")}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Save Currency
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Timezone (locked in onboarding, read-only here) ─────────── */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="h-4 w-4" /> Your timezone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <p className="text-sm text-[var(--color-muted-foreground)]">
-                All money figures across your dashboard show in this currency, converted at the live rate.
-                This is your own choice — changing it never affects your teammates. Once saved, it stays
-                until you change it here or with the switcher in the dashboard header.
+                Dates and times across your dashboard are shown in this timezone.
               </p>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Display currency</Label>
-                <Input
-                  value={currencySearch}
-                  onChange={(e) => setCurrencySearch(e.target.value)}
-                  placeholder="Search currencies…"
-                  className="h-9"
-                  disabled={saveCurrencyAction.loading || resetCurrencyAction.loading}
-                  aria-label="Search currencies"
-                />
-                <select
-                  value={pickedCurrency}
-                  onChange={(e) => setPickedCurrency(e.target.value)}
-                  disabled={saveCurrencyAction.loading || resetCurrencyAction.loading}
-                  aria-label="Display currency"
-                  className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm disabled:opacity-50"
-                >
-                  <option value="">Automatic (detect from your location)</option>
-                  {filteredCurrencies.map((c) => (
-                    <option key={c.code} value={c.code}>{c.label}</option>
-                  ))}
-                </select>
+              {timezoneLocked ? (
+                <>
+                  <div className="flex h-10 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 text-sm font-medium text-[var(--color-foreground)]">
+                    {data.user.timezone}
+                  </div>
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    This timezone was set during onboarding and cannot be changed.
+                  </p>
+                </>
+              ) : (
                 <p className="text-xs text-[var(--color-muted-foreground)]">
-                  Saved preference:{" "}
-                  {pickedCurrency
-                    ? `${pickedCurrency} — ${ALL_CURRENCIES.find((c) => c.code === pickedCurrency)?.name ?? pickedCurrency}`
-                    : "Automatic"}
-                  {detectedCurrency && (
-                    <>
-                      {" · "}Detected from your location:{" "}
-                      {detectedCountryName ? `${detectedCountryName} → ` : ""}
-                      {detectedCurrency.code}
-                      {detectedCurrency.source === "language" ? " (from your browser language)" : ""}
-                    </>
-                  )}
+                  Not set yet — you will set it the next time the onboarding prompt appears on your dashboard.
+                  Your workspace timezone (below) is unchanged in the meantime.
                 </p>
-                <p className="text-xs text-[var(--color-muted-foreground)]">
-                  Currently showing figures in {activeCurrency}.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm" className="gap-2" onClick={() => void saveCurrencyAction.run()}
-                  loading={saveCurrencyAction.loading} loadingText="Saving…"
-                  disabled={pickedCurrency === (data.user.displayCurrency ?? "")}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Save Currency
-                </Button>
-                <Button
-                  size="sm" variant="outline" className="gap-2" onClick={() => void resetCurrencyAction.run()}
-                  loading={resetCurrencyAction.loading} loadingText="Resetting…"
-                  disabled={!data.user.displayCurrency && !pickedCurrency}
-                >
-                  Use automatic detection
-                </Button>
-              </div>
+              )}
             </CardContent>
           </Card>
 

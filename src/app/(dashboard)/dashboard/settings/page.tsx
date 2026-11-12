@@ -16,7 +16,7 @@ async function getSettingsData(teamId: string, userId: string) {
     TeamModel.findById(teamId).lean(),
     SubscriptionModel.findOne({ teamId }).lean(),
     StoreModel.find({ teamId, isActive: true }).lean(),
-    UserModel.findById(userId).select("name email image phone displayCurrency").lean(),
+    UserModel.findById(userId).select("name email image phone displayCurrency timezone onboardingCompleted").lean(),
     AdAccountModel.find({ teamId, isActive: true }).lean(),
   ]);
 
@@ -66,6 +66,8 @@ async function getSettingsData(teamId: string, userId: string) {
       image: (user as { image?: string } | null)?.image,
       phone: (user as { phone?: string } | null)?.phone ?? "",
       displayCurrency: (user as { displayCurrency?: string | null } | null)?.displayCurrency ?? null,
+      timezone: (user as { timezone?: string | null } | null)?.timezone ?? null,
+      onboardingCompleted: (user as { onboardingCompleted?: boolean } | null)?.onboardingCompleted ?? false,
     },
   };
 }

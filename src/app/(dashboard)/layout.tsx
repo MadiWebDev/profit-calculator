@@ -10,6 +10,7 @@ import { RoleProvider } from "@/components/dashboard/RoleContext";
 import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
 import { ArchivedWall } from "@/components/billing/ArchivedWall";
 import { TrialBanner } from "@/components/billing/TrialBanner";
+import { OnboardingModal } from "@/components/dashboard/OnboardingModal";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -113,6 +114,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </main>
         </div>
       </div>
+      {/* Blocking onboarding modal (first dashboard visit): mounts on the
+          dashboard layout, gated on session + team + onboardingCompleted.
+          No team yet → the user is on /onboarding, not here. */}
+      <OnboardingModal />
     </RoleProvider>
   );
 }

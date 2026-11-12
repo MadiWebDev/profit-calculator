@@ -138,8 +138,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // Personal display currency (per-user saved preference). Copied
           // into the JWT by the base jwt() in auth.config.ts so the client
           // can read it from the session; refreshed by the jwt() backfill
-          // below whenever it changes.
+          // below whenever it changes. timezone + onboardingCompleted
+          // follow the same path (onboarding lock).
           displayCurrency: user.displayCurrency ?? null,
+          timezone: user.timezone ?? null,
+          onboardingCompleted: user.onboardingCompleted ?? false,
           // S1: session revocation + 2FA. twoFactorPending is cleared by
           // the 2FA verify step (session update); requireAuth rejects
           // pending sessions for all API routes.
@@ -187,10 +190,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           await connectDB();
           const dbUser = await UserModel.findById(token.id)
-            .select("teamId plan platformRole role displayCurrency")
+            .select("teamId plan platformRole role displayCurrency timezone onboardingCompleted")
             .lean() as {
               teamId?: unknown; plan?: string; platformRole?: string; role?: string;
-              displayCurrency?: string | null;
+              displayCurrency?: string | null; timezone?: string | null;
+              onboardingCompleted?: boolean;
             } | null;
           if (dbUser) {
             if (dbUser.teamId) token.teamId = String(dbUser.teamId);
@@ -201,6 +205,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             // clears a previously saved value) so a save/reset in
             // Settings takes effect on the next session refresh.
             token.displayCurrency = dbUser.displayCurrency ?? null;
+            // Onboarding lock fields: same unconditional rule, so the
+            // modal save (currency + timezone + flag) propagates to the
+            // session on the next update() and the modal unmounts.
+            token.timezone = dbUser.timezone ?? null;
+            token.onboardingCompleted = dbUser.onboardingCompleted ?? false;
 
             const { default: TeamModel } = await import("@/models/Team");
             const team = await TeamModel.findById(dbUser.teamId)
@@ -230,12 +239,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           await connectDB();
           const dbUser = await UserModel.findById(token.id)
-            .select("passwordChangedAt sessionVersion lastSeenAt twoFactorEnabled plan teamId displayCurrency")
-            .lean() as { passwordChangedAt?: Date; sessionVersion?: number; lastSeenAt?: Date; twoFactorEnabled?: boolean; plan?: string; teamId?: unknown; displayCurrency?: string | null } | null;
+            .select("passwordChangedAt sessionVersion lastSeenAt twoFactorEnabled plan teamId displayCurrency timezone onboardingCompleted")
+            .lean() as { passwordChangedAt?: Date; sessionVersion?: number; lastSeenAt?: Date; twoFactorEnabled?: boolean; plan?: string; teamId?: unknown; displayCurrency?: string | null; timezone?: string | null; onboardingCompleted?: boolean } | null;
           if (dbUser?.plan) token.plan = dbUser.plan;
           // Personal display currency refresh (same rule as the backfill
           // above: unconditional, so a clear in Settings propagates).
           if (dbUser) token.displayCurrency = dbUser.displayCurrency ?? null;
+          if (dbUser) token.timezone = dbUser.timezone ?? null;
+          if (dbUser) token.onboardingCompleted = dbUser.onboardingCompleted ?? false;
           token.lastPwdCheck = nowSec;
           const pwdChangedAt = dbUser?.passwordChangedAt;
           if (pwdChangedAt && token.iat * 1000 < new Date(pwdChangedAt).getTime() - 5000) {
