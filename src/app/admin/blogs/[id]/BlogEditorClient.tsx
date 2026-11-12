@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
   Save,
   Eye,
@@ -32,6 +31,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import { logger } from "@/lib/logger";
+import { FormSkeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { Progress } from "@/components/ui/progress";
+import { LoadingImage } from "@/components/ui/loading-image";
+import { useAsyncAction } from "@/hooks/use-async-action";
+import { uploadWithProgress } from "@/lib/upload-progress";
 
 interface BlogFormData {
   title: string;
@@ -60,8 +65,10 @@ interface BlogEditorClientProps {
 export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(!!blogId);
-  const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Real upload percentage for the featured-image upload (null until the
+  // first progress event fires — no percentage is ever invented).
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<BlogFormData>({
     title: "",
@@ -165,10 +172,28 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const url = await handleImageUpload(file);
-    if (url) {
+    // XHR (not fetch): fetch cannot report upload progress, so the
+    // percentage bar below would have to be faked. The in-editor image
+    // uploads (handleImageUpload) stay on fetch — the editor's placeholder
+    // block is their progress UI and it cannot surface a percentage.
+    setUploading(true);
+    setUploadProgress(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "blog");
+      const res = await uploadWithProgress("/api/upload/cloudinary", formData, (pct) => setUploadProgress(pct));
+      const data = (res.json ?? {}) as { url?: string };
+      const url = data.url;
+      if (!res.ok || !url) throw new Error("Upload failed");
       setFormData((prev) => ({ ...prev, featuredImage: url, ogImage: url }));
       toast.success("Featured image uploaded");
+    } catch (error) {
+      logger.error("Error uploading image", error);
+      toast.error("Failed to upload image");
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -255,7 +280,7 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
     }));
   };
 
-  const handleSave = async (publish: boolean = false) => {
+  const saveBlog = async (publish: boolean = false) => {
     // Validation
     if (!formData.title.trim()) {
       toast.error("Title is required");
@@ -271,8 +296,6 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
     }
 
     try {
-      setSaving(true);
-
       const payload = {
         ...formData,
         status: publish ? "published" : formData.status,
@@ -308,15 +331,23 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
     } catch (error) {
       logger.error("Error saving blog", error);
       toast.error(error instanceof Error ? error.message : "Failed to save blog");
-    } finally {
-      setSaving(false);
     }
+  };
+
+  // Separate actions so "Save Draft" and "Publish" each show their own
+  // progress text; the other button is disabled while one runs.
+  const saveDraftAction = useAsyncAction(async () => { await saveBlog(false); });
+  const publishAction = useAsyncAction(async () => { await saveBlog(true); });
+
+  const handleSave = (publish: boolean = false) => {
+    if (publish) void publishAction.run();
+    else void saveDraftAction.run();
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-[var(--color-muted-foreground)]">Loading...</div>
+      <div className="max-w-5xl mx-auto space-y-6">
+        <FormSkeleton fields={6} />
       </div>
     );
   }
@@ -362,7 +393,9 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
             variant="outline"
             size="sm"
             onClick={() => handleSave(false)}
-            disabled={saving}
+            loading={saveDraftAction.loading}
+            loadingText="Saving…"
+            disabled={publishAction.loading}
           >
             <Save className="h-4 w-4 mr-2" />
             Save Draft
@@ -370,7 +403,9 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
           <Button
             size="sm"
             onClick={() => handleSave(true)}
-            disabled={saving}
+            loading={publishAction.loading}
+            loadingText="Publishing…"
+            disabled={saveDraftAction.loading}
           >
             <Sparkles className="h-4 w-4 mr-2" />
             {formData.status === "published" ? "Update" : "Publish"}
@@ -378,7 +413,8 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content — disabled while a save/publish is in flight */}
+      <fieldset disabled={saveDraftAction.loading || publishAction.loading} className="border-0 m-0 min-w-0 p-0">
       <Tabs defaultValue="content" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="content">Content</TabsTrigger>
@@ -446,12 +482,13 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
               <Label>Featured Image</Label>
               {formData.featuredImage ? (
                 <div className="relative group">
-                  <Image
+                  <LoadingImage
                     src={formData.featuredImage}
                     alt="Featured"
                     width={800}
                     height={192}
                     className="w-full h-48 object-cover rounded-lg"
+                    wrapperClassName="h-48 w-full"
                   />
                   <Button
                     variant="destructive"
@@ -486,6 +523,18 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
                     onChange={handleFeaturedImageUpload}
                     disabled={uploading}
                   />
+                  {uploading && (
+                    <div className="space-y-1.5 pt-4 text-left" role="status" aria-label="Upload progress">
+                      <div className="flex items-center justify-between text-xs text-[var(--color-muted-foreground)]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Spinner size="sm" label="" />
+                          {uploadProgress !== null ? "Uploading…" : "Starting upload…"}
+                        </span>
+                        {uploadProgress !== null && <span>{uploadProgress}%</span>}
+                      </div>
+                      {uploadProgress !== null && <Progress value={uploadProgress} className="h-2" />}
+                    </div>
+                  )}
                 </div>
               )}
               {formData.featuredImage && (
@@ -818,6 +867,7 @@ export default function BlogEditorClient({ blogId }: BlogEditorClientProps) {
           </div>
         </TabsContent>
       </Tabs>
+      </fieldset>
     </div>
   );
 }

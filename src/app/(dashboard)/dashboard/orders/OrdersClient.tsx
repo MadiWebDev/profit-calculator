@@ -1,18 +1,22 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, Download,
-  Plus, Trash2, Pencil, X, Loader2, AlertTriangle, Upload,
+  Plus, Trash2, Pencil, X, AlertTriangle, Upload,
   CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import { formatPercent, cn } from "@/lib/utils";
 import { toIsoDateTime } from "@/lib/dates";
+import { uploadWithProgress } from "@/lib/upload-progress";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 import { useRole } from "@/components/dashboard/RoleContext";
 
@@ -191,7 +195,7 @@ function OrderFormModal({
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <div role="alert" className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" />
               {error}
             </div>
@@ -206,6 +210,7 @@ function OrderFormModal({
                 placeholder="e.g. 1001"
                 value={form.orderNumber}
                 onChange={(e) => set("orderNumber", e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="space-y-1.5">
@@ -216,6 +221,7 @@ function OrderFormModal({
                 required
                 value={form.orderDate}
                 onChange={(e) => set("orderDate", e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -227,7 +233,8 @@ function OrderFormModal({
                 id="of-status"
                 value={form.status}
                 onChange={(e) => set("status", e.target.value)}
-                className="flex h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-1 text-sm text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] capitalize"
+                disabled={loading}
+                className="flex h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-1 text-sm text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] capitalize disabled:opacity-50"
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s} className="capitalize">
@@ -244,6 +251,7 @@ function OrderFormModal({
                 placeholder="customer@example.com"
                 value={form.customerEmail}
                 onChange={(e) => set("customerEmail", e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -271,6 +279,7 @@ function OrderFormModal({
                     value={form[key]}
                     onChange={(e) => set(key, e.target.value)}
                     required={key === "grossRevenue"}
+                    disabled={loading}
                     className="text-sm pl-7"
                   />
                 </div>
@@ -302,9 +311,8 @@ function OrderFormModal({
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="gap-2 min-w-[110px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {loading ? "Saving…" : submitLabel}
+            <Button type="submit" loading={loading} loadingText="Saving…" className="gap-2 min-w-[110px]">
+              {submitLabel}
             </Button>
           </div>
         </form>
@@ -369,7 +377,7 @@ function DeleteOrderModal({ order, onClose, onDeleted }: DeleteOrderModalProps) 
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <p role="alert" className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
@@ -378,9 +386,9 @@ function DeleteOrderModal({ order, onClose, onDeleted }: DeleteOrderModalProps) 
             <Button variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={loading} className="gap-2 min-w-[90px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              {loading ? "Deleting…" : "Delete"}
+            <Button variant="destructive" onClick={handleDelete} loading={loading} loadingText="Deleting…" className="gap-2 min-w-[90px]">
+              <Trash2 className="h-4 w-4" />
+              Delete
             </Button>
           </div>
         </div>
@@ -409,6 +417,11 @@ function CsvImportModal({ onClose, onImported }: CsvImportModalProps) {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [result, setResult]         = useState<{ imported: number; errors: number } | null>(null);
+  // Real upload percentage from the browser's upload-progress events
+  // (null until the first event fires — no percentage is ever invented).
+  // The percentage covers the file upload; the server-side import that
+  // follows still shows the button's "Importing…" state until it answers.
+  const [progress, setProgress]     = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = () => {
@@ -437,18 +450,22 @@ function CsvImportModal({ onClose, onImported }: CsvImportModalProps) {
     if (!storeName.trim()) { setError("Enter a store name.");           return; }
     setLoading(true);
     setError(null);
+    setProgress(null);
     try {
       const fd = new FormData();
       fd.append("file",      file);
       fd.append("storeName", storeName.trim());
-      const res  = await fetch("/api/orders/import", { method: "POST", body: fd });
-      const json = await res.json();
+      // XHR (not fetch): fetch cannot report upload progress, so the
+      // percentage bar below would have to be faked.
+      const res = await uploadWithProgress("/api/orders/import", fd, (pct) => setProgress(pct));
+      const json = (res.json ?? {}) as { imported?: number; errors?: number; error?: string };
       if (!res.ok) {
         setError(json.error ?? "Import failed. Please try again.");
         return;
       }
-      setResult({ imported: json.imported, errors: json.errors });
-      onImported(json.imported);
+      setProgress(100);
+      setResult({ imported: json.imported ?? 0, errors: json.errors ?? 0 });
+      onImported(json.imported ?? 0);
     } catch {
       setError("Network error — please check your connection and retry.");
     } finally {
@@ -521,7 +538,7 @@ function CsvImportModal({ onClose, onImported }: CsvImportModalProps) {
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+                <div role="alert" className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                   {error}
                 </div>
@@ -535,6 +552,7 @@ function CsvImportModal({ onClose, onImported }: CsvImportModalProps) {
                   placeholder="My Store (CSV Import)"
                   value={storeName}
                   onChange={(e) => setStoreName(e.target.value)}
+                  disabled={loading}
                 />
               </div>
 
@@ -548,11 +566,24 @@ function CsvImportModal({ onClose, onImported }: CsvImportModalProps) {
                   accept=".csv"
                   className="cursor-pointer"
                   onChange={(e) => { setError(null); setFile(e.target.files?.[0] ?? null); }}
+                  disabled={loading}
                 />
                 {file && (
                   <p className="text-xs text-[var(--color-muted-foreground)]">
                     {file.name} — {(file.size / 1024).toFixed(1)} KB
                   </p>
+                )}
+                {loading && (
+                  <div className="space-y-1.5 pt-1" role="status" aria-label="Upload progress">
+                    <div className="flex items-center justify-between text-xs text-[var(--color-muted-foreground)]">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Spinner size="sm" label="" />
+                        {progress !== null ? "Uploading…" : "Starting upload…"}
+                      </span>
+                      {progress !== null && <span>{progress}%</span>}
+                    </div>
+                    {progress !== null && <Progress value={progress} className="h-2" />}
+                  </div>
                 )}
               </div>
 
@@ -561,11 +592,14 @@ function CsvImportModal({ onClose, onImported }: CsvImportModalProps) {
                 <Button variant="outline" onClick={onClose} className="flex-1" disabled={loading}>
                   Cancel
                 </Button>
-                <Button onClick={handleImport} disabled={loading || !file} className="flex-1 gap-2">
-                  {loading
-                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
-                    : <><Upload className="h-4 w-4" /> Import</>
-                  }
+                <Button
+                  onClick={handleImport}
+                  loading={loading}
+                  loadingText={progress !== null ? `Uploading ${progress}%…` : "Importing…"}
+                  disabled={!file}
+                  className="flex-1 gap-2"
+                >
+                  <Upload className="h-4 w-4" /> Import
                 </Button>
               </div>
             </>
@@ -584,10 +618,30 @@ export function OrdersClient({ data }: { data: OrdersData }) {
   const { formatMoney, baseCurrency } = useCurrency();
   const { canWrite } = useRole();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const urlSearch = searchParams.get("search") ?? "";
+  // The search fires once typing settles (debounced) instead of on every
+  // keystroke; the input shows a spinner while the term is unsettled or
+  // the page transition is running.
+  const { debouncedValue: debouncedSearch, isPending: searchPending, flush: flushSearch } = useDebouncedValue(search);
   const [isPending, startTransition] = useTransition();
 
   // Local state so optimistic updates work without full reload
   const [orders, setOrders] = useState<OrderRow[]>(data.orders);
+  // Sync the local list when the server data changes (page/search
+  // navigation). Without this, pagination/search changed the header
+  // counts but never the rows — the local state was only ever seeded on
+  // mount. (Pre-existing bug, fixed as part of the pagination work.)
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing server props into local list state on navigation */
+  useEffect(() => {
+    setOrders(data.orders);
+  }, [data.orders]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  // Keep the input in step with the URL (e.g. back/forward navigation).
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing the URL search param into the input */
+  useEffect(() => {
+    setSearch(urlSearch);
+  }, [urlSearch]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const canDelete = canWrite;
 
@@ -608,6 +662,18 @@ export function OrdersClient({ data }: { data: OrdersData }) {
     p.set("page", "1");
     startTransition(() => router.push(`/dashboard/orders?${p.toString()}`));
   };
+
+  // Auto-search once typing settles. The effect navigates directly
+  // (rather than calling goSearch) so the dependency list stays stable;
+  // the navigation itself is identical to goSearch.
+  useEffect(() => {
+    if (debouncedSearch === urlSearch) return;
+    const p = new URLSearchParams(searchParams.toString());
+    if (debouncedSearch) p.set("search", debouncedSearch); else p.delete("search");
+    p.set("page", "1");
+    startTransition(() => router.push(`/dashboard/orders?${p.toString()}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, urlSearch]);
 
   const goPage = (pg: number) => {
     const p = new URLSearchParams(searchParams.toString());
@@ -798,12 +864,23 @@ export function OrdersClient({ data }: { data: OrdersData }) {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted-foreground)]" />
               <Input
-                className="pl-9 w-56"
+                className="pl-9 pr-9 w-56"
                 placeholder="Search orders…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && goSearch(search)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    flushSearch();
+                    goSearch(search);
+                  }
+                }}
+                aria-label="Search orders"
               />
+              {(searchPending || isPending) && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                  <Spinner size="sm" label="" />
+                </span>
+              )}
             </div>
             <Button variant="outline" size="sm" className="gap-2" onClick={exportCSV}>
               <Download className="h-4 w-4" />
@@ -838,7 +915,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
         {/* Table */}
         <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-busy={isPending || undefined}>
               <thead className="bg-[var(--color-muted)] border-b border-[var(--color-border)]">
                 <tr>
                   {[
@@ -954,13 +1031,18 @@ export function OrdersClient({ data }: { data: OrdersData }) {
           <div className="flex items-center justify-between text-sm text-[var(--color-muted-foreground)]">
             <p>
               Page {data.page} of {data.pages}
+              {isPending && (
+                <span className="ml-2 inline-flex items-center gap-1">
+                  <Spinner size="sm" label="" /> Updating…
+                </span>
+              )}
             </p>
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => goPage(data.page - 1)}
-                disabled={data.page <= 1}
+                disabled={data.page <= 1 || isPending}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -968,7 +1050,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
                 variant="outline"
                 size="sm"
                 onClick={() => goPage(data.page + 1)}
-                disabled={data.page >= data.pages}
+                disabled={data.page >= data.pages || isPending}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>

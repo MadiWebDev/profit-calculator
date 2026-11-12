@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  Loader2, AlertCircle, CheckCircle2, ArrowLeft,
+  AlertCircle, CheckCircle2, ArrowLeft,
   MailCheck, MailX, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { cn } from "@/lib/utils";
 import { SUPPORT_TOPIC_LABELS } from "@/lib/support";
 import { MESSAGE_STATUSES, MESSAGE_STATUS_LABELS } from "@/lib/admin-messages";
@@ -36,8 +38,6 @@ export function MessageDetailClient({ messageId }: { messageId: string }) {
   const [message,  setMessage]  = useState<MessageRow | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [reply,    setReply]    = useState("");
-  const [sending,  setSending]  = useState(false);
-  const [updating, setUpdating] = useState(false);
   const [error,    setError]    = useState<string | null>(null);
   const [success,  setSuccess]  = useState<string | null>(null);
 
@@ -59,8 +59,8 @@ export function MessageDetailClient({ messageId }: { messageId: string }) {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
-  const setStatus = async (status: string) => {
-    setUpdating(true); setError(null); setSuccess(null);
+  const setStatusAction = useAsyncAction(async (status: string) => {
+    setError(null); setSuccess(null);
     try {
       const res = await fetch("/api/admin/messages", {
         method: "PATCH",
@@ -71,14 +71,18 @@ export function MessageDetailClient({ messageId }: { messageId: string }) {
       if (!res.ok) { setError(j.error ?? "Update failed"); return; }
       setMessage(j.message);
       setSuccess(`Status set to ${MESSAGE_STATUS_LABELS[status as keyof typeof MESSAGE_STATUS_LABELS]}.`);
-    } finally {
-      setUpdating(false);
+    } catch {
+      setError("Could not reach the server. Try again.");
     }
+  });
+
+  const setStatus = (status: string) => {
+    void setStatusAction.run(status);
   };
 
-  const sendReply = async () => {
+  const sendReplyAction = useAsyncAction(async () => {
     if (!reply.trim()) { setError("Write a reply first."); return; }
-    setSending(true); setError(null); setSuccess(null);
+    setError(null); setSuccess(null);
     try {
       const res = await fetch(`/api/admin/messages/${messageId}`, {
         method: "POST",
@@ -90,15 +94,19 @@ export function MessageDetailClient({ messageId }: { messageId: string }) {
       setMessage(j.message);
       setReply("");
       setSuccess(`Reply sent to ${j.message.email}. Status set to Replied.`);
-    } finally {
-      setSending(false);
+    } catch {
+      setError("Could not reach the server. Try again.");
     }
+  });
+
+  const sendReply = () => {
+    void sendReplyAction.run();
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--color-muted-foreground)]" />
+        <Spinner size="lg" className="text-[var(--color-muted-foreground)]" />
       </div>
     );
   }
@@ -109,7 +117,7 @@ export function MessageDetailClient({ messageId }: { messageId: string }) {
         <Link href="/admin/messages" className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">
           <ArrowLeft className="h-4 w-4" /> Back to Messages
         </Link>
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" /> {error ?? "Message not found."}
         </div>
       </div>
@@ -124,13 +132,13 @@ export function MessageDetailClient({ messageId }: { messageId: string }) {
 
       {/* Feedback */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" /> {error}
           <button className="ml-auto opacity-60 hover:opacity-100" onClick={() => setError(null)}>✕</button>
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 px-4 py-3 text-sm text-green-700">
+        <div role="status" className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 px-4 py-3 text-sm text-green-700">
           <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> {success}
         </div>
       )}
@@ -181,11 +189,10 @@ export function MessageDetailClient({ messageId }: { messageId: string }) {
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <span className="text-xs text-[var(--color-muted-foreground)] mr-1">Set status:</span>
             {MESSAGE_STATUSES.filter((s) => s !== message.status).map((s) => (
-              <Button key={s} variant="outline" size="sm" disabled={updating} onClick={() => setStatus(s)} className="h-8 text-xs capitalize">
+              <Button key={s} variant="outline" size="sm" loading={setStatusAction.loading} loadingText="Updating…" disabled={sendReplyAction.loading} onClick={() => setStatus(s)} className="h-8 text-xs capitalize">
                 {s === "new" ? "Reopen" : `Mark ${MESSAGE_STATUS_LABELS[s].toLowerCase()}`}
               </Button>
             ))}
-            {updating && <Loader2 className="h-4 w-4 animate-spin text-[var(--color-muted-foreground)]" />}
           </div>
         </CardContent>
       </Card>
@@ -206,10 +213,11 @@ export function MessageDetailClient({ messageId }: { messageId: string }) {
             onChange={(e) => setReply(e.target.value)}
             rows={6}
             className="resize-y"
+            disabled={sendReplyAction.loading}
           />
           <div className="flex items-center gap-3">
-            <Button onClick={sendReply} disabled={sending || !reply.trim()} className="gap-1.5">
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <Button onClick={sendReply} loading={sendReplyAction.loading} loadingText="Sending reply…" disabled={!reply.trim() || setStatusAction.loading} className="gap-1.5">
+              <Send className="h-4 w-4" />
               Send reply
             </Button>
             <span className="text-xs text-[var(--color-muted-foreground)]">{reply.trim().length} / 5000 characters</span>

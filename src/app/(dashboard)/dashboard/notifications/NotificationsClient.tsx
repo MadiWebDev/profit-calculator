@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 interface Rule {
   event: string;
@@ -49,6 +50,9 @@ export function NotificationsClient() {
   const save = async (rule: Rule) => {
     setSaving(rule.event);
     setNotice(null);
+    // The toggle/select apply optimistically (see `update`); keep the
+    // previous rule so a failed save rolls the UI back to the server value.
+    const previous = rules.find((r) => r.event === rule.event);
     try {
       const r = await fetch("/api/notify-rules", {
         method: "POST",
@@ -59,6 +63,9 @@ export function NotificationsClient() {
       setRules((prev) => prev.map((p) => (p.event === rule.event ? rule : p)));
       setNotice(`Saved: ${EVENT_LABELS[rule.event] ?? rule.event}.`);
     } catch {
+      if (previous) {
+        setRules((prev) => prev.map((p) => (p.event === rule.event ? previous : p)));
+      }
       setError("Could not save that rule. Please try again.");
     } finally {
       setSaving(null);
@@ -80,13 +87,20 @@ export function NotificationsClient() {
         </p>
       </div>
 
-      {error && <Card><CardContent className="py-6 text-center text-sm text-red-600">{error}</CardContent></Card>}
+      {error && (
+        <Card><CardContent className="py-6 text-center space-y-3">
+          <p role="alert" className="text-sm text-red-600">{error}</p>
+          <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+        </CardContent></Card>
+      )}
       {notice && <Card><CardContent className="py-3 text-sm">{notice}</CardContent></Card>}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Rules per order event</CardTitle></CardHeader>
         <CardContent>
-          {loading && <p className="text-sm text-[var(--color-muted-foreground)]" role="status">Loading…</p>}
+          {loading ? (
+            <ListSkeleton rows={6} />
+          ) : (
           <ul className="space-y-4">
             {rules.map((r) => (
               <li key={r.event} className="rounded-xl border border-[var(--color-border)] p-4">
@@ -115,7 +129,7 @@ export function NotificationsClient() {
                       <option value="email">Email only</option>
                       <option value="both">WhatsApp + email</option>
                     </select>
-                    <Button size="sm" disabled={saving === r.event} onClick={() => save(r)}>
+                    <Button size="sm" loading={saving === r.event} loadingText="Saving…" onClick={() => save(r)}>
                       Save
                     </Button>
                   </div>
@@ -129,6 +143,7 @@ export function NotificationsClient() {
               </li>
             ))}
           </ul>
+          )}
         </CardContent>
       </Card>
     </div>

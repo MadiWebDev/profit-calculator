@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
+import { FormSkeleton } from "@/components/ui/skeleton";
 
 interface View { id: string; name: string; role: string; kpis: string[]; shareToken?: string | null; shareExpiresAt?: string | null }
 
@@ -34,13 +36,17 @@ export default function SavedViewsPage() {
 
   const toggleKpi = (k: string) => setForm((f) => ({ ...f, kpis: f.kpis.includes(k) ? f.kpis.filter((x) => x !== k) : [...f.kpis, k] }));
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setMsg(null);
+  const submitAction = useAsyncAction(async () => {
     const res = await fetch("/api/saved-views", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     if (!res.ok) { setMsg("Could not save that view — pick at least one KPI and try again."); return; }
     setMsg("View saved. Open it as a custom dashboard from the list below.");
     setForm({ name: "", role: "all", kpis: [] });
     await load();
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault(); setMsg(null);
+    void submitAction.run();
   };
 
   const share = async (id: string) => {
@@ -51,7 +57,7 @@ export default function SavedViewsPage() {
     await load();
   };
 
-  if (loading) return <div className="grid gap-4" role="status" aria-label="Loading">{Array.from({ length: 2 }).map((_, i) => (<Card key={i}><CardContent className="h-20 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
+  if (loading) return <FormSkeleton fields={4} />;
   if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
 
   return (
@@ -61,15 +67,17 @@ export default function SavedViewsPage() {
         <p className="text-sm text-[var(--color-muted-foreground)]">Pick the KPIs that matter for a role, save the view, open it as a custom dashboard, or share a read-only link that expires.</p>
       </div>
       <Card><CardHeader><CardTitle>Save a view</CardTitle></CardHeader><CardContent>
-        <form onSubmit={submit} className="space-y-3">
+        <form onSubmit={submit}>
+          <fieldset disabled={submitAction.loading} className="space-y-3 border-0 m-0 min-w-0 p-0">
           <div className="space-y-1"><Label htmlFor="view-name">Name</Label><Input id="view-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Owner morning brief" /></div>
           <div className="flex flex-wrap gap-2">
             {options.map((k) => (
               <label key={k} className="flex items-center gap-1.5 text-sm border border-[var(--color-border)] rounded-full px-3 py-1"><input type="checkbox" checked={form.kpis.includes(k)} onChange={() => toggleKpi(k)} /> {k}</label>
             ))}
           </div>
-          <Button type="submit">Save view</Button>
+          <Button type="submit" loading={submitAction.loading} loadingText="Saving…">Save view</Button>
           {msg && <p className="text-sm text-[var(--color-muted-foreground)]">{msg}</p>}
+          </fieldset>
         </form>
       </CardContent></Card>
       {views.length === 0 && <Card><CardContent className="py-10 text-center"><p className="text-sm text-[var(--color-muted-foreground)]">No saved views yet. Save your first one above.</p></CardContent></Card>}

@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Calendar,
   Clock,
@@ -18,6 +17,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { LoadingImage } from "@/components/ui/loading-image";
 import { toast } from "sonner";
 import { SocialIcon } from "react-social-icons";
 
@@ -257,11 +257,12 @@ export default function BlogPostClient({ blog }: BlogPostClientProps) {
           {/* Featured Image */}
           {blog.featuredImage && (
             <div className="relative w-full h-[400px] sm:h-[500px] rounded-xl overflow-hidden mb-8">
-              <Image
+              <LoadingImage
                 src={blog.featuredImage}
                 alt={blog.featuredImageAlt || blog.title}
                 fill
                 className="object-cover"
+                wrapperClassName="h-full w-full rounded-xl"
               />
             </div>
           )}
@@ -337,11 +338,12 @@ export default function BlogPostClient({ blog }: BlogPostClientProps) {
                 >
                   {post.featuredImage && (
                     <div className="relative h-40 bg-[var(--color-muted)] overflow-hidden">
-                      <Image
+                      <LoadingImage
                         src={post.featuredImage}
                         alt={post.title}
                         fill
                         className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        wrapperClassName="h-full w-full"
                       />
                     </div>
                   )}

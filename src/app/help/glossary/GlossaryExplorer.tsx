@@ -4,26 +4,40 @@ import { useMemo, useState } from "react";
 import { GLOSSARY_TERMS, searchHelpItems } from "@/lib/help-content";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function GlossaryExplorer() {
   const [query, setQuery] = useState("");
+  // Client-side filter — debounced like the FAQ search so typing does not
+  // re-filter (and re-render the list) on every keystroke.
+  const { debouncedValue: debouncedQuery, isPending: searchPending } = useDebouncedValue(query);
 
   const terms = useMemo(
-    () => searchHelpItems(GLOSSARY_TERMS, query, ["term", "definition"]),
-    [query],
+    () => searchHelpItems(GLOSSARY_TERMS, debouncedQuery, ["term", "definition"]),
+    [debouncedQuery],
   );
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
         <Label htmlFor="glossary-search">Search terms</Label>
-        <Input
-          id="glossary-search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="e.g. ROAS, COGS, margin…"
-        />
+        <div className="relative">
+          <Input
+            id="glossary-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="e.g. ROAS, COGS, margin…"
+            className="pr-9"
+            aria-label="Search terms"
+          />
+          {searchPending && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+              <Spinner size="sm" label="" />
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-sm text-[var(--color-muted-foreground)]" aria-live="polite">
         {terms.length === GLOSSARY_TERMS.length

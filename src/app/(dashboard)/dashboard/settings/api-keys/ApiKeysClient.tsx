@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Key, Plus, Trash2, Copy, Check, Eye, EyeOff,
-  Loader2, AlertTriangle, CheckCircle2, Shield,
+  AlertTriangle, CheckCircle2, Shield,
   Clock, Activity, Lock, ExternalLink, Info, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -330,10 +331,12 @@ export function ApiKeysClient({ keys: initialKeys, plan }: Props) {
                   <Button
                     size="sm"
                     onClick={createKey}
-                    disabled={creating || !keyName.trim() || selectedScopes.length === 0}
+                    loading={creating}
+                    loadingText="Generating…"
+                    disabled={!keyName.trim() || selectedScopes.length === 0}
                     className="gap-2"
                   >
-                    {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Key className="h-3.5 w-3.5" />}
+                    <Key className="h-3.5 w-3.5" />
                     Generate Key
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
@@ -436,9 +439,10 @@ export function ApiKeysClient({ keys: initialKeys, plan }: Props) {
                               disabled={rotating === k.id || revoking === k.id}
                               className="h-8 w-8 p-0 text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10"
                               title="Rotate key (issue replacement, revoke old)"
+                              aria-label={`Rotate key ${k.name}`}
                             >
                               {rotating === k.id
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                ? <Spinner size="sm" label="" />
                                 : <RefreshCw className="h-4 w-4" />
                               }
                             </Button>
@@ -449,9 +453,10 @@ export function ApiKeysClient({ keys: initialKeys, plan }: Props) {
                               disabled={revoking === k.id || rotating === k.id}
                               className="h-8 w-8 p-0 text-[var(--color-muted-foreground)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
                               title="Revoke key"
+                              aria-label={`Revoke key ${k.name}`}
                             >
                               {revoking === k.id
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                ? <Spinner size="sm" label="" />
                                 : <Trash2 className="h-4 w-4" />
                               }
                             </Button>

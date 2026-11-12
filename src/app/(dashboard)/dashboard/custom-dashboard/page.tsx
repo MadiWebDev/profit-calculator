@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { StatsSkeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 function CustomDashboardInner() {
@@ -39,8 +40,8 @@ function CustomDashboardInner() {
     })();
   }, [viewId]);
 
-  if (loading) return <div className="grid grid-cols-2 md:grid-cols-4 gap-4" role="status" aria-label="Loading">{Array.from({ length: 4 }).map((_, i) => (<Card key={i}><CardContent className="h-24 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
-  if (error || !view || !metrics) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error ?? "No dashboard"}</p><Link href="/dashboard/saved-views" className="text-sm font-medium text-[var(--color-primary)] underline">Go to Saved Views →</Link></CardContent></Card>;
+  if (loading) return <StatsSkeleton count={4} />;
+  if (error || !view || !metrics) return <Card><CardContent className="py-8 text-center space-y-3"><p role="alert" className="text-sm text-red-600">{error ?? "No dashboard"}</p><Link href="/dashboard/saved-views" className="text-sm font-medium text-[var(--color-primary)] underline">Go to Saved Views →</Link></CardContent></Card>;
 
   const fmt = (k: string, v: number) => {
     if (k === "netMargin" || k === "refundRate" || k === "rtoRate") return `${v}%`;
@@ -67,7 +68,7 @@ function CustomDashboardInner() {
 
 export default function CustomDashboardPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-[var(--color-muted-foreground)]">Loading dashboard…</p>}>
+    <Suspense fallback={<StatsSkeleton count={4} />}>
       <CustomDashboardInner />
     </Suspense>
   );

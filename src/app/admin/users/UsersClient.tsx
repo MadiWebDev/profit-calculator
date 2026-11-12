@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Search, Loader2, Crown, AlertCircle, CheckCircle2,
+  Search, Crown, AlertCircle, CheckCircle2,
   ChevronLeft, ChevronRight, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
@@ -57,17 +60,21 @@ export function UsersClient() {
   const [data,    setData]    = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
+  const { debouncedValue: debouncedSearch, isPending: searchPending } = useDebouncedValue(search);
   const [plan,    setPlan]    = useState("");
   const [page,    setPage]    = useState(1);
   const [error,   setError]   = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  // True once the first fetch has settled — refetches keep the table.
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const firstLoad = loading && !loadedOnce;
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const params = new URLSearchParams({ page: String(page), limit: "50" });
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       if (plan)   params.set("plan", plan);
       const res = await fetch(`/api/admin/users?${params}`);
       if (!res.ok) throw new Error("Failed to load");
@@ -76,8 +83,9 @@ export function UsersClient() {
       setError("Failed to load users.");
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
-  }, [page, search, plan]);
+  }, [page, debouncedSearch, plan]);
 
   // Mount-time data fetch — the effect is the correct place (suppressed: set-state-in-effect)
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -137,13 +145,13 @@ export function UsersClient() {
 
       {/* Feedback */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" /> {error}
           <button className="ml-auto opacity-60 hover:opacity-100" onClick={() => setError(null)}>✕</button>
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 px-4 py-3 text-sm text-green-700">
+        <div role="status" className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 px-4 py-3 text-sm text-green-700">
           <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> {success}
         </div>
       )}
@@ -158,8 +166,13 @@ export function UsersClient() {
                 placeholder="Search name or email…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="pl-9 h-9"
+                className="pl-9 pr-9 h-9"
               />
+              {(searchPending || loading) && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                  <Spinner size="sm" label="" />
+                </span>
+              )}
             </div>
             <Button variant="ghost" size="sm" onClick={load} className="gap-1.5 h-9">
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
@@ -168,15 +181,13 @@ export function UsersClient() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-muted-foreground)]" />
-            </div>
-          ) : users.length === 0 ? (
+          {firstLoad ? (
+            <div className="p-5"><ListSkeleton rows={5} /></div>
+          ) : users.length === 0 && !error ? (
             <div className="py-14 text-center text-sm text-[var(--color-muted-foreground)]">
               No users found.
             </div>
-          ) : (
+          ) : users.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-[var(--color-muted)] border-b border-[var(--color-border)]">
@@ -248,43 +259,40 @@ export function UsersClient() {
                       {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          {updating === u.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-[var(--color-muted-foreground)]" />
-                          ) : (
-                            <>
-                              {/* Change plan */}
-                              <Select
-                                value={u.plan}
-                                onValueChange={(v) => updateUser(u.id, "plan", v)}
-                              >
-                                <SelectTrigger className="h-7 w-28 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="free">Free</SelectItem>
-                                  <SelectItem value="starter">Starter</SelectItem>
-                                  <SelectItem value="growth">Growth</SelectItem>
-                                  <SelectItem value="pro">Pro</SelectItem>
-                                </SelectContent>
-                              </Select>
+                          {/* Change plan */}
+                          <Select
+                            value={u.plan}
+                            onValueChange={(v) => updateUser(u.id, "plan", v)}
+                            disabled={updating === u.id}
+                          >
+                            <SelectTrigger className="h-7 w-28 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="free">Free</SelectItem>
+                              <SelectItem value="starter">Starter</SelectItem>
+                              <SelectItem value="growth">Growth</SelectItem>
+                              <SelectItem value="pro">Pro</SelectItem>
+                            </SelectContent>
+                          </Select>
 
-                              {/* Toggle superAdmin */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className={cn(
-                                  "h-7 text-xs px-2",
-                                  u.role === "superAdmin"
-                                    ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-                                    : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]"
-                                )}
-                                onClick={() => updateUser(u.id, "role", u.role === "superAdmin" ? "owner" : "superAdmin")}
-                                title={u.role === "superAdmin" ? "Remove superAdmin" : "Make superAdmin"}
-                              >
-                                {u.role === "superAdmin" ? "Demote" : "Make Admin"}
-                              </Button>
-                            </>
-                          )}
+                          {/* Toggle superAdmin */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "h-7 text-xs px-2",
+                              u.role === "superAdmin"
+                                ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+                                : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]"
+                            )}
+                            onClick={() => updateUser(u.id, "role", u.role === "superAdmin" ? "owner" : "superAdmin")}
+                            loading={updating === u.id}
+                            loadingText={u.role === "superAdmin" ? "Demoting…" : "Making admin…"}
+                            title={u.role === "superAdmin" ? "Remove superAdmin" : "Make superAdmin"}
+                          >
+                            {u.role === "superAdmin" ? "Demote" : "Make Admin"}
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -292,19 +300,24 @@ export function UsersClient() {
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
 
           {/* Pagination */}
           {pages > 1 && (
             <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--color-border)]">
               <p className="text-xs text-[var(--color-muted-foreground)]">
                 Page {page} of {pages} · {total} users
+                {loading && (
+                  <span className="ml-2 inline-flex items-center gap-1">
+                    <Spinner size="sm" label="" /> Updating…
+                  </span>
+                )}
               </p>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-7 w-7 p-0">
+                <Button variant="ghost" size="sm" disabled={page === 1 || loading} onClick={() => setPage((p) => p - 1)} className="h-7 w-7 p-0">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="h-7 w-7 p-0">
+                <Button variant="ghost" size="sm" disabled={page === pages || loading} onClick={() => setPage((p) => p + 1)} className="h-7 w-7 p-0">
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

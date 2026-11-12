@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { SUPPORT_RESPONSE_TIME, SUPPORT_TOPIC_LABELS, type SupportTopic } from "@/lib/support";
 
 type Status = "idle" | "sending" | "sent" | "error";
@@ -11,6 +12,7 @@ const inputClass =
 export function SupportForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+  const sending = status === "sending";
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -68,13 +70,13 @@ export function SupportForm() {
           <label htmlFor="support-name" className="text-sm font-medium text-[var(--color-foreground)]">
             Name
           </label>
-          <input id="support-name" name="name" type="text" required minLength={2} maxLength={100} autoComplete="name" className={inputClass} placeholder="Your name" />
+          <input id="support-name" name="name" type="text" required minLength={2} maxLength={100} autoComplete="name" className={inputClass} placeholder="Your name" disabled={sending} />
         </div>
         <div className="space-y-1.5">
           <label htmlFor="support-email" className="text-sm font-medium text-[var(--color-foreground)]">
             Email
           </label>
-          <input id="support-email" name="email" type="email" required maxLength={254} autoComplete="email" className={inputClass} placeholder="you@example.com" />
+          <input id="support-email" name="email" type="email" required maxLength={254} autoComplete="email" className={inputClass} placeholder="you@example.com" disabled={sending} />
         </div>
       </div>
 
@@ -82,7 +84,7 @@ export function SupportForm() {
         <label htmlFor="support-topic" className="text-sm font-medium text-[var(--color-foreground)]">
           Topic
         </label>
-        <select id="support-topic" name="topic" required className={inputClass} defaultValue="other">
+        <select id="support-topic" name="topic" required className={inputClass} defaultValue="other" disabled={sending}>
           {(Object.entries(SUPPORT_TOPIC_LABELS) as [SupportTopic, string][]).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -102,6 +104,7 @@ export function SupportForm() {
           minLength={10}
           maxLength={5000}
           rows={6}
+          disabled={sending}
           className="flex w-full rounded-md border border-[var(--color-input)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-muted-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] resize-none"
           placeholder="Describe your question, the page you were on, and what you expected to see…"
         />
@@ -119,13 +122,14 @@ export function SupportForm() {
         </p>
       )}
 
-      <button
+      <Button
         type="submit"
-        disabled={status === "sending"}
-        className="inline-flex h-10 items-center justify-center rounded-md bg-[var(--color-primary)] px-6 text-sm font-medium text-white hover:bg-green-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:opacity-60"
+        loading={sending}
+        loadingText="Sending…"
+        className="px-6"
       >
-        {status === "sending" ? "Sending…" : "Send Message"}
-      </button>
+        Send Message
+      </Button>
       <p className="text-xs text-[var(--color-muted-foreground)]">
         Your message is stored so our team can follow up, and emailed to our support inbox. We never share
         it with anyone else.

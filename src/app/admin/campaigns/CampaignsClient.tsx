@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Megaphone, Mail, MessageCircle, Send, Loader2, CheckCircle2,
+  Megaphone, Mail, MessageCircle, Send, CheckCircle2,
   AlertCircle, RefreshCw, Plus, X, Users, Search, History,
   Phone, PhoneOff,
 } from "lucide-react";
@@ -11,6 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { useAsyncAction } from "@/hooks/use-async-action";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 
 type Channel = "email" | "whatsapp";
@@ -163,8 +167,10 @@ export function CampaignsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // True once the first campaigns fetch has settled — refetches (e.g.
+  // after sending) keep the list and only the per-row buttons show load.
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ recipients: RecipientRow[] } | null>(null);
@@ -184,8 +190,10 @@ export function CampaignsClient() {
   const [selectedUsers, setSelectedUsers] = useState<DirectoryUser[]>([]);
 
   // ── "Specific users" picker state ──
+  // Both searches share the one debounced-value hook (replacing the two
+  // hand-rolled setTimeout debounces that lived here before).
   const [pickerSearch, setPickerSearch] = useState("");
-  const [debouncedPickerSearch, setDebouncedPickerSearch] = useState("");
+  const { debouncedValue: debouncedPickerSearch, isPending: pickerSearchPending } = useDebouncedValue(pickerSearch);
   const [pickerPlan, setPickerPlan] = useState("");
   const [pickerResults, setPickerResults] = useState<DirectoryUser[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
@@ -196,11 +204,14 @@ export function CampaignsClient() {
   const [dirPage, setDirPage] = useState(1);
   const [dirPages, setDirPages] = useState(1);
   const [dirSearch, setDirSearch] = useState("");
-  const [debouncedDirSearch, setDebouncedDirSearch] = useState("");
+  const { debouncedValue: debouncedDirSearch, isPending: dirSearchPending } = useDebouncedValue(dirSearch);
   const [dirPlan, setDirPlan] = useState("");
   const [dirLoading, setDirLoading] = useState(true);
   const [dirError, setDirError] = useState<string | null>(null);
   const [lastMessages, setLastMessages] = useState<Record<string, LastMessage>>({});
+  // True once the first directory fetch has settled — refetches keep the
+  // list and only show an inline spinner.
+  const [dirLoadedOnce, setDirLoadedOnce] = useState(false);
 
   // ── Sent-messages log state ──
   const [logChannel, setLogChannel] = useState<"all" | Channel>("all");
@@ -228,24 +239,13 @@ export function CampaignsClient() {
       setError("Failed to load campaigns.");
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, []);
 
   // Mount-time data fetch — the effect is the correct place (suppressed: set-state-in-effect)
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
-
-  // Debounce the directory search input.
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedDirSearch(dirSearch), 300);
-    return () => clearTimeout(t);
-  }, [dirSearch]);
-
-  // Debounce the picker search input.
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedPickerSearch(pickerSearch), 300);
-    return () => clearTimeout(t);
-  }, [pickerSearch]);
 
   const loadDirectory = useCallback(async () => {
     setDirLoading(true); setDirError(null);
@@ -286,6 +286,7 @@ export function CampaignsClient() {
       setDirError("Failed to load users.");
     } finally {
       setDirLoading(false);
+      setDirLoadedOnce(true);
     }
   }, [dirPage, debouncedDirSearch, dirPlan]);
 
@@ -294,17 +295,21 @@ export function CampaignsClient() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadDirectory(); }, [loadDirectory]);
 
-  // "Specific users" picker results — only while the composer is open on that audience.
+  // "Specific users" picker results — only while the composer is open on
+  // that audience. The search term is already debounced by the shared
+  // hook, so this fetches immediately on the settled value (the old code
+  // wrapped the fetch in a second 300 ms timeout — a 600 ms lag in total).
   useEffect(() => {
     if (!showForm || audienceType !== "users") return;
-    const t = setTimeout(async () => {
+    let cancelled = false;
+    (async () => {
       setPickerLoading(true);
       try {
         const params = new URLSearchParams({ limit: String(PICKER_PAGE_SIZE) });
         if (debouncedPickerSearch) params.set("search", debouncedPickerSearch);
         if (pickerPlan) params.set("plan", pickerPlan);
         const res = await fetch(`/api/admin/users?${params.toString()}`);
-        if (res.ok) {
+        if (res.ok && !cancelled) {
           const j = await res.json();
           setPickerResults((j.users ?? []).map((u: {
             id: string; name: string; email: string; plan: string; hasPhone: boolean; createdAt: string;
@@ -314,10 +319,10 @@ export function CampaignsClient() {
           })));
         }
       } finally {
-        setPickerLoading(false);
+        if (!cancelled) setPickerLoading(false);
       }
-    }, 300);
-    return () => clearTimeout(t);
+    })();
+    return () => { cancelled = true; };
   }, [showForm, audienceType, debouncedPickerSearch, pickerPlan]);
 
   const flash = (type: "ok" | "err", msg: string) => {
@@ -325,11 +330,10 @@ export function CampaignsClient() {
     else { setError(msg); setSuccess(null); }
   };
 
-  const createCampaign = async () => {
+  const createAction = useAsyncAction(async () => {
     if (!name.trim() || !body.trim()) return;
     if (audienceType === "users" && selectedUsers.length === 0) return;
     if (audienceType === "limited" && (audienceLimit < 1 || audienceLimit > 500)) return;
-    setCreating(true);
     try {
       const payload: Record<string, unknown> = {
         name: name.trim(),
@@ -369,9 +373,11 @@ export function CampaignsClient() {
       await load();
     } catch (e) {
       flash("err", e instanceof Error ? e.message : "Create failed.");
-    } finally {
-      setCreating(false);
     }
+  });
+
+  const createCampaign = () => {
+    void createAction.run();
   };
 
   const openDetail = async (id: string): Promise<RecipientRow[] | null> => {
@@ -555,12 +561,12 @@ export function CampaignsClient() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 text-sm">
+        <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 text-sm">
           <AlertCircle className="h-4 w-4 flex-shrink-0" /> {error}
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 text-sm">
+        <div role="status" className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 text-sm">
           <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> {success}
         </div>
       )}
@@ -573,7 +579,8 @@ export function CampaignsClient() {
               <Plus className="h-4 w-4" /> New Campaign (draft)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 max-w-2xl">
+          <CardContent className="max-w-2xl">
+            <fieldset disabled={createAction.loading} className="space-y-4 border-0 m-0 min-w-0 p-0">
             <div className="space-y-1.5">
               <Label className="text-xs">Campaign name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. November feature launch" className="h-9" />
@@ -692,8 +699,13 @@ export function CampaignsClient() {
                       value={pickerSearch}
                       onChange={(e) => setPickerSearch(e.target.value)}
                       placeholder="Search by name or email…"
-                      className="h-9 pl-8"
+                      className="h-9 pl-8 pr-8"
                     />
+                    {(pickerSearchPending || pickerLoading) && (
+                      <span className="absolute right-2.5 top-2.5 text-[var(--color-muted-foreground)]">
+                        <Spinner size="sm" label="" />
+                      </span>
+                    )}
                   </div>
                   <select value={pickerPlan} onChange={(e) => setPickerPlan(e.target.value)} className={inputCls}>
                     <option value="">All plans</option>
@@ -733,7 +745,7 @@ export function CampaignsClient() {
                 )}
                 {pickerLoading ? (
                   <p className="text-xs text-[var(--color-muted-foreground)] flex items-center gap-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
+                    <Spinner size="sm" label="" /> Searching…
                   </p>
                 ) : pickerResults.length === 0 ? (
                   <p className="text-xs text-[var(--color-muted-foreground)]">
@@ -777,17 +789,20 @@ export function CampaignsClient() {
             <Button
               size="sm"
               onClick={createCampaign}
+              loading={createAction.loading}
+              loadingText="Creating draft…"
               disabled={
-                creating || !name.trim() || !body.trim() ||
+                !name.trim() || !body.trim() ||
                 (channel === "whatsapp" && !whatsappTemplateName.trim()) ||
                 (audienceType === "team" && !audienceTeamId) ||
                 (audienceType === "users" && selectedUsers.length === 0) ||
                 (audienceType === "limited" && (audienceLimit < 1 || audienceLimit > 500))
               }
             >
-              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              <Plus className="h-3.5 w-3.5" />
               Create Draft
             </Button>
+            </fieldset>
           </CardContent>
         </Card>
       )}
@@ -795,10 +810,8 @@ export function CampaignsClient() {
       {/* ── List ── */}
       <Card>
         <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center gap-2 p-6 text-sm text-[var(--color-muted-foreground)]">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading campaigns…
-            </div>
+          {loading && !loadedOnce ? (
+            <div className="p-4"><ListSkeleton rows={3} /></div>
           ) : campaigns.length === 0 ? (
             <div className="p-6 text-sm text-[var(--color-muted-foreground)]">
               No campaigns yet. Create a draft to get started.
@@ -833,10 +846,8 @@ export function CampaignsClient() {
                       {detailId === c.id ? "Hide results" : "Results"}
                     </Button>
                     {c.status === "draft" && (
-                      <Button size="sm" onClick={() => sendCampaign(c)} disabled={sendingId === c.id}>
-                        {sendingId === c.id
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          : <Send className="h-3.5 w-3.5" />}
+                      <Button size="sm" onClick={() => sendCampaign(c)} loading={sendingId === c.id} loadingText="Sending…">
+                        <Send className="h-3.5 w-3.5" />
                         Send
                       </Button>
                     )}
@@ -848,7 +859,7 @@ export function CampaignsClient() {
                     <div className="rounded-lg border border-[var(--color-border)] p-3">
                       {loadingDetail ? (
                         <p className="text-xs text-[var(--color-muted-foreground)] flex items-center gap-2">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading results…
+                          <Spinner size="sm" label="" /> Loading results…
                         </p>
                       ) : detail ? (
                         <RecipientTable recipients={detail.recipients} statusFilter="all" />
@@ -878,8 +889,13 @@ export function CampaignsClient() {
                 value={dirSearch}
                 onChange={(e) => { setDirSearch(e.target.value); setDirPage(1); }}
                 placeholder="Search by name or email…"
-                className="h-9 pl-8"
+                className="h-9 pl-8 pr-8"
               />
+              {(dirSearchPending || dirLoading) && (
+                <span className="absolute right-2.5 top-2.5 text-[var(--color-muted-foreground)]">
+                  <Spinner size="sm" label="" />
+                </span>
+              )}
             </div>
             <select
               value={dirPlan}
@@ -895,12 +911,10 @@ export function CampaignsClient() {
         </CardHeader>
         <CardContent className="p-0">
           {dirError && (
-            <p className="p-4 text-sm text-red-600 dark:text-red-400">{dirError}</p>
+            <p role="alert" className="p-4 text-sm text-red-600 dark:text-red-400">{dirError}</p>
           )}
-          {dirLoading ? (
-            <div className="flex items-center gap-2 p-6 text-sm text-[var(--color-muted-foreground)]">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading users…
-            </div>
+          {dirLoading && !dirLoadedOnce ? (
+            <div className="p-4"><ListSkeleton rows={5} /></div>
           ) : dirUsers.length === 0 ? (
             <div className="p-6 text-sm text-[var(--color-muted-foreground)]">
               No users match.
@@ -992,9 +1006,7 @@ export function CampaignsClient() {
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center gap-2 p-6 text-sm text-[var(--color-muted-foreground)]">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-            </div>
+            <div className="p-4"><ListSkeleton rows={3} /></div>
           ) : sentCampaigns.length === 0 ? (
             <div className="p-6 text-sm text-[var(--color-muted-foreground)]">
               Nothing sent yet.
@@ -1007,7 +1019,7 @@ export function CampaignsClient() {
             <div className="divide-y divide-[var(--color-border)]">
               {logDetailsPending && (
                 <p className="flex items-center gap-2 p-3 text-xs text-[var(--color-muted-foreground)]">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading per-recipient results to apply the status filter…
+                  <Spinner size="sm" label="" /> Loading per-recipient results to apply the status filter…
                 </p>
               )}
               {visibleLogCampaigns.map((c) => (
@@ -1036,7 +1048,7 @@ export function CampaignsClient() {
                     <div className="rounded-lg border border-[var(--color-border)] p-3">
                       {logLoading[c.id] ? (
                         <p className="text-xs text-[var(--color-muted-foreground)] flex items-center gap-2">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading results…
+                          <Spinner size="sm" label="" /> Loading results…
                         </p>
                       ) : (
                         <RecipientTable

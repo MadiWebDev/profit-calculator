@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
   Search, Edit2, Package, Check, X, Lock,
-  Plus, Trash2, Loader2, AlertTriangle,
+  Plus, Trash2, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { LoadingImage } from "@/components/ui/loading-image";
 import { formatPercent, cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useRole } from "@/components/dashboard/RoleContext";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
@@ -116,7 +118,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <div role="alert" className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" />
               {error}
             </div>
@@ -131,6 +133,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
               onChange={(e) => setName(e.target.value)}
               autoFocus
               required
+              disabled={loading}
             />
           </div>
 
@@ -142,6 +145,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
               value={sku}
               onChange={(e) => setSku(e.target.value)}
               className="font-mono"
+              disabled={loading}
             />
           </div>
 
@@ -156,6 +160,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
                 placeholder="0.00"
                 value={defaultCogs}
                 onChange={(e) => setDefaultCogs(e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="space-y-1.5">
@@ -167,6 +172,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value.toUpperCase())}
                 className="uppercase font-mono"
+                disabled={loading}
               />
             </div>
           </div>
@@ -175,9 +181,9 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="gap-2 min-w-[100px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {loading ? "Saving…" : "Add Product"}
+            <Button type="submit" loading={loading} loadingText="Saving…" className="gap-2 min-w-[100px]">
+              <Plus className="h-4 w-4" />
+              Add Product
             </Button>
           </div>
         </form>
@@ -240,7 +246,7 @@ function DeleteProductModal({ product, onClose, onDeleted }: DeleteProductModalP
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <p role="alert" className="text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
@@ -249,9 +255,9 @@ function DeleteProductModal({ product, onClose, onDeleted }: DeleteProductModalP
             <Button variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={loading} className="gap-2 min-w-[90px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              {loading ? "Deleting…" : "Delete"}
+            <Button variant="destructive" onClick={handleDelete} loading={loading} loadingText="Deleting…" className="gap-2 min-w-[90px]">
+              <Trash2 className="h-4 w-4" />
+              Delete
             </Button>
           </div>
         </div>
@@ -270,6 +276,10 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
 
   const [products, setProducts] = useState<ProductRow[]>(initialProducts);
   const [search, setSearch] = useState("");
+  // Client-side filter — debounced so typing does not re-filter (and
+  // re-render the table) on every keystroke; the spinner shows while the
+  // typed term has not settled yet.
+  const { debouncedValue: debouncedSearch, isPending: searchPending } = useDebouncedValue(search);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [cogsVal, setCogsVal] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -278,10 +288,19 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
 
   const canDelete = canWrite;
 
+  // Sync the local list when the server data changes (after a create the
+  // modal calls router.refresh(); without this the new product never
+  // appeared until a full reload — same pre-existing bug as OrdersClient).
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing server props into local list state on refresh */
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const filtered = products.filter(
     (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.sku ?? "").toLowerCase().includes(search.toLowerCase())
+      p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      (p.sku ?? "").toLowerCase().includes(debouncedSearch.toLowerCase())
   );
 
   // ── Inline COGS editing ──────────────────────────────────────────────────
@@ -351,11 +370,17 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted-foreground)]" />
               <Input
-                className="pl-9 w-56"
+                className="pl-9 pr-9 w-56"
                 placeholder="Search by name or SKU…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search products by name or SKU"
               />
+              {searchPending && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                  <Spinner size="sm" label="" />
+                </span>
+              )}
             </div>
             {canWrite && (
               <Button size="sm" className="gap-2 flex-shrink-0" onClick={() => setShowCreate(true)}>
@@ -418,12 +443,13 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         {p.imageUrl ? (
-                          <Image
+                          <LoadingImage
                             src={p.imageUrl}
                             alt={p.name}
                             width={32}
                             height={32}
                             className="h-8 w-8 rounded object-cover flex-shrink-0"
+                            wrapperClassName="h-8 w-8 shrink-0 rounded"
                           />
                         ) : (
                           <div className="h-8 w-8 rounded bg-[var(--color-muted)] flex items-center justify-center flex-shrink-0">
@@ -456,21 +482,24 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                                 if (e.key === "Escape") cancelEdit();
                               }}
                               autoFocus
+                              disabled={savingId === p.id}
                             />
                             <Button
                               size="sm"
                               className="h-7 w-7 p-0"
                               onClick={() => saveCogs(p.id)}
                               disabled={savingId === p.id}
+                              aria-busy={savingId === p.id || undefined}
                               title="Save"
                             >
-                              <Check className="h-3.5 w-3.5" />
+                              {savingId === p.id ? <Spinner size="sm" label="" /> : <Check className="h-3.5 w-3.5" />}
                             </Button>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="h-7 w-7 p-0"
                               onClick={cancelEdit}
+                              disabled={savingId === p.id}
                               title="Cancel"
                             >
                               <X className="h-3.5 w-3.5" />

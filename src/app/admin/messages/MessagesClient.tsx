@@ -3,12 +3,15 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  Search, Loader2, AlertCircle,
+  Search, AlertCircle,
   ChevronLeft, ChevronRight, RefreshCw, MailCheck, MailX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
@@ -57,16 +60,20 @@ export function MessagesClient() {
   const [data,    setData]    = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
+  const { debouncedValue: debouncedSearch, isPending: searchPending } = useDebouncedValue(search);
   const [status,  setStatus]  = useState("");
   const [topic,   setTopic]   = useState("");
   const [page,    setPage]    = useState(1);
   const [error,   setError]   = useState<string | null>(null);
+  // True once the first fetch has settled — refetches keep the table.
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const firstLoad = loading && !loadedOnce;
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const params = new URLSearchParams({ page: String(page), limit: "20" });
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       if (status) params.set("status", status);
       if (topic)  params.set("topic", topic);
       const res = await fetch(`/api/admin/messages?${params}`);
@@ -76,8 +83,9 @@ export function MessagesClient() {
       setError("Failed to load messages.");
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
-  }, [page, search, status, topic]);
+  }, [page, debouncedSearch, status, topic]);
 
   // Mount-time data fetch — the effect is the correct place (suppressed: set-state-in-effect)
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -120,7 +128,7 @@ export function MessagesClient() {
 
       {/* Feedback */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 flex-shrink-0" /> {error}
           <button className="ml-auto opacity-60 hover:opacity-100" onClick={() => setError(null)}>✕</button>
         </div>
@@ -136,8 +144,13 @@ export function MessagesClient() {
                 placeholder="Search name or email…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                className="pl-9 h-9"
+                className="pl-9 pr-9 h-9"
               />
+              {(searchPending || loading) && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                  <Spinner size="sm" label="" />
+                </span>
+              )}
             </div>
             <Select value={status || "all"} onValueChange={(v) => { setStatus(v === "all" ? "" : v); setPage(1); }}>
               <SelectTrigger className="h-9 w-36 text-xs">
@@ -168,15 +181,13 @@ export function MessagesClient() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-muted-foreground)]" />
-            </div>
-          ) : messages.length === 0 ? (
+          {firstLoad ? (
+            <div className="p-5"><ListSkeleton rows={5} /></div>
+          ) : messages.length === 0 && !error ? (
             <div className="py-14 text-center text-sm text-[var(--color-muted-foreground)]">
               No messages found.
             </div>
-          ) : (
+          ) : messages.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-[var(--color-muted)] border-b border-[var(--color-border)]">
@@ -231,19 +242,24 @@ export function MessagesClient() {
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
 
           {/* Pagination */}
           {pages > 1 && (
             <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--color-border)]">
               <p className="text-xs text-[var(--color-muted-foreground)]">
                 Page {page} of {pages} · {total} messages
+                {loading && (
+                  <span className="ml-2 inline-flex items-center gap-1">
+                    <Spinner size="sm" label="" /> Updating…
+                  </span>
+                )}
               </p>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-7 w-7 p-0">
+                <Button variant="ghost" size="sm" disabled={page === 1 || loading} onClick={() => setPage((p) => p - 1)} className="h-7 w-7 p-0">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="h-7 w-7 p-0">
+                <Button variant="ghost" size="sm" disabled={page === pages || loading} onClick={() => setPage((p) => p + 1)} className="h-7 w-7 p-0">
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

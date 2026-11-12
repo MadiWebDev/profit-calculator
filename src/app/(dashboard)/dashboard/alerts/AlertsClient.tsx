@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import type { AlertEvaluation, AlertMetric, AlertOperator } from "@/lib/alerts";
 
 interface RuleRow {
@@ -42,21 +44,26 @@ export function AlertsClient({
   const [threshold, setThreshold] = useState("20");
   const [windowDays, setWindowDays] = useState("30");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // `refreshing` covers the list reload after create/toggle/delete;
+  // `actingId` marks the one rule whose toggle/delete is in flight.
+  const [refreshing, setRefreshing] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
 
   async function refresh() {
-    const res = await fetch("/api/alerts");
-    if (res.ok) {
-      const data = await res.json();
-      setRules(data.rules);
-      setEvals(data.evaluations);
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/alerts");
+      if (res.ok) {
+        const data = await res.json();
+        setRules(data.rules);
+        setEvals(data.evaluations);
+      }
+    } finally {
+      setRefreshing(false);
     }
   }
 
-  async function createRule(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
+  const createAction = useAsyncAction(async () => {
     try {
       const res = await fetch("/api/alerts", {
         method: "POST",
@@ -79,24 +86,38 @@ export function AlertsClient({
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create rule");
-    } finally {
-      setBusy(false);
     }
+  });
+
+  function createRule(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    void createAction.run();
   }
 
   async function toggleRule(id: string, enabled: boolean) {
-    await fetch(`/api/alerts/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    });
-    await refresh();
+    setActingId(id);
+    try {
+      await fetch(`/api/alerts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      await refresh();
+    } finally {
+      setActingId(null);
+    }
   }
 
   async function deleteRule(id: string) {
     if (!confirm("Delete this guardrail rule?")) return;
-    await fetch(`/api/alerts/${id}`, { method: "DELETE" });
-    await refresh();
+    setActingId(id);
+    try {
+      await fetch(`/api/alerts/${id}`, { method: "DELETE" });
+      await refresh();
+    } finally {
+      setActingId(null);
+    }
   }
 
   const evalByRule = new Map(evals.map((ev) => [ev.ruleId, ev]));
@@ -139,7 +160,8 @@ export function AlertsClient({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={createRule} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <form onSubmit={createRule}>
+            <fieldset disabled={createAction.loading} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 border-0 m-0 min-w-0 p-0">
             <div className="space-y-1">
               <Label htmlFor="rule-name">Name</Label>
               <Input
@@ -201,18 +223,22 @@ export function AlertsClient({
               />
             </div>
             <div className="flex items-end">
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" loading={createAction.loading} loadingText="Creating rule…">
                 Create rule
               </Button>
             </div>
+            </fieldset>
           </form>
-          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Your rules</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Your rules
+            {refreshing && <Spinner size="sm" label="" />}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {rules.length === 0 && (
@@ -247,11 +273,13 @@ export function AlertsClient({
                   variant="outline"
                   size="sm"
                   onClick={() => toggleRule(rule.id, !rule.enabled)}
+                  loading={actingId === rule.id}
+                  loadingText={rule.enabled ? "Pausing…" : "Resuming…"}
                 >
                   {rule.enabled ? "Pause" : "Resume"}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => deleteRule(rule.id)}>
-                  <Trash2 className="h-4 w-4" />
+                <Button variant="ghost" size="sm" onClick={() => deleteRule(rule.id)} disabled={actingId === rule.id} aria-label={`Delete rule ${rule.name}`}>
+                  {actingId === rule.id ? <Spinner size="sm" label="" /> : <Trash2 className="h-4 w-4" />}
                 </Button>
               </div>
             );

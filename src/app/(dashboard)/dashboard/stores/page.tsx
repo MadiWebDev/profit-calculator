@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CardSkeleton } from "@/components/ui/skeleton";
 
 interface Store { id: string; name: string; platform: string; domain?: string; currency: string; syncStatus: string; lastSyncAt?: string | null; ordersCount: number; syncError?: string | null }
 
@@ -12,6 +13,9 @@ export default function StoresPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  // Per-store action in flight: "sync:<id>" | "disconnect:<id>" — the action
+  // buttons show their own loading state while the list reloads.
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -29,20 +33,37 @@ export default function StoresPage() {
 
   const resync = async (id: string) => {
     setMsg(null);
-    const res = await fetch(`/api/stores/${id}/sync`, { method: "POST" });
-    setMsg(res.ok ? "Re-sync started for that store. Its status updates on the next load." : "Re-sync could not be started for that store.");
-    await load();
+    setBusyId(`sync:${id}`);
+    try {
+      const res = await fetch(`/api/stores/${id}/sync`, { method: "POST" });
+      setMsg(res.ok ? "Re-sync started for that store. Its status updates on the next load." : "Re-sync could not be started for that store.");
+    } finally {
+      setBusyId(null);
+      await load();
+    }
   };
 
   const disconnect = async (id: string) => {
     if (!confirm("Disconnect this store? Its order history stays, but syncing stops.")) return;
-    const res = await fetch(`/api/stores/${id}`, { method: "DELETE" });
-    setMsg(res.ok ? "Store disconnected." : "Could not disconnect that store.");
-    await load();
+    setBusyId(`disconnect:${id}`);
+    try {
+      const res = await fetch(`/api/stores/${id}`, { method: "DELETE" });
+      setMsg(res.ok ? "Store disconnected." : "Could not disconnect that store.");
+    } finally {
+      setBusyId(null);
+      await load();
+    }
   };
 
-  if (loading) return <div className="grid gap-4" role="status" aria-label="Loading">{Array.from({ length: 2 }).map((_, i) => (<Card key={i}><CardContent className="h-20 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
-  if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <CardSkeleton />
+        <CardSkeleton />
+      </div>
+    );
+  }
+  if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p role="alert" className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -65,8 +86,8 @@ export default function StoresPage() {
           <CardContent className="flex flex-wrap items-center gap-3 text-sm">
             <span className="text-[var(--color-muted-foreground)]">Sync: {s.syncStatus}{s.lastSyncAt ? ` · last ${new Date(s.lastSyncAt).toLocaleString()}` : ""} · {s.ordersCount} orders{s.syncError ? ` · Error: ${s.syncError}` : ""}</span>
             <span className="ml-auto flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => resync(s.id)}>Re-sync</Button>
-              <Button size="sm" variant="outline" onClick={() => disconnect(s.id)}>Disconnect</Button>
+              <Button size="sm" variant="outline" onClick={() => resync(s.id)} loading={busyId === `sync:${s.id}`} loadingText="Syncing…">Re-sync</Button>
+              <Button size="sm" variant="outline" onClick={() => disconnect(s.id)} loading={busyId === `disconnect:${s.id}`} loadingText="Disconnecting…">Disconnect</Button>
             </span>
           </CardContent></Card>
       ))}

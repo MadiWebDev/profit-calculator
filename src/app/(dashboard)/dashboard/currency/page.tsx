@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
+import { FormSkeleton } from "@/components/ui/skeleton";
 import { CURRENCIES, useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Settings { reportingCurrency: string; displayCurrency?: string; fxSource: string; fxOverrides: { currency: string; rate: number; effectiveFrom: string }[] }
@@ -33,8 +35,7 @@ export default function CurrencyPage() {
   useEffect(() => { load(); }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault(); setMsg(null);
+  const saveAction = useAsyncAction(async () => {
     const overrides = [...(settings?.fxOverrides ?? [])];
     if (form.currency && form.rate) {
       overrides.push({ currency: form.currency.toUpperCase(), rate: Number(form.rate), effectiveFrom: form.effectiveFrom });
@@ -45,9 +46,14 @@ export default function CurrencyPage() {
     setCurrency(form.displayCurrency);
     setMsg("Currency settings saved. Manual overrides apply from their effective date and are recorded in the history below.");
     await load();
+  });
+
+  const save = (e: React.FormEvent) => {
+    e.preventDefault(); setMsg(null);
+    void saveAction.run();
   };
 
-  if (loading) return <div className="grid gap-4" role="status" aria-label="Loading">{Array.from({ length: 2 }).map((_, i) => (<Card key={i}><CardContent className="h-20 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
+  if (loading) return <FormSkeleton fields={6} />;
   if (error || !settings) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error ?? "No settings"}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
 
   return (
@@ -57,7 +63,8 @@ export default function CurrencyPage() {
         <p className="text-sm text-[var(--color-muted-foreground)]">Reporting currency, FX source, and manual rate overrides with effective dates. The display currency only changes how money figures are shown — converted at the live rate — while the reporting currency is what reports are aggregated in. Store and ad-account currencies are shown on the Stores and Ad Platforms pages; reports filter by order currency and never mix currencies in one total.</p>
       </div>
       <Card><CardHeader><CardTitle>Reporting currency &amp; FX</CardTitle></CardHeader><CardContent>
-        <form onSubmit={save} className="grid sm:grid-cols-2 gap-3">
+        <form onSubmit={save}>
+          <fieldset disabled={saveAction.loading} className="grid sm:grid-cols-2 gap-3 border-0 m-0 min-w-0 p-0">
           <div className="space-y-1"><Label htmlFor="cur-report">Reporting currency</Label><Input id="cur-report" required value={form.reportingCurrency} onChange={(e) => setForm({ ...form, reportingCurrency: e.target.value.toUpperCase() })} /></div>
           <div className="space-y-1">
             <Label htmlFor="cur-display">Display currency</Label>
@@ -77,7 +84,8 @@ export default function CurrencyPage() {
           <div className="space-y-1"><Label htmlFor="cur-override">Manual override currency</Label><Input id="cur-override" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })} placeholder="Optional, e.g. PKR" /></div>
           <div className="space-y-1"><Label htmlFor="cur-rate">Rate (units per 1 USD)</Label><Input id="cur-rate" type="number" min="0" step="0.0001" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="cur-from">Effective from</Label><Input id="cur-from" type="date" value={form.effectiveFrom} onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} /></div>
-          <div className="sm:col-span-2"><Button type="submit">Save</Button>{msg && <p className="text-sm text-[var(--color-muted-foreground)] mt-2">{msg}</p>}</div>
+          <div className="sm:col-span-2"><Button type="submit" loading={saveAction.loading} loadingText="Saving…">Save</Button>{msg && <p className="text-sm text-[var(--color-muted-foreground)] mt-2">{msg}</p>}</div>
+          </fieldset>
         </form>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Rate overrides used</CardTitle></CardHeader><CardContent className="space-y-2">

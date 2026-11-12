@@ -2,16 +2,17 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Loader2, CheckCircle2, XCircle, Calculator } from "lucide-react";
+import { CheckCircle2, XCircle, Calculator } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
 
 function AcceptInviteInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
-  const { data: session, status: authStatus } = useSession();
+  const { status: authStatus } = useSession();
 
   const [inviteStatus, setInviteStatus] = useState<"loading" | "success" | "error" | "expired">("loading");
   const [teamName, setTeamName] = useState("");
@@ -24,15 +25,6 @@ function AcceptInviteInner() {
       router.push(`/auth/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
     }
   }, [authStatus, router, token]);
-
-  // Show spinner while session is loading to avoid flash
-  if (authStatus === "loading") {
-    return (
-      <div className="min-h-screen bg-[var(--color-muted)] flex items-center justify-center px-4">
-        <Loader2 className="h-8 w-8 animate-spin text-[var(--color-primary)]" />
-      </div>
-    );
-  }
 
   // Invite validation must run client-side on mount (token comes from the URL).
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -62,6 +54,17 @@ function AcceptInviteInner() {
   }, [token, router, authStatus]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // Show spinner while session is loading to avoid flash. This return
+  // sits AFTER all hooks so hook order is identical on every render
+  // (the validation effect above no-ops while authStatus is "loading").
+  if (authStatus === "loading") {
+    return (
+      <div className="min-h-screen bg-[var(--color-muted)] flex items-center justify-center px-4">
+        <Spinner size="lg" className="text-[var(--color-primary)]" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[var(--color-muted)] flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
@@ -75,7 +78,7 @@ function AcceptInviteInner() {
         <div className="bg-[var(--color-card)] rounded-2xl border border-[var(--color-border)] p-8 shadow-sm">
           {inviteStatus === "loading" && (
             <>
-              <Loader2 className="h-12 w-12 animate-spin text-[var(--color-primary)] mx-auto mb-4" />
+              <Spinner size="lg" className="mx-auto mb-4 text-[var(--color-primary)]" />
               <h1 className="text-xl font-bold text-[var(--color-foreground)] mb-2">Accepting invitation…</h1>
               <p className="text-sm text-[var(--color-muted-foreground)]">Please wait a moment.</p>
             </>
@@ -133,7 +136,7 @@ export default function AcceptInvitePage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[var(--color-muted)] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[var(--color-primary)]" />
+        <Spinner size="lg" className="text-[var(--color-primary)]" />
       </div>
     }>
       <AcceptInviteInner />

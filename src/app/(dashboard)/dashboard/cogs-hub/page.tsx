@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { StatsSkeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Product { id: string; name: string; sku?: string; defaultCogs: number; totalRevenue: number; totalOrders: number; avgProfitMargin: number }
@@ -74,8 +76,15 @@ export default function CogsHubPage() {
     finally { setBusy(false); }
   };
 
-  if (loading) return <div className="grid gap-4" role="status" aria-label="Loading">{Array.from({ length: 4 }).map((_, i) => (<Card key={i}><CardContent className="h-20 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
-  if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <StatsSkeleton count={3} />
+        <TableSkeleton rows={8} />
+      </div>
+    );
+  }
+  if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p role="alert" className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
 
   return (
     <div className="space-y-6">
@@ -87,7 +96,7 @@ export default function CogsHubPage() {
         <div className="flex flex-wrap items-end gap-3 ml-auto">
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={missingOnly} onChange={(e) => setMissingOnly(e.target.checked)} /> Missing COGS only ({missing})</label>
           <div className="space-y-1"><Label htmlFor="cogs-pct">Apply % of avg price</Label><Input id="cogs-pct" type="number" value={pct} onChange={(e) => setPct(e.target.value)} placeholder="e.g. 40" className="w-28" /></div>
-          <Button onClick={applyPercent} disabled={busy || !pct}>Apply to shown</Button>
+          <Button onClick={applyPercent} disabled={busy || !pct} loading={busy} loadingText="Applying…">Apply to shown</Button>
           <Button variant="outline" onClick={exportCsv}>Export CSV</Button>
         </div>
       </div>

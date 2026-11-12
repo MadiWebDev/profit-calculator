@@ -25,7 +25,12 @@ const EnvSchema = z
     NEXT_PUBLIC_PADDLE_ENV: z.enum(["sandbox", "production"]).default("sandbox"),
 
     // ── Cron ───────────────────────────────────────────────────────────────
-    CRON_SECRET: z.string().min(16, "CRON_SECRET must be at least 16 chars"),
+    // Optional in the global schema ON PURPOSE: cron routes enforce the
+    // secret per-request via verifyCronAuth (500s when unset, 401 on a
+    // wrong token), so a missing secret must not fail `next build`
+    // prerendering or server boot — preview deployments don't have it
+    // (Vercel Preview env scope) and need no cron access.
+    CRON_SECRET: z.string().min(16, "CRON_SECRET must be at least 16 chars").optional(),
 
     // ── Recommended (warn, don't fail) ─────────────────────────────────────
     ENCRYPTION_KEY: z.string().min(32).optional(),
@@ -90,6 +95,7 @@ export type AppEnv = z.infer<typeof EnvSchema>;
 
 const RECOMMENDED_VARS: Array<{ key: string; description: string }> = [
   { key: "ENCRYPTION_KEY", description: "AES-256 key — OAuth tokens stored unencrypted without it" },
+  { key: "CRON_SECRET", description: "Cron endpoints (Vercel Cron) — cron routes return 500 without it" },
   { key: "RESEND_API_KEY", description: "Transactional email (invites, alerts, receipts)" },
   { key: "OPENROUTER_API_KEY / GROQ_API_KEY", description: "AI insights via OpenRouter or Groq (Growth/Pro feature)" },
   { key: "NEXT_PUBLIC_SITE_URL", description: "Public site URL — used in emails and checkout success URLs" },
