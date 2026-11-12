@@ -16,6 +16,8 @@ declare module "next-auth" {
       teamId: string | null;
       plan: "free" | "starter" | "growth" | "pro";
       role: "superAdmin" | "owner";
+      /** Personal display currency (ISO 4217) or null when never set. */
+      displayCurrency?: string | null;
     } & DefaultSession["user"];
   }
 
@@ -23,6 +25,7 @@ declare module "next-auth" {
     teamId?: string | null;
     plan?: "free" | "starter" | "growth" | "pro";
     role?: "superAdmin" | "owner";
+    displayCurrency?: string | null;
   }
 }
 
@@ -32,5 +35,6 @@ declare module "next-auth/jwt" {
     teamId?: string | null;
     plan?: string;
     role?: string;
+    displayCurrency?: string | null;
   }
 }

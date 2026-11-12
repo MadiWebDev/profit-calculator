@@ -10,9 +10,16 @@ import mongoose, { Schema, Document, model, models } from "mongoose";
  *   - displayCurrency: what money figures are SHOWN in on the
  *     dashboard (the header switcher's choice). It never changes
  *     stored numbers — figures are converted at display time from
- *     the report base currency at the live FX rate. Migration-safe:
- *     defaults to USD on new documents, and readers fall back to
- *     reportingCurrency when an older document has no value. */
+ *     the report base currency at the live FX rate.
+ *     NOTE: displayCurrency has NO default, deliberately. "Never
+ *     set" must stay distinguishable from "explicitly set to USD":
+ *     the display precedence (CurrencyContext) treats an unset team
+ *     value as no choice, so location auto-detect can seed the
+ *     default — a defaulted "USD" here would block geo detection
+ *     for every team that never chose a currency. Readers that
+ *     need a concrete currency fall back to reportingCurrency
+ *     themselves (see GET /api/settings/workspace and
+ *     resolveDisplayCurrency). */
 export interface IWorkspaceSettings extends Document {
   teamId: mongoose.Types.ObjectId;
   fiscalMonthStartDay: number;
@@ -24,7 +31,8 @@ export interface IWorkspaceSettings extends Document {
   reverseCharge: boolean;
   vatRates: { country: string; rate: number }[];
   reportingCurrency: string;
-  displayCurrency: string;
+  /** Team default display currency — undefined when the team never chose one (see the note above). */
+  displayCurrency?: string;
   fxSource: string;
   fxOverrides: { currency: string; rate: number; effectiveFrom: Date }[];
   updatedAt: Date;
@@ -48,7 +56,8 @@ const WorkspaceSettingsSchema = new Schema<IWorkspaceSettings>(
     reverseCharge: { type: Boolean, default: false },
     vatRates: { type: [VatRateSchema], default: [] },
     reportingCurrency: { type: String, default: "USD" },
-    displayCurrency: { type: String, default: "USD" },
+    // No default — see the comment on the interface above.
+    displayCurrency: { type: String },
     fxSource: { type: String, default: "currencyapi.net" },
     fxOverrides: { type: [FxOverrideSchema], default: [] },
   },

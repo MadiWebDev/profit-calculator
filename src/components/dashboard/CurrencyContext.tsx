@@ -9,12 +9,14 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { useSession } from "next-auth/react";
 import { formatCurrency } from "@/lib/utils";
 import { convertCurrency } from "@/lib/profit-engine";
+import { currencyForCountry } from "@/lib/country-currency";
 import {
-  isValidCurrencyCode,
   mostCommonCurrency,
   parseFxRatesPayload,
+  resolveDisplayCurrency,
 } from "@/lib/display-currency";
 
 // ── Currency registry ─────────────────────────────────────────────────────────
@@ -27,7 +29,7 @@ export interface CurrencyDef {
   label: string;       // Display label in selector, e.g. "US Dollar ($)"
 }
 
-// All 147 unique currencies in use across 208 countries/territories.
+// All 148 unique currencies in use across 208 countries/territories.
 // (Countries sharing a currency — e.g. Eurozone/EUR, West Africa/XOF,
 // Central Africa/XAF, East Caribbean/XCD — are collapsed to one entry.)
 export const CURRENCIES: CurrencyDef[] = [
@@ -182,6 +184,9 @@ export const CURRENCIES: CurrencyDef[] = [
   { code: "TOP", symbol: "T$",   name: "Paʻanga",                locale: "to-TO", label: "Paʻanga (T$)" },
   { code: "VUV", symbol: "VT",   name: "Vatu",                   locale: "bi-VU", label: "Vatu (VT)" },
   { code: "PGK", symbol: "K",    name: "Kina",                   locale: "en-PG", label: "Kina (K)" },
+  // Added with the per-user currency build: the registry was missing
+  // the New Zealand Dollar (NZ, CK, NU, TK, PN all use it).
+  { code: "NZD", symbol: "NZ$",  name: "New Zealand Dollar",     locale: "en-NZ", label: "New Zealand Dollar (NZ$)" },
 
   // ─── Territories ───
   { code: "HKD", symbol: "$",    name: "Hong Kong Dollar",       locale: "zh-HK", label: "Hong Kong Dollar ($)" },
@@ -192,6 +197,19 @@ export const CURRENCIES: CurrencyDef[] = [
 ];
 const FALLBACK = CURRENCIES[0]; // USD
 const LS_KEY   = "profit_selected_currency";
+// Auto-detected currency (location / IP), cached separately from the
+// explicit choice so a detected default never overwrites a saved one.
+const DET_KEY  = "profit_detected_currency";
+
+/** A location auto-detect result: the currency + where it came from. */
+export interface DetectedCurrency {
+  /** ISO 4217 code, e.g. "PKR" */
+  code: string;
+  /** ISO 3166-1 alpha-2 country code, e.g. "PK" — null when unknown (cached value from an older shape). */
+  country: string | null;
+  /** "vercel-geo" = Vercel country header, "language" = browser-language fallback. */
+  source: "vercel-geo" | "language";
+}
 
 // ── Context shape ─────────────────────────────────────────────────────────────
 
@@ -202,8 +220,28 @@ export interface CurrencyContextValue {
   symbol: string;
   /** Full definition object */
   currencyDef: CurrencyDef;
-  /** Change the active currency — persisted to localStorage */
-  setCurrency: (code: string) => void;
+  /**
+   * Change the active currency — persisted to localStorage, and to the
+   * signed-in user's own saved preference (PATCH /api/user) unless
+   * `opts.persist` is false (used by Settings after its own awaited
+   * save). Logged-out visitors keep the localStorage-only choice.
+   * The saved preference is per-user: changing it never affects
+   * teammates (the old code wrote the team workspace setting).
+   */
+  setCurrency: (code: string, opts?: { persist?: boolean }) => void;
+  /**
+   * Forget the explicit choice and re-resolve from the precedence
+   * rule (used by Settings after the saved preference is cleared).
+   * The next resolution run picks up the team setting / geo / store
+   * default. Does not write anything server-side by itself.
+   */
+  resetCurrencyPreference: () => void;
+  /**
+   * The auto-detected currency (location / IP), or null when nothing
+   * was detected. Shown in Settings so the user can see what their
+   * location suggests. Never overwrites a saved preference.
+   */
+  detectedCurrency: DetectedCurrency | null;
   /**
    * Report base currency: the team's most common store currency (the
    * same rule the server uses when aggregating reports). Money figures
@@ -239,6 +277,8 @@ export const CurrencyContext = createContext<CurrencyContextValue>({
   symbol:      FALLBACK.symbol,
   currencyDef: FALLBACK,
   setCurrency: () => {},
+  resetCurrencyPreference: () => {},
+  detectedCurrency: null,
   baseCurrency: FALLBACK.code,
   ratesAsOf: null,
   ratesAvailable: false,
@@ -259,9 +299,28 @@ export function getCurrencyDef(code: string): CurrencyDef {
   return CURRENCIES.find((c) => c.code === code) ?? FALLBACK;
 }
 
+/**
+ * A saved/remote currency code is usable only when it is a real
+ * registry currency — stricter than isValidCurrencyCode (shape only),
+ * so a stale or hand-edited value can never select a currency the
+ * selector does not know. Returns the upper-cased code or null.
+ */
+export function normalizeSavedCurrency(code: unknown): string | null {
+  if (typeof code !== "string") return null;
+  const upper = code.toUpperCase().trim();
+  return CURRENCIES.some((c) => c.code === upper) ? upper : null;
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
+  // The signed-in user's saved preference, from the session (populated
+  // by auth.config.ts from the JWT; refreshed by the jwt() backfill in
+  // auth.ts). Null until the session loads, or when the user never set
+  // a preference.
+  const { data: session, status, update: updateSession } = useSession();
+  const sessionPref = normalizeSavedCurrency(session?.user?.displayCurrency);
+
   // Always start with the fallback so server and client render identically.
   // We read localStorage only after mount to avoid the SSR/client hydration
   // mismatch that occurs when the lazy useState initialiser runs immediately
@@ -280,25 +339,49 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   // the "Rates as of HH:MM" stamp. Null until the first rates load.
   const [ratesAsOf, setRatesAsOf] = useState<string | null>(null);
 
-  // True once the workspace settings GET succeeded (the viewer is
-  // signed in and has a team): only then is the choice persisted
-  // server-side. Logged-out visitors keep the localStorage-only
-  // choice, and nothing is ever POSTed for them.
-  const serverSyncedRef = useRef(false);
-  // The user picked a currency before the server value arrived — the
-  // server hydration must not overwrite an explicit choice.
-  const userChangedRef = useRef(false);
+  // The precedence sources, each resolved independently (null until
+  // its fetch/storage read settles). The single resolution effect
+  // below combines them with resolveDisplayCurrency:
+  //   user (session) > team workspace > browser (localStorage)
+  //   > geo-detected > store/base > USD.
+  const [serverCurrency, setServerCurrency] = useState<string | null>(null);
+  const [serverResolved, setServerResolved] = useState(false);
+  const [storedChoice, setStoredChoice] = useState<string | null>(null);
+  const [detected, setDetected] = useState<DetectedCurrency | null>(null);
 
-  // On mount: hydrate from localStorage (client-only, runs after first render)
+  // Bumps to force the resolution effect to re-run (refs don't trigger
+  // renders) — used by resetCurrencyPreference after a cleared save.
+  const [resolutionTick, setResolutionTick] = useState(0);
+
+  // The user picked a currency this session — later-arriving sources
+  // must not overwrite an explicit choice.
+  const userChangedRef = useRef(false);
+  // Geo lookup attempted at most once per mount.
+  const geoTriedRef = useRef(false);
+
+  // On mount: hydrate the browser choices from localStorage
+  // (client-only, runs after first render). The explicit choice goes
+  // to storedChoice (a resolution source, not the final currency —
+  // the resolution effect decides); a cached detection goes to
+  // `detected` so repeat visits don't re-fetch the geo endpoint.
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(LS_KEY);
-      if (stored) {
-        const resolved = getCurrencyDef(stored).code;
-        if (resolved !== FALLBACK.code) {
-          // One-time mount hydration, not a render cascade.
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setCurrencyCode(resolved);
+      const storedCode = stored ? normalizeSavedCurrency(stored) : null;
+      if (storedCode) {
+        // One-time mount hydration, not a render cascade.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setStoredChoice(storedCode);
+      }
+      const cached = window.localStorage.getItem(DET_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as DetectedCurrency | null;
+        if (parsed && normalizeSavedCurrency(parsed.code) && parsed.country !== undefined) {
+          setDetected({
+            code: parsed.code.toUpperCase(),
+            country: parsed.country ?? null,
+            source: parsed.source === "language" ? "language" : "vercel-geo",
+          });
         }
       }
     } catch {
@@ -306,31 +389,50 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // On mount: hydrate the display currency from the team's saved
-  // workspace settings — the server value wins over localStorage
-  // (unless the user already picked something this session).
-  // A 401 (signed out) or network failure leaves the local choice.
+  // On mount AND whenever the auth state changes: hydrate the display
+  // currency from the team's saved workspace settings — the team
+  // default for members who never picked a personal currency.
+  //
+  // Auth-state matters: this provider lives in the root layout, so it
+  // does NOT remount on the client-side login navigation. A mount-only
+  // fetch runs while the user is still signed out (401), marks the
+  // team value "settled", and never re-runs after sign-in — so a team
+  // that DID set a display currency would keep showing the
+  // auto-detected one (the workspace value was never fetched). Hence
+  // the fetch is keyed on `status`: it runs when the session becomes
+  // authenticated, and resets when it is definitely logged out.
+  // A 401 (signed out) or network failure leaves the other sources
+  // to resolve; serverResolved still flips so the geo effect knows
+  // the team value is settled.
   useEffect(() => {
+    if (status === "unauthenticated") {
+      // Definitely signed out: no team setting exists for this viewer,
+      // and a stale one must not survive the sign-out. One-time
+      // auth-state reset, not a render cascade.
+      /* eslint-disable react-hooks/set-state-in-effect -- auth-state reset: clear the team currency when the session ends. */
+      setServerCurrency(null);
+      setServerResolved(false);
+      /* eslint-enable react-hooks/set-state-in-effect */
+      return;
+    }
+    if (status !== "authenticated") return; // still loading — keep the last value
     let cancelled = false;
     fetch("/api/settings/workspace")
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (cancelled) return;
-        const server = j?.settings?.displayCurrency;
-        if (typeof server === "string" && isValidCurrencyCode(server)) {
-          serverSyncedRef.current = true;
-          if (!userChangedRef.current) {
-            setCurrencyCode(server.toUpperCase());
-          }
-        }
+        setServerCurrency(normalizeSavedCurrency(j?.settings?.displayCurrency));
       })
       .catch(() => {
-        // Signed out / offline — localStorage choice stands
+        // Network failure — other sources resolve
+      })
+      .finally(() => {
+        if (!cancelled) setServerResolved(true);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [status]);
 
   // On mount: resolve the report base currency from the team's active
   // stores (most common store currency, USD when there is none).
@@ -355,8 +457,98 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Sync to localStorage whenever the user picks a new currency
+  // The single resolution point: whenever any source settles, pick the
+  // highest-precedence usable one. Skipped after an explicit pick
+  // (userChangedRef) — a saved preference never changes by itself.
+  // The reporting currency is only passed once the stores list has
+  // loaded, so a "USD" guess never short-circuits geo detection.
   useEffect(() => {
+    if (userChangedRef.current) return;
+    const resolved = resolveDisplayCurrency({
+      user: sessionPref,
+      server: serverCurrency,
+      stored: storedChoice,
+      geo: detected?.code ?? null,
+      reportingCurrency: baseLoaded ? baseCurrency : null,
+    });
+    // One-time resolution (not a render cascade): a state is the only
+    // way to hand the resolved currency to every consumer at once.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (resolved !== currencyCode) setCurrencyCode(resolved);
+  }, [sessionPref, serverCurrency, storedChoice, detected, baseCurrency, baseLoaded, currencyCode, resolutionTick]);
+
+  // Location auto-detect — runs only when nothing higher exists and
+  // the team value is settled. Never overwrites a saved preference, a
+  // team setting, or a browser choice: the guard below skips it
+  // entirely in those cases. Server first (Vercel country header via
+  // /api/geo/currency), browser-language region as the fallback.
+  //
+  // "Settled" is auth-aware: a signed-out visitor has no team to wait
+  // for, so detection runs at once (it is the right default for them);
+  // a signed-in user waits for the workspace fetch, so a team setting
+  // (when one exists) is never beaten by a detection that fired while
+  // the fetch was still in flight.
+  useEffect(() => {
+    const teamSettled = status !== "authenticated" || serverResolved;
+    if (
+      !teamSettled ||
+      sessionPref || serverCurrency || storedChoice || detected ||
+      geoTriedRef.current
+    ) {
+      return;
+    }
+    geoTriedRef.current = true;
+    let cancelled = false;
+    const cacheAndSet = (d: DetectedCurrency) => {
+      try {
+        window.localStorage.setItem(DET_KEY, JSON.stringify(d));
+      } catch {
+        // Storage may be blocked — the in-memory value still applies
+      }
+      if (!cancelled) setDetected(d);
+    };
+    const languageFallback = () => {
+      try {
+        const region = (window.navigator.language || "").split("-")[1]?.toUpperCase() ?? "";
+        const code = region ? currencyForCountry(region) : null;
+        if (code) cacheAndSet({ code, country: region || null, source: "language" });
+      } catch {
+        // No detection — fall through to base/USD
+      }
+    };
+    fetch("/api/geo/currency")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled) return;
+        const code = normalizeSavedCurrency(j?.currency);
+        if (code) {
+          cacheAndSet({
+            code,
+            country: typeof j?.country === "string" ? j.country.toUpperCase() : null,
+            source: "vercel-geo",
+          });
+          return;
+        }
+        languageFallback();
+      })
+      .catch(() => {
+        if (!cancelled) languageFallback();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status, serverResolved, sessionPref, serverCurrency, storedChoice, detected]);
+
+  // Sync an EXPLICIT pick to localStorage so a revisit keeps it
+  // (logged-out, or the next sign-in before the session loads).
+  // Resolution-driven values (session, team, geo, store) are NOT
+  // written here: persisting them would turn a detected default
+  // into a fake "choice" that blocks future detection — e.g. a PKR
+  // detected on this trip would keep beating a EUR detection on
+  // the next one. Only setCurrency() (an explicit pick) flips the
+  // guard, so only it reaches this write.
+  useEffect(() => {
+    if (!userChangedRef.current) return;
     try {
       window.localStorage.setItem(LS_KEY, currencyCode);
     } catch {
@@ -366,22 +558,50 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   const def = getCurrencyDef(currencyCode);
 
-  const setCurrency = (code: string) => {
+  const setCurrency = (code: string, opts?: { persist?: boolean }) => {
     const resolved = getCurrencyDef(code).code; // validates & falls back
     userChangedRef.current = true;
     setCurrencyCode(resolved);
-    // Persist server-side when the team settings are reachable; the
-    // localStorage write above is the offline fallback. Fire-and-forget.
-    if (serverSyncedRef.current) {
-      fetch("/api/settings/workspace", {
+    // Persist to the SIGNED-IN USER's own preference (PATCH /api/user)
+    // — not the team workspace setting, which the old code wrote (one
+    // member changing it changed it for the whole team).
+    // Logged-out visitors keep the localStorage-only choice, and
+    // nothing is ever POSTed for them. Fire-and-forget; on success the
+    // JWT is refreshed so the session carries the new preference (a
+    // stale session must never win over the fresh choice on reload).
+    // opts.persist === false is used by Settings after its own awaited
+    // save, so the same value isn't written twice.
+    if (opts?.persist !== false && status === "authenticated") {
+      fetch("/api/user", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ displayCurrency: resolved }),
-      }).catch(() => {
-        // Local storage already holds the choice
-      });
+      })
+        .then((r) => {
+          if (r.ok) updateSession().catch(() => {});
+        })
+        .catch(() => {
+          // Local storage already holds the choice
+        });
     }
   };
+
+  // Clear the explicit-pick guard so the resolution effect re-runs
+  // from the (now cleared) saved preference. Called by Settings after
+  // a successful reset PATCH + session update; writes nothing itself.
+  // The browser's stored choice is an explicit choice too, so it is
+  // removed as well — otherwise the stored value would keep beating
+  // the detected currency and "automatic" would never return.
+  const resetCurrencyPreference = useCallback(() => {
+    userChangedRef.current = false;
+    try {
+      window.localStorage.removeItem(LS_KEY);
+    } catch {
+      // Storage may be blocked — the in-memory clear still applies
+    }
+    setStoredChoice(null);
+    setResolutionTick((t) => t + 1);
+  }, []);
 
   // FX rates for display conversion — re-fetched every 60 seconds while
   // the dashboard is open, matching /api/fx/rates' browser cache (60s),
@@ -459,6 +679,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         symbol:      def.symbol,
         currencyDef: def,
         setCurrency,
+        resetCurrencyPreference,
+        detectedCurrency: detected,
         baseCurrency,
         ratesAsOf,
         ratesAvailable: fxRates !== null,

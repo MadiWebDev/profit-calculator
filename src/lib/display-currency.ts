@@ -32,21 +32,30 @@ function normalizeCode(code: unknown): string | null {
 
 /**
  * Resolve the display currency from the available sources, in
- * precedence order: the team's saved workspace setting wins, then the
- * browser's stored choice, then the workspace reporting currency
- * (the store/base currency — the migration-safe default for teams
- * that never picked a display currency), then USD.
+ * precedence order — the saved USER preference always wins, then the
+ * team's saved workspace setting, then the browser's stored choice,
+ * then the auto-detected currency (location / IP), then the workspace
+ * reporting currency (the store/base currency — the migration-safe
+ * default for teams that never picked a display currency), then USD.
+ *
+ * Nothing automatic ever overrides a saved user preference: geo
+ * detection only ever fills the `geo` slot, which loses to every
+ * explicit choice above it.
  */
 export function resolveDisplayCurrency(opts: {
+  user?: string | null;
   server?: string | null;
   stored?: string | null;
+  geo?: string | null;
   reportingCurrency?: string | null;
   fallback?: string;
 }): string {
   const fallback = normalizeCode(opts.fallback) ?? "USD";
   return (
+    normalizeCode(opts.user) ??
     normalizeCode(opts.server) ??
     normalizeCode(opts.stored) ??
+    normalizeCode(opts.geo) ??
     normalizeCode(opts.reportingCurrency) ??
     fallback
   );

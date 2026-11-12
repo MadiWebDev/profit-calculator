@@ -40,18 +40,23 @@ export async function GET(req: Request) {
     fiscalMonthStartDay: 1, defaultDateRangeDays: 30,
     includeShippingRevenueInProfit: true, includeTaxesInProfit: false, includeAdSpendInProfit: true,
     taxMode: "exclusive", reverseCharge: false, vatRates: [], reportingCurrency: "USD",
-    displayCurrency: "USD", fxSource: "currencyapi.net", fxOverrides: [],
+    fxSource: "currencyapi.net", fxOverrides: [],
   };
-  if (!doc) return NextResponse.json({ settings: defaults });
-  // Migration-safe: documents saved before displayCurrency existed
-  // fall back to the reporting (store/base) currency, never to a
-  // blank or unconverted default.
+  if (!doc) return NextResponse.json({ settings: { ...defaults, displayCurrency: null } });
+  // displayCurrency is returned RAW — null when the team never chose
+  // one. Do NOT default it to USD or fall back to reportingCurrency
+  // here: a defaulted value would look like an explicit team choice
+  // and block location auto-detect (CurrencyContext) for teams that
+  // never picked a currency. The display precedence falls back to
+  // the reporting currency itself (below geo), so nothing is lost —
+  // and teams that DID set a display currency (doc has the field)
+  // keep seeing exactly that value.
   const d = doc as { reportingCurrency?: string; displayCurrency?: string };
   return NextResponse.json({
     settings: {
       ...defaults,
       ...doc,
-      displayCurrency: d.displayCurrency ?? d.reportingCurrency ?? "USD",
+      displayCurrency: d.displayCurrency ?? null,
     },
   });
 }

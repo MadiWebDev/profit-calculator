@@ -17,8 +17,10 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { useRole } from "@/components/dashboard/RoleContext";
 import { getTiers } from "@/lib/tiers";
 import type { PricingInterval } from "@/lib/tiers";
+import { useSession } from "next-auth/react";
 import { usePaddlePricing } from "@/hooks/usePaddlePricing";
 import { useAsyncAction } from "@/hooks/use-async-action";
+import { CURRENCIES as ALL_CURRENCIES, useCurrency } from "@/components/dashboard/CurrencyContext";
 
 // ── Static data ───────────────────────────────────────────────────────────────
 // TIERS is NOT loaded at module level — getTiers() reads env vars and would
@@ -83,7 +85,7 @@ interface SettingsData {
     syncStatus: string; lastSyncAt?: string; ordersCount: number; domain?: string;
   }[];
   adAccounts: AdAccountRow[];
-  user: { name: string; email: string; image?: string; phone?: string };
+  user: { name: string; email: string; image?: string; phone?: string; displayCurrency?: string | null };
 }
 
 type Tab = "profile" | "billing" | "stores" | "ad-accounts" | "notifications";
@@ -260,6 +262,49 @@ export function SettingsClient({
   // Optional WhatsApp number for admin campaigns (E.164). Empty = no number on file.
   const [phone,         setPhone]         = useState(data.user.phone ?? "");
 
+  // ── Display currency state ──────────────────────────────────────────────
+  // Your own saved preference ("": Automatic — detect from location).
+  // Changing it never affects teammates; the team workspace currency
+  // (below) is only the fallback for members with no preference.
+  const { update: updateSession } = useSession();
+  const {
+    currency: activeCurrency,
+    detectedCurrency,
+    setCurrency,
+    resetCurrencyPreference,
+  } = useCurrency();
+  const [pickedCurrency, setPickedCurrency] = useState(data.user.displayCurrency ?? "");
+  const [currencySearch, setCurrencySearch] = useState("");
+
+  // The detected country's display name for the "Detected from your
+  // location" line (e.g. PK → "Pakistan").
+  const detectedCountryName = useMemo(() => {
+    if (!detectedCurrency?.country) return null;
+    try {
+      return new Intl.DisplayNames(["en"], { type: "region" }).of(detectedCurrency.country)
+        ?? detectedCurrency.country;
+    } catch {
+      return detectedCurrency.country;
+    }
+  }, [detectedCurrency]);
+
+  // Searchable selector options — the current choice stays selectable
+  // even when the search text hides it.
+  const filteredCurrencies = useMemo(() => {
+    const q = currencySearch.trim().toLowerCase();
+    const list = q
+      ? ALL_CURRENCIES.filter((c) =>
+          c.code.toLowerCase().includes(q) ||
+          c.name.toLowerCase().includes(q) ||
+          c.label.toLowerCase().includes(q))
+      : ALL_CURRENCIES;
+    if (pickedCurrency && !list.some((c) => c.code === pickedCurrency)) {
+      const def = ALL_CURRENCIES.find((c) => c.code === pickedCurrency);
+      return def ? [def, ...list] : list;
+    }
+    return list;
+  }, [currencySearch, pickedCurrency]);
+
   // ── Workspace state ───────────────────────────────────────────────────────
   const [wsName,          setWsName]          = useState(data.team?.name     ?? "");
   const [wsCurrency,      setWsCurrency]      = useState(data.team?.currency ?? "USD");
@@ -316,6 +361,48 @@ export function SettingsClient({
   const saveProfile = () => {
     void saveProfileAction.run();
   };
+
+  // ── Display currency actions ────────────────────────────────────────────
+  // Save (or clear) the SIGNED-IN user's own preference via PATCH
+  // /api/user, refresh the session so the JWT carries it, then apply
+  // it locally without a second write (persist: false). A cleared
+  // preference re-resolves from the precedence rule (team → browser →
+  // detected → store → USD) via resetCurrencyPreference().
+  const persistCurrency = async (code: string | null) => {
+    try {
+      const res = await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayCurrency: code }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setFeedback("err", j.error ?? "Save failed.");
+        return;
+      }
+      await updateSession();
+      if (code) setCurrency(code, { persist: false });
+      else resetCurrencyPreference();
+      setFeedback(
+        "ok",
+        code
+          ? `Display currency saved — money figures now show in ${code}.`
+          : "Display currency reset — your location is used to pick it automatically.",
+      );
+      router.refresh();
+    } catch {
+      setFeedback("err", "Save failed. Check your connection and try again.");
+    }
+  };
+
+  const saveCurrencyAction = useAsyncAction(async () => {
+    await persistCurrency(pickedCurrency || null);
+  });
+
+  const resetCurrencyAction = useAsyncAction(async () => {
+    await persistCurrency(null);
+    setPickedCurrency("");
+  });
 
   const saveWorkspaceAction = useAsyncAction(async () => {
     try {
@@ -573,6 +660,79 @@ export function SettingsClient({
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Save Changes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Display currency (your own preference) ──────────────────── */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Globe className="h-4 w-4" /> Display currency
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-[var(--color-muted-foreground)]">
+                All money figures across your dashboard show in this currency, converted at the live rate.
+                This is your own choice — changing it never affects your teammates. Once saved, it stays
+                until you change it here or with the switcher in the dashboard header.
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Display currency</Label>
+                <Input
+                  value={currencySearch}
+                  onChange={(e) => setCurrencySearch(e.target.value)}
+                  placeholder="Search currencies…"
+                  className="h-9"
+                  disabled={saveCurrencyAction.loading || resetCurrencyAction.loading}
+                  aria-label="Search currencies"
+                />
+                <select
+                  value={pickedCurrency}
+                  onChange={(e) => setPickedCurrency(e.target.value)}
+                  disabled={saveCurrencyAction.loading || resetCurrencyAction.loading}
+                  aria-label="Display currency"
+                  className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm disabled:opacity-50"
+                >
+                  <option value="">Automatic (detect from your location)</option>
+                  {filteredCurrencies.map((c) => (
+                    <option key={c.code} value={c.code}>{c.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  Saved preference:{" "}
+                  {pickedCurrency
+                    ? `${pickedCurrency} — ${ALL_CURRENCIES.find((c) => c.code === pickedCurrency)?.name ?? pickedCurrency}`
+                    : "Automatic"}
+                  {detectedCurrency && (
+                    <>
+                      {" · "}Detected from your location:{" "}
+                      {detectedCountryName ? `${detectedCountryName} → ` : ""}
+                      {detectedCurrency.code}
+                      {detectedCurrency.source === "language" ? " (from your browser language)" : ""}
+                    </>
+                  )}
+                </p>
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  Currently showing figures in {activeCurrency}.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm" className="gap-2" onClick={() => void saveCurrencyAction.run()}
+                  loading={saveCurrencyAction.loading} loadingText="Saving…"
+                  disabled={pickedCurrency === (data.user.displayCurrency ?? "")}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Save Currency
+                </Button>
+                <Button
+                  size="sm" variant="outline" className="gap-2" onClick={() => void resetCurrencyAction.run()}
+                  loading={resetCurrencyAction.loading} loadingText="Resetting…"
+                  disabled={!data.user.displayCurrency && !pickedCurrency}
+                >
+                  Use automatic detection
                 </Button>
               </div>
             </CardContent>
