@@ -48,11 +48,6 @@ const TIMEZONES = [
   "Asia/Shanghai", "Asia/Seoul", "Australia/Sydney", "Pacific/Auckland",
 ];
 
-const CURRENCIES = [
-  "USD","EUR","GBP","CAD","AUD","JPY","SGD","INR","BRL","MXN",
-  "CHF","SEK","NOK","DKK","PLN","CZK","HUF","AED","SAR","ZAR",
-];
-
 // Interval toggle config — mirrors PricingClient exactly
 const INTERVALS: { iv: PricingInterval; label: string; saving: string | null }[] = [
   { iv: "month",      label: "Monthly",    saving: null    },
@@ -755,7 +750,13 @@ export function SettingsClient({
                     <Label className="text-xs flex items-center gap-1"><Globe className="h-3 w-3" /> Currency</Label>
                     <select value={wsCurrency} onChange={(e) => setWsCurrency(e.target.value)} disabled={saveWorkspaceAction.loading}
                       className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm disabled:opacity-50">
-                      {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      {ALL_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+                      {/* A stored team currency outside the registry (the API
+                          accepts any 3-letter code) is kept as an extra option
+                          so the current value is never lost from the list. */}
+                      {!ALL_CURRENCIES.some((c) => c.code === wsCurrency) && wsCurrency && (
+                        <option key={wsCurrency} value={wsCurrency}>{wsCurrency}</option>
+                      )}
                     </select>
                   </div>
                   <div className="space-y-1.5">
