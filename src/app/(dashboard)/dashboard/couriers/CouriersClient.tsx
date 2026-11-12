@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { TableSkeleton } from "@/components/dashboard/DashboardSkeleton";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface CourierRow {
@@ -33,6 +35,10 @@ export function CouriersClient() {
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True once the first fetch has settled — distinguishes the first load
+  // (skeleton) from refetches (keep the tables, no wipe).
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const firstLoad = loading && !loadedOnce;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,6 +57,7 @@ export function CouriersClient() {
       setError("Could not load courier data. Check your connection and try again.");
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, []);
 
@@ -58,13 +65,13 @@ export function CouriersClient() {
   useEffect(() => { load(); }, [load]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const askRecommend = async () => {
+  const askRecommendAction = useAsyncAction(async () => {
     if (!city.trim()) return;
     const r = await fetch(`/api/couriers/recommend?city=${encodeURIComponent(city.trim())}`);
     if (r.ok) setRecommend(await r.json());
-  };
+  });
 
-  const addCourier = async () => {
+  const addCourierAction = useAsyncAction(async () => {
     if (!newCourier.trim()) return;
     const r = await fetch("/api/couriers", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -72,9 +79,9 @@ export function CouriersClient() {
     });
     if (r.ok) { setNewCourier(""); setNotice("Courier added."); await load(); }
     else setNotice("Could not add courier (a courier with this name may already exist).");
-  };
+  });
 
-  const importCsv = async () => {
+  const importCsvAction = useAsyncAction(async () => {
     if (!csv.trim()) return;
     const r = await fetch("/api/couriers/import-csv", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -83,7 +90,7 @@ export function CouriersClient() {
     const j = await r.json();
     setNotice(r.ok ? `Imported ${j.imported}, updated ${j.updated}, skipped ${j.skipped}.` : "CSV import failed.");
     if (r.ok) await load();
-  };
+  });
 
   return (
     <div className="space-y-6">
@@ -95,7 +102,12 @@ export function CouriersClient() {
         </p>
       </div>
 
-      {error && <Card><CardContent className="py-6 text-center text-sm text-red-600">{error}</CardContent></Card>}
+      {error && (
+        <Card><CardContent className="py-6 text-center space-y-3">
+          <p role="alert" className="text-sm text-red-600">{error}</p>
+          <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+        </CardContent></Card>
+      )}
       {notice && <Card><CardContent className="py-3 text-sm">{notice}</CardContent></Card>}
 
       {alerts && (alerts.stuckCount > 0 || alerts.settlementDelayCount > 0 || alerts.highFailureAreas.length > 0) && (
@@ -116,7 +128,7 @@ export function CouriersClient() {
           <CardHeader><CardTitle className="text-base">Add courier</CardTitle></CardHeader>
           <CardContent className="flex gap-2">
             <Input value={newCourier} onChange={(e) => setNewCourier(e.target.value)} placeholder="Courier name, e.g. TCS" />
-            <Button onClick={addCourier}>Add</Button>
+            <Button onClick={() => void addCourierAction.run()} loading={addCourierAction.loading} loadingText="Adding…">Add</Button>
           </CardContent>
           <CardContent className="pt-0 text-xs text-[var(--color-muted-foreground)]">
             {couriers.length === 0 ? "No couriers yet." : couriers.map((c) => (
@@ -128,7 +140,7 @@ export function CouriersClient() {
           <CardHeader><CardTitle className="text-base">Best courier for a city</CardTitle></CardHeader>
           <CardContent className="flex gap-2">
             <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City, e.g. Lahore" />
-            <Button onClick={askRecommend}>Recommend</Button>
+            <Button onClick={() => void askRecommendAction.run()} loading={askRecommendAction.loading} loadingText="Loading…">Recommend</Button>
           </CardContent>
           {recommend && (
             <CardContent className="pt-0 text-sm space-y-1">
@@ -153,8 +165,11 @@ export function CouriersClient() {
       <Card>
         <CardHeader><CardTitle className="text-base">Performance by courier</CardTitle></CardHeader>
         <CardContent>
-          {loading && <p className="text-sm text-[var(--color-muted-foreground)]" role="status">Loading…</p>}
-          {!loading && byCourier.length === 0 && <p className="text-sm text-[var(--color-muted-foreground)]">No shipments yet. Import a CSV below to start measuring couriers.</p>}
+          {firstLoad ? (
+            <TableSkeleton rows={5} />
+          ) : (
+            <>
+          {byCourier.length === 0 && <p className="text-sm text-[var(--color-muted-foreground)]">No shipments yet. Import a CSV below to start measuring couriers.</p>}
           {byCourier.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -179,6 +194,8 @@ export function CouriersClient() {
                 </tbody>
               </table>
             </div>
+          )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -226,7 +243,7 @@ export function CouriersClient() {
             onChange={(e) => setCsv(e.target.value)}
             placeholder={"tracking_number,courier,city,region,postal_code,status,cost,cod_amount,cod_collected,booked_at,delivered_at,attempts\nTRK1,TCS,Lahore,Punjab,54000,delivered,12,200,true,2026-10-20,2026-10-22,1"}
           />
-          <Button onClick={importCsv}>Import CSV</Button>
+          <Button onClick={() => void importCsvAction.run()} loading={importCsvAction.loading} loadingText="Importing…">Import CSV</Button>
         </CardContent>
       </Card>
     </div>

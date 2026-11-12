@@ -10,6 +10,7 @@ import { Megaphone, HelpCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { TableSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
@@ -83,13 +84,16 @@ export function AdSpendClient({ data }: { data: AdData }) {
 
   // Phase 5: true per-campaign Meta profit (UTM-attributed, break-even
   // ROAS, alerts). Loaded client-side; a failure only hides this
-  // section, never the rest of the page.
+  // section, never the rest of the page. While it loads, a skeleton
+  // reserves the section's space.
   const [metaAttr, setMetaAttr] = useState<MetaAttribution | null>(null);
+  const [metaAttrLoading, setMetaAttrLoading] = useState(true);
   useEffect(() => {
     fetch("/api/analytics/meta-attribution")
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => j && setMetaAttr(j))
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => setMetaAttrLoading(false));
   }, []);
 
   const hasData = byPlatform.length > 0;
@@ -261,7 +265,9 @@ export function AdSpendClient({ data }: { data: AdData }) {
           </div>
 
           {/* Phase 5: Meta true profit (UTM-attributed, not Meta-reported) */}
-          {metaAttr && metaAttr.campaigns.length > 0 && (
+          {metaAttrLoading ? (
+            <TableSkeleton rows={4} />
+          ) : metaAttr && metaAttr.campaigns.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Meta True Profit per Campaign</CardTitle>

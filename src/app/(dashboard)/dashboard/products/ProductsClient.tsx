@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
   Search, Edit2, Package, Check, X, Lock,
-  Plus, Trash2, Loader2, AlertTriangle,
+  Plus, Trash2, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { LoadingImage } from "@/components/ui/loading-image";
 import { formatPercent, cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useRole } from "@/components/dashboard/RoleContext";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
@@ -274,6 +276,10 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
 
   const [products, setProducts] = useState<ProductRow[]>(initialProducts);
   const [search, setSearch] = useState("");
+  // Client-side filter — debounced so typing does not re-filter (and
+  // re-render the table) on every keystroke; the spinner shows while the
+  // typed term has not settled yet.
+  const { debouncedValue: debouncedSearch, isPending: searchPending } = useDebouncedValue(search);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [cogsVal, setCogsVal] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -282,10 +288,19 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
 
   const canDelete = canWrite;
 
+  // Sync the local list when the server data changes (after a create the
+  // modal calls router.refresh(); without this the new product never
+  // appeared until a full reload — same pre-existing bug as OrdersClient).
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing server props into local list state on refresh */
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const filtered = products.filter(
     (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.sku ?? "").toLowerCase().includes(search.toLowerCase())
+      p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      (p.sku ?? "").toLowerCase().includes(debouncedSearch.toLowerCase())
   );
 
   // ── Inline COGS editing ──────────────────────────────────────────────────
@@ -355,11 +370,17 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted-foreground)]" />
               <Input
-                className="pl-9 w-56"
+                className="pl-9 pr-9 w-56"
                 placeholder="Search by name or SKU…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search products by name or SKU"
               />
+              {searchPending && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                  <Spinner size="sm" label="" />
+                </span>
+              )}
             </div>
             {canWrite && (
               <Button size="sm" className="gap-2 flex-shrink-0" onClick={() => setShowCreate(true)}>
@@ -422,12 +443,13 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         {p.imageUrl ? (
-                          <Image
+                          <LoadingImage
                             src={p.imageUrl}
                             alt={p.name}
                             width={32}
                             height={32}
                             className="h-8 w-8 rounded object-cover flex-shrink-0"
+                            wrapperClassName="h-8 w-8 shrink-0 rounded"
                           />
                         ) : (
                           <div className="h-8 w-8 rounded bg-[var(--color-muted)] flex items-center justify-center flex-shrink-0">
@@ -470,7 +492,7 @@ export function ProductsClient({ products: initialProducts }: { products: Produc
                               aria-busy={savingId === p.id || undefined}
                               title="Save"
                             >
-                              {savingId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                              {savingId === p.id ? <Spinner size="sm" label="" /> : <Check className="h-3.5 w-3.5" />}
                             </Button>
                             <Button
                               size="sm"

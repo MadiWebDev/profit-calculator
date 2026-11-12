@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { ListSkeleton, StatsSkeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Stats {
@@ -92,6 +94,10 @@ export function RiskClient() {
     }
   };
 
+  // First load shows skeletons; a refetch (e.g. after a verdict) keeps the
+  // existing queue and only an inline spinner shows the reload.
+  const firstLoad = loading && stats === null;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -99,16 +105,37 @@ export function RiskClient() {
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Risk Review</h1>
           <p className="text-sm text-[var(--color-muted-foreground)]">
             Every score shows its reasons. High and critical orders are tagged in Shopify and held from fulfilment until you review them.
+            {loading && !firstLoad && (
+              <span className="ml-2 inline-flex items-center gap-1">
+                <Spinner size="sm" label="" /> Updating…
+              </span>
+            )}
           </p>
         </div>
-        <Button variant="outline" className="ml-auto" onClick={backfill} disabled={acting === "backfill"}>
+        <Button variant="outline" className="ml-auto" onClick={backfill} loading={acting === "backfill"} loadingText="Scoring…">
           Score historical orders
         </Button>
       </div>
 
-      {error && <Card><CardContent className="py-6 text-center text-sm text-red-600">{error}</CardContent></Card>}
+      {error && (
+        <Card><CardContent className="py-6 text-center space-y-3">
+          <p role="alert" className="text-sm text-red-600">{error}</p>
+          <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+        </CardContent></Card>
+      )}
 
-      {stats && (
+      {firstLoad && (
+        <>
+          <StatsSkeleton count={4} />
+          <Card>
+            <CardHeader><CardTitle>Review queue (riskiest first)</CardTitle></CardHeader>
+            <CardContent><ListSkeleton rows={4} /></CardContent>
+          </Card>
+        </>
+      )}
+
+      {!firstLoad && stats && (
+        <>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">High + critical</CardTitle></CardHeader>
             <CardContent><p className="text-xl font-bold tabular-nums">{(stats.byBand.high ?? 0) + (stats.byBand.critical ?? 0)}</p></CardContent></Card>
@@ -119,13 +146,11 @@ export function RiskClient() {
           <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Money saved</CardTitle></CardHeader>
             <CardContent><p className="text-xl font-bold tabular-nums">{formatMoney(stats.moneySaved, baseCurrency)}</p><p className="text-xs text-[var(--color-muted-foreground)]">Value protected: {formatMoney(stats.valueProtected, baseCurrency)} · RTO loss realised: {formatMoney(stats.realisedRtoLoss, baseCurrency)}</p></CardContent></Card>
         </div>
-      )}
 
       <Card>
         <CardHeader><CardTitle>Review queue (riskiest first)</CardTitle></CardHeader>
         <CardContent>
-          {loading && <p className="text-sm text-[var(--color-muted-foreground)]" role="status">Loading…</p>}
-          {!loading && orders.length === 0 && (
+          {orders.length === 0 && (
             <p className="text-sm text-[var(--color-muted-foreground)]">
               No scored orders yet. New orders are scored automatically on arrival; use “Score historical orders” for older ones.
             </p>
@@ -150,10 +175,10 @@ export function RiskClient() {
                 </ul>
                 {o.riskStatus === "unreviewed" && (
                   <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="outline" disabled={acting === o.id} onClick={() => verdict(o.id, "genuine")}>
+                    <Button size="sm" variant="outline" loading={acting === o.id} loadingText="Saving…" onClick={() => verdict(o.id, "genuine")}>
                       Confirm genuine
                     </Button>
-                    <Button size="sm" variant="destructive" disabled={acting === o.id} onClick={() => verdict(o.id, "fake")}>
+                    <Button size="sm" variant="destructive" loading={acting === o.id} loadingText="Saving…" onClick={() => verdict(o.id, "fake")}>
                       Mark fake
                     </Button>
                   </div>
@@ -163,6 +188,8 @@ export function RiskClient() {
           </ul>
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }

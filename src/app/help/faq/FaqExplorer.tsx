@@ -5,17 +5,22 @@ import { useMemo, useState } from "react";
 import { HELP_FAQS, HELP_FAQ_CATEGORIES, groupFaqsByCategory, searchHelpItems } from "@/lib/help-content";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 
 export function FaqExplorer() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("All");
+  // Client-side filter — debounced so typing does not re-filter (and
+  // re-render the list) on every keystroke.
+  const { debouncedValue: debouncedQuery, isPending: searchPending } = useDebouncedValue(query);
 
   const groups = useMemo(() => {
-    const searched = searchHelpItems(HELP_FAQS, query, ["question", "answer"]);
+    const searched = searchHelpItems(HELP_FAQS, debouncedQuery, ["question", "answer"]);
     const inCategory = category === "All" ? searched : searched.filter((f) => f.category === category);
     return groupFaqsByCategory(inCategory);
-  }, [query, category]);
+  }, [debouncedQuery, category]);
 
   const total = groups.reduce((n, g) => n + g.faqs.length, 0);
 
@@ -24,12 +29,21 @@ export function FaqExplorer() {
       <div className="space-y-4">
         <div className="space-y-1">
           <Label htmlFor="faq-search">Search questions</Label>
-          <Input
-            id="faq-search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. trial, TikTok, refund…"
-          />
+          <div className="relative">
+            <Input
+              id="faq-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="e.g. trial, TikTok, refund…"
+              className="pr-9"
+              aria-label="Search questions"
+            />
+            {searchPending && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                <Spinner size="sm" label="" />
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
           {["All", ...HELP_FAQ_CATEGORIES].map((c) => (

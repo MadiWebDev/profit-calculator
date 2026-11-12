@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ListSkeleton, StatsSkeleton } from "@/components/ui/skeleton";
 
 interface EventRow { type: string; count: number }
 interface RecentRow { type: string; at: string; ipTruncated?: string; metadata?: Record<string, unknown> }
@@ -14,49 +16,95 @@ export function SecurityClient({ twoFactorEnabled }: { twoFactorEnabled: boolean
   const [loading, setLoading] = useState(true);
   const [setup, setSetup] = useState<{ otpauthUrl?: string; secret?: string; recoveryCodes?: string[] } | null>(null);
   const [code, setCode] = useState("");
+  // Which 2FA/session action is in flight — the page's plain buttons show
+  // a busy label and disable while it runs (no shared Button here: this
+  // page is unstyled plain HTML and a styled Button would restyle it).
+  const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [sec, dev] = await Promise.all([fetch("/api/admin/security"), fetch("/api/auth/sessions")]);
-        if (sec.ok) {
-          const j = await sec.json();
-          setByType(j.byType ?? []);
-          setRecent(j.recent ?? []);
-        }
-        if (dev.ok) {
-          const j = await dev.json();
-          setDevices(j.devices ?? []);
-        }
-      } catch {
-        setError("Could not load security data.");
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [sec, dev] = await Promise.all([fetch("/api/admin/security"), fetch("/api/auth/sessions")]);
+      if (sec.ok) {
+        const j = await sec.json();
+        setByType(j.byType ?? []);
+        setRecent(j.recent ?? []);
       }
-    })();
+      if (dev.ok) {
+        const j = await dev.json();
+        setDevices(j.devices ?? []);
+      }
+    } catch {
+      setError("Could not load security data.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- initial data load on mount; no SSR alternative for an authenticated fetch */
+  useEffect(() => {
+    load();
+  }, [load]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const startSetup = async () => {
-    const res = await fetch("/api/auth/2fa/setup", { method: "POST" });
-    if (res.ok) setSetup(await res.json());
+    setBusy("setup");
+    try {
+      const res = await fetch("/api/auth/2fa/setup", { method: "POST" });
+      if (res.ok) setSetup(await res.json());
+    } finally {
+      setBusy(null);
+    }
   };
   const enable = async () => {
-    const res = await fetch("/api/auth/2fa/enable", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
-    if (res.ok) setSetup(await res.json());
-    else alert("Invalid code — check your authenticator app and try again.");
+    setBusy("enable");
+    try {
+      const res = await fetch("/api/auth/2fa/enable", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+      if (res.ok) setSetup(await res.json());
+      else alert("Invalid code — check your authenticator app and try again.");
+    } finally {
+      setBusy(null);
+    }
   };
   const revoke = async (deviceId: string) => {
-    await fetch("/api/auth/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId }) });
-    setDevices((d) => d.map((x) => (x.id === deviceId ? { ...x, revokedAt: new Date().toISOString() } : x)));
+    setBusy(`revoke:${deviceId}`);
+    try {
+      await fetch("/api/auth/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deviceId }) });
+      setDevices((d) => d.map((x) => (x.id === deviceId ? { ...x, revokedAt: new Date().toISOString() } : x)));
+    } finally {
+      setBusy(null);
+    }
   };
   const revokeAll = async () => {
     if (!confirm("Revoke all sessions? You will be signed out everywhere.")) return;
-    await fetch("/api/auth/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revokeAll: true }) });
-    setDevices((d) => d.map((x) => ({ ...x, revokedAt: new Date().toISOString() })));
+    setBusy("revoke-all");
+    try {
+      await fetch("/api/auth/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revokeAll: true }) });
+      setDevices((d) => d.map((x) => ({ ...x, revokedAt: new Date().toISOString() })));
+    } finally {
+      setBusy(null);
+    }
   };
 
-  if (loading) return <p>Loading security overview…</p>;
-  if (error) return <p>{error} <button onClick={() => location.reload()}>Retry</button></p>;
+  if (loading) {
+    return (
+      <div>
+        <h1>Security</h1>
+        <StatsSkeleton count={3} />
+        <ListSkeleton rows={4} />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div>
+        <h1>Security</h1>
+        <p role="alert">{error}</p>
+        <Button variant="outline" onClick={load}>Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -75,11 +123,11 @@ export function SecurityClient({ twoFactorEnabled }: { twoFactorEnabled: boolean
             <p>Scan this QR data in your authenticator app, or enter the secret manually:</p>
             <p><code>{setup.secret}</code></p>
             <p><a href={setup.otpauthUrl}>Open in authenticator app</a></p>
-            <label>Code from your app <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" /></label>
-            <button onClick={enable}>Enable 2FA</button>
+            <label>Code from your app <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" disabled={busy !== null} /></label>
+            <button onClick={enable} disabled={busy !== null}>{busy === "enable" ? "Enabling…" : "Enable 2FA"}</button>
           </div>
         ) : (
-          <button onClick={startSetup}>Set up two-factor authentication</button>
+          <button onClick={startSetup} disabled={busy !== null}>{busy === "setup" ? "Setting up…" : "Set up two-factor authentication"}</button>
         )}
         <p>Passkeys (WebAuthn) are planned, not yet available — see docs/THREAT_MODEL.md.</p>
       </section>
@@ -95,12 +143,16 @@ export function SecurityClient({ twoFactorEnabled }: { twoFactorEnabled: boolean
                 {d.userAgent ?? "Unknown device"} — last seen {new Date(d.lastSeenAt).toLocaleString()}
                 {d.ipTruncated ? ` — IP ${d.ipTruncated}` : ""}
                 {d.trustedUntil ? " — trusted device" : ""}
-                {d.revokedAt ? " — revoked" : <button onClick={() => revoke(d.id)}>Revoke</button>}
+                {d.revokedAt ? " — revoked" : (
+                  <button onClick={() => revoke(d.id)} disabled={busy !== null}>
+                    {busy === `revoke:${d.id}` ? "Revoking…" : "Revoke"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
         )}
-        <button onClick={revokeAll}>Revoke all sessions</button>
+        <button onClick={revokeAll} disabled={busy !== null}>{busy === "revoke-all" ? "Revoking…" : "Revoke all sessions"}</button>
       </section>
 
       <section>

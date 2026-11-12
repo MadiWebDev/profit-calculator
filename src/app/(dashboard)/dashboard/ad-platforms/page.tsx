@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CardSkeleton, StatsSkeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Platform { platform: string; accountName: string; currency: string; lastSyncAt: string | null; syncStatus: string; dashboardSpend: number; daysCovered: number }
@@ -32,8 +33,17 @@ export default function AdPlatformsPage() {
   useEffect(() => { load(); }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  if (loading) return <div className="grid gap-4" role="status" aria-label="Loading">{Array.from({ length: 3 }).map((_, i) => (<Card key={i}><CardContent className="h-20 animate-pulse bg-[var(--color-muted)]/40" /></Card>))}</div>;
-  if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <StatsSkeleton count={3} />
+        <CardSkeleton />
+        <CardSkeleton />
+        <CardSkeleton />
+      </div>
+    );
+  }
+  if (error) return <Card><CardContent className="py-8 text-center space-y-3"><p role="alert" className="text-sm text-red-600">{error}</p><Button variant="outline" onClick={load}>Retry</Button></CardContent></Card>;
 
   return (
     <div className="space-y-6">

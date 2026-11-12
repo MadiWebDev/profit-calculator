@@ -129,6 +129,100 @@ exists to prevent. Phase 1 wires it into the heavy call sites.
 - Never fake progress (no invented percentages for uploads); show real
   state or a determinate spinner.
 
+## Phase 1b: data pages, debounced search, uploads, images
+
+### Data pages — skeleton first, keep content on refetch
+
+```tsx
+const [data, setData] = useState<Data | null>(null);
+const [loading, setLoading] = useState(true);
+const firstLoad = loading && data === null;
+
+if (firstLoad) return <StatsSkeleton count={4} />;
+if (error) return <Card><CardContent><p role="alert">{error}</p><Button onClick={load}>Retry</Button></CardContent></Card>;
+```
+
+- **First load:** skeleton matching the final layout (no blank page).
+- **Refetch (filter change, pagination, manual refresh):** keep the
+  existing content on screen and show a subtle inline indicator
+  (a `Spinner` next to the heading / "Updating…" text). **Never wipe
+  content to show a skeleton again.**
+- **Error on refetch:** the previous data stays visible under the error
+  card; the error is `role="alert"` with a Retry button. Retry calls the
+  same `load()` — never `location.reload()`.
+- **Empty state stays separate from loading:** empty renders only when
+  `!loading && !error && data is empty`.
+
+### Debounced search — one shared hook
+
+```tsx
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from "@/hooks/use-debounced-value";
+// or: import { debounce, SEARCH_DEBOUNCE_MS } from "@/lib/debounce";
+
+const { debouncedValue, isPending, flush } = useDebouncedValue(query);
+```
+
+- `SEARCH_DEBOUNCE_MS = 300` (`src/lib/debounce.ts`) — never hard-code a
+  delay, never hand-roll a `setTimeout` debounce in a component.
+- Fetch / filter on `debouncedValue`, not on the raw input.
+- Show a small `Spinner` inside the input while `isPending` so typing
+  visibly does something before results arrive.
+- On submit (Enter / Search button) call `flush()` first so a keystroke
+  in the same tick as the submit is applied at once.
+- Pure logic lives in `src/lib/debounce.ts` (trailing-edge `debounce`
+  with `.cancel()`, `.flush()`, `.pending`) and is tested in
+  `src/lib/__tests__/debounce.test.ts`. The hook is a thin React wrapper
+  verified by `tsc` + build, like `useAsyncAction`.
+
+### Uploads — real percentage via XHR, never faked
+
+```tsx
+import { uploadWithProgress } from "@/lib/upload-progress";
+import { Progress } from "@/components/ui/progress";
+
+const [progress, setProgress] = useState<number | null>(null);
+const { ok, status, json } = await uploadWithProgress("/api/orders/import", formData, setProgress);
+```
+
+- `fetch()` cannot report upload progress, so uploads with a percentage
+  use `uploadWithProgress` (`src/lib/upload-progress.ts`), an XHR POST
+  that calls `onProgress(percent)` only when `lengthComputable`.
+- **Never fake a percentage.** Render the determinate `<Progress>`
+  only when `progress !== null`; before the first progress event show
+  the Button loading state + an indeterminate spinner ("Starting
+  upload…"). For tiny files the upload may finish before the first
+  event — the Button loading state is the whole indicator, by design.
+- The percentage covers the file upload only; server-side processing
+  afterwards still shows the Button loading state ("Importing…").
+- `uploadProgressPercent(loaded, total)`: 0 when total is unknown/≤0 or
+  non-finite, clamped 0–100, rounded — tested in
+  `src/lib/__tests__/upload-progress.test.ts`. The XHR wrapper itself
+  cannot run in the node vitest environment, so it has no unit test.
+- Upload progress must never expose file contents or credentials in logs.
+
+### Images — `LoadingImage`
+
+```tsx
+import { LoadingImage } from "@/components/ui/loading-image";
+
+<LoadingImage src={cover} alt="…" width={800} height={450} wrapperClassName="h-full w-full" />
+```
+
+- Skeleton (`animate-pulse bg-muted`) until the image loads, then a
+  fade-in via opacity transition; on error a muted fallback icon with
+  `role="img"`. Sizing goes on `wrapperClassName`, not on the image.
+- Use for content images: blog covers, product thumbnails, editor
+  previews. **Not** for Navbar/Footer logos, and **not** for avatars —
+  Radix `AvatarFallback` already shows initials while the image loads.
+- Do not touch `next/image` configuration or any image URL logic.
+
+### Icon-only buttons
+
+Where a Button `loading` would crowd the button (icon-only delete /
+rotate / refresh buttons), swap the icon for a conditional `<Spinner
+size="sm" label="" />` instead and disable the button — same feedback,
+no layout change.
+
 ## Checklist — every new async action or page MUST include a loading state
 
 - [ ] Async action: `useAsyncAction` + `<Button loading>` (or `Spinner`).

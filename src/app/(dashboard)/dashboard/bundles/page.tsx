@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
-import { Plus, Trash2, Package, Loader2, Edit2, AlertCircle, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Package, Edit2, AlertCircle, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -480,7 +481,7 @@ export default function BundlesPage() {
                         className="h-8 text-red-400 hover:text-red-600"
                         disabled={deletingId === b.id}
                       >
-                        {deletingId === b.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        {deletingId === b.id ? <Spinner size="sm" label="" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </Button>
                     </div>
                   </div>

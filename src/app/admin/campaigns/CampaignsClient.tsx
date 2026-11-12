@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useAsyncAction } from "@/hooks/use-async-action";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 
 type Channel = "email" | "whatsapp";
@@ -166,6 +167,9 @@ export function CampaignsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // True once the first campaigns fetch has settled — refetches (e.g.
+  // after sending) keep the list and only the per-row buttons show load.
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -186,8 +190,10 @@ export function CampaignsClient() {
   const [selectedUsers, setSelectedUsers] = useState<DirectoryUser[]>([]);
 
   // ── "Specific users" picker state ──
+  // Both searches share the one debounced-value hook (replacing the two
+  // hand-rolled setTimeout debounces that lived here before).
   const [pickerSearch, setPickerSearch] = useState("");
-  const [debouncedPickerSearch, setDebouncedPickerSearch] = useState("");
+  const { debouncedValue: debouncedPickerSearch, isPending: pickerSearchPending } = useDebouncedValue(pickerSearch);
   const [pickerPlan, setPickerPlan] = useState("");
   const [pickerResults, setPickerResults] = useState<DirectoryUser[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
@@ -198,11 +204,14 @@ export function CampaignsClient() {
   const [dirPage, setDirPage] = useState(1);
   const [dirPages, setDirPages] = useState(1);
   const [dirSearch, setDirSearch] = useState("");
-  const [debouncedDirSearch, setDebouncedDirSearch] = useState("");
+  const { debouncedValue: debouncedDirSearch, isPending: dirSearchPending } = useDebouncedValue(dirSearch);
   const [dirPlan, setDirPlan] = useState("");
   const [dirLoading, setDirLoading] = useState(true);
   const [dirError, setDirError] = useState<string | null>(null);
   const [lastMessages, setLastMessages] = useState<Record<string, LastMessage>>({});
+  // True once the first directory fetch has settled — refetches keep the
+  // list and only show an inline spinner.
+  const [dirLoadedOnce, setDirLoadedOnce] = useState(false);
 
   // ── Sent-messages log state ──
   const [logChannel, setLogChannel] = useState<"all" | Channel>("all");
@@ -230,24 +239,13 @@ export function CampaignsClient() {
       setError("Failed to load campaigns.");
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, []);
 
   // Mount-time data fetch — the effect is the correct place (suppressed: set-state-in-effect)
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
-
-  // Debounce the directory search input.
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedDirSearch(dirSearch), 300);
-    return () => clearTimeout(t);
-  }, [dirSearch]);
-
-  // Debounce the picker search input.
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedPickerSearch(pickerSearch), 300);
-    return () => clearTimeout(t);
-  }, [pickerSearch]);
 
   const loadDirectory = useCallback(async () => {
     setDirLoading(true); setDirError(null);
@@ -288,6 +286,7 @@ export function CampaignsClient() {
       setDirError("Failed to load users.");
     } finally {
       setDirLoading(false);
+      setDirLoadedOnce(true);
     }
   }, [dirPage, debouncedDirSearch, dirPlan]);
 
@@ -296,17 +295,21 @@ export function CampaignsClient() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadDirectory(); }, [loadDirectory]);
 
-  // "Specific users" picker results — only while the composer is open on that audience.
+  // "Specific users" picker results — only while the composer is open on
+  // that audience. The search term is already debounced by the shared
+  // hook, so this fetches immediately on the settled value (the old code
+  // wrapped the fetch in a second 300 ms timeout — a 600 ms lag in total).
   useEffect(() => {
     if (!showForm || audienceType !== "users") return;
-    const t = setTimeout(async () => {
+    let cancelled = false;
+    (async () => {
       setPickerLoading(true);
       try {
         const params = new URLSearchParams({ limit: String(PICKER_PAGE_SIZE) });
         if (debouncedPickerSearch) params.set("search", debouncedPickerSearch);
         if (pickerPlan) params.set("plan", pickerPlan);
         const res = await fetch(`/api/admin/users?${params.toString()}`);
-        if (res.ok) {
+        if (res.ok && !cancelled) {
           const j = await res.json();
           setPickerResults((j.users ?? []).map((u: {
             id: string; name: string; email: string; plan: string; hasPhone: boolean; createdAt: string;
@@ -316,10 +319,10 @@ export function CampaignsClient() {
           })));
         }
       } finally {
-        setPickerLoading(false);
+        if (!cancelled) setPickerLoading(false);
       }
-    }, 300);
-    return () => clearTimeout(t);
+    })();
+    return () => { cancelled = true; };
   }, [showForm, audienceType, debouncedPickerSearch, pickerPlan]);
 
   const flash = (type: "ok" | "err", msg: string) => {
@@ -696,8 +699,13 @@ export function CampaignsClient() {
                       value={pickerSearch}
                       onChange={(e) => setPickerSearch(e.target.value)}
                       placeholder="Search by name or email…"
-                      className="h-9 pl-8"
+                      className="h-9 pl-8 pr-8"
                     />
+                    {(pickerSearchPending || pickerLoading) && (
+                      <span className="absolute right-2.5 top-2.5 text-[var(--color-muted-foreground)]">
+                        <Spinner size="sm" label="" />
+                      </span>
+                    )}
                   </div>
                   <select value={pickerPlan} onChange={(e) => setPickerPlan(e.target.value)} className={inputCls}>
                     <option value="">All plans</option>
@@ -802,7 +810,7 @@ export function CampaignsClient() {
       {/* ── List ── */}
       <Card>
         <CardContent className="p-0">
-          {loading ? (
+          {loading && !loadedOnce ? (
             <div className="p-4"><ListSkeleton rows={3} /></div>
           ) : campaigns.length === 0 ? (
             <div className="p-6 text-sm text-[var(--color-muted-foreground)]">
@@ -881,8 +889,13 @@ export function CampaignsClient() {
                 value={dirSearch}
                 onChange={(e) => { setDirSearch(e.target.value); setDirPage(1); }}
                 placeholder="Search by name or email…"
-                className="h-9 pl-8"
+                className="h-9 pl-8 pr-8"
               />
+              {(dirSearchPending || dirLoading) && (
+                <span className="absolute right-2.5 top-2.5 text-[var(--color-muted-foreground)]">
+                  <Spinner size="sm" label="" />
+                </span>
+              )}
             </div>
             <select
               value={dirPlan}
@@ -898,9 +911,9 @@ export function CampaignsClient() {
         </CardHeader>
         <CardContent className="p-0">
           {dirError && (
-            <p className="p-4 text-sm text-red-600 dark:text-red-400">{dirError}</p>
+            <p role="alert" className="p-4 text-sm text-red-600 dark:text-red-400">{dirError}</p>
           )}
-          {dirLoading ? (
+          {dirLoading && !dirLoadedOnce ? (
             <div className="p-4"><ListSkeleton rows={5} /></div>
           ) : dirUsers.length === 0 ? (
             <div className="p-6 text-sm text-[var(--color-muted-foreground)]">

@@ -2903,15 +2903,12 @@ export default function RichTextEditor({
                       type="button"
                       title="Insert media grid (rows × columns)"
                       className="gap-1 text-xs"
-                      disabled={gridUploading}
+                      loading={gridUploading}
+                      loadingText="Uploading…"
                       onClick={() => setShowMediaGridPicker((v) => !v)}
                     >
-                      {gridUploading ? (
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      ) : (
-                        <Columns2 className="h-4 w-4" />
-                      )}
-                      {gridUploading ? "Uploading…" : "Grid"}
+                      <Columns2 className="h-4 w-4" />
+                      Grid
                     </Button>
                     {showMediaGridPicker && !gridUploading && (
                       <div className="absolute top-full left-0 mt-1 z-50 bg-primary dark:bg-zinc-900 border rounded-lg shadow-lg p-3 min-w-[200px]">
