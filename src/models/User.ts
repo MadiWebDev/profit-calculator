@@ -35,8 +35,20 @@ export interface IUser extends Document {
    * stored choice, and location auto-detection — and nothing automatic
    * ever changes it. Undefined = "never set" (precedence falls through
    * to the team setting and below). Saved via PATCH /api/user.
+   *
+   * LOCKED since the onboarding build: once set (during onboarding),
+   * PATCH /api/user rejects any further write with 400 CURRENCY_LOCKED.
    */
   displayCurrency?: string | null;
+  /**
+   * Personal display timezone (IANA, e.g. "Asia/Karachi") the user picks
+   * in the onboarding modal. The dashboard's display timezone for
+   * dates/times (see src/lib/display-timezone.ts). Like displayCurrency,
+   * write-once: once set, PATCH /api/user rejects any further write
+   * with 400 TIMEZONE_LOCKED. Undefined = "never set" (the team
+   * timezone, then the browser timezone, is the display fallback).
+   */
+  timezone?: string | null;
   // Auth hardening (Phase 4)
   failedLoginAttempts: number;
   lockoutUntil?: Date;
@@ -81,6 +93,7 @@ const UserSchema = new Schema<IUser>(
     onboardingCompleted: { type: Boolean, default: false },
     phone: { type: String, trim: true, maxlength: 20 },
     displayCurrency: { type: String, trim: true, uppercase: true, match: /^[A-Z]{3}$/ },
+    timezone: { type: String, trim: true, match: /^(UTC|[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)+)$/ },
     failedLoginAttempts: { type: Number, default: 0 },
     lockoutUntil: Date,
     passwordChangedAt: Date,

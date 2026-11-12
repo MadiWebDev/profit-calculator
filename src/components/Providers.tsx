@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { SessionProvider } from "next-auth/react";
 import { Toaster } from "sonner";
 import { CurrencyProvider } from "@/components/dashboard/CurrencyContext";
+import { TimezoneProvider } from "@/components/dashboard/TimezoneContext";
 import { RouteProgress } from "@/components/route-progress";
 
 // next-themes injects an inline <script> to prevent theme flicker (FOUC).
@@ -28,8 +29,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     >
       <SessionProvider>
         <CurrencyProvider>
-          <RouteProgress />
-          {children}
+          <TimezoneProvider>
+            <RouteProgress />
+            {children}
+          </TimezoneProvider>
         </CurrencyProvider>
         <Toaster
           position="top-right"

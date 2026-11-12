@@ -88,6 +88,8 @@ export const authConfig: NextAuthConfig = {
         token.role     = (user as Record<string, unknown>).role as string;
         token.teamRole = (user as Record<string, unknown>).teamRole as string | undefined;
         token.displayCurrency = (user as Record<string, unknown>).displayCurrency as string | null | undefined;
+        token.timezone = (user as Record<string, unknown>).timezone as string | null | undefined;
+        token.onboardingCompleted = (user as Record<string, unknown>).onboardingCompleted as boolean | undefined;
         // S1: session revocation version + 2FA pending flag (see auth.ts).
         token.sessionVersion = (user as Record<string, unknown>).sessionVersion as number | undefined;
         token.twoFactorPending = (user as Record<string, unknown>).twoFactorPending as boolean | undefined;
@@ -106,6 +108,8 @@ export const authConfig: NextAuthConfig = {
         u.role     = token.role;
         u.teamRole = token.teamRole;
         u.displayCurrency = token.displayCurrency ?? null;
+        u.timezone = token.timezone ?? null;
+        u.onboardingCompleted = token.onboardingCompleted ?? false;
         u.sessionVersion = token.sessionVersion;
         u.twoFactorPending = token.twoFactorPending;
         u.twoFactorSetupRequired = token.twoFactorSetupRequired;

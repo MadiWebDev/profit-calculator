@@ -1,4 +1,9 @@
 /**
+ * GET /api/team — the signed-in user's own workspace (name, currency,
+ * timezone). Read-only; used by the onboarding modal to prefill the
+ * timezone from the team's timezone (grandfathering) and by the
+ * display-timezone provider as its fallback.
+ *
  * PATCH /api/team — update workspace settings (name, currency, timezone).
  * Owner only.
  */
@@ -9,6 +14,24 @@ import TeamModel from "@/models/Team";
 import { logAudit } from "@/lib/audit";
 import mongoose from "mongoose";
 import { z } from "zod";
+
+export async function GET(req: Request) {
+  const result = await requireAuth(req);
+  if (result instanceof Response) return result;
+  const { session } = result;
+  await connectDB();
+  const team = await TeamModel.findById(session.teamId)
+    .select("name currency timezone")
+    .lean();
+  if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  return NextResponse.json({
+    team: {
+      name: team.name,
+      currency: (team as { currency?: string }).currency ?? "USD",
+      timezone: (team as { timezone?: string }).timezone ?? "UTC",
+    },
+  });
+}
 
 // IANA timezone list is huge — we accept any non-empty string and let the client
 // validate against its own picker. The DB stores whatever the user selects.

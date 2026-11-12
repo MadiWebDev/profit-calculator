@@ -220,14 +220,21 @@ export interface CurrencyContextValue {
   /** Full definition object */
   currencyDef: CurrencyDef;
   /**
-   * Change the active currency — persisted to localStorage, and to the
-   * signed-in user's own saved preference (PATCH /api/user) unless
-   * `opts.persist` is false (used by Settings after its own awaited
-   * save). Logged-out visitors keep the localStorage-only choice.
-   * The saved preference is per-user: changing it never affects
-   * teammates (the old code wrote the team workspace setting).
+   * Change the active currency — SESSION-ONLY view currency, since the
+   * onboarding build. It re-renders figures in the picked currency for
+   * reference, and nothing is persisted: no PATCH /api/user, no
+   * localStorage write. The locked display currency returns on reload
+   * or navigation. `opts.persist` is accepted for backward
+   * compatibility and ignored. Logged-out visitors get the same
+   * in-memory behaviour.
    */
   setCurrency: (code: string, opts?: { persist?: boolean }) => void;
+  /**
+   * True when the currency currently shown is a session-only view
+   * override (picked in the navbar converter) rather than the user's
+   * locked display currency.
+   */
+  viewOnly: boolean;
   /**
    * Forget the explicit choice and re-resolve from the precedence
    * rule (used by Settings after the saved preference is cleared).
@@ -276,6 +283,7 @@ export const CurrencyContext = createContext<CurrencyContextValue>({
   symbol:      FALLBACK.symbol,
   currencyDef: FALLBACK,
   setCurrency: () => {},
+  viewOnly: false,
   resetCurrencyPreference: () => {},
   detectedCurrency: null,
   baseCurrency: FALLBACK.code,
@@ -317,7 +325,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   // by auth.config.ts from the JWT; refreshed by the jwt() backfill in
   // auth.ts). Null until the session loads, or when the user never set
   // a preference.
-  const { data: session, status, update: updateSession } = useSession();
+  const { data: session, status } = useSession();
   const sessionPref = normalizeSavedCurrency(session?.user?.displayCurrency);
 
   // Always start with the fallback so server and client render identically.
@@ -325,6 +333,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   // mismatch that occurs when the lazy useState initialiser runs immediately
   // on the client with a value the server never saw.
   const [currencyCode, setCurrencyCode] = useState<string>(FALLBACK.code);
+
+  // Session-only VIEW currency (navbar converter, since the onboarding
+  // build): an in-memory override that re-renders figures for reference.
+  // It is never persisted (no PATCH, no localStorage) and never touches
+  // the locked display currency — a reload or navigation drops it and
+  // the locked currency returns. Null = show the resolved currency.
+  const [viewCurrency, setViewCurrency] = useState<string | null>(null);
 
   // Report base currency: the team's most common active store currency
   // (the same rule the server uses when aggregating reports, see
@@ -352,9 +367,6 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   // renders) — used by resetCurrencyPreference after a cleared save.
   const [resolutionTick, setResolutionTick] = useState(0);
 
-  // The user picked a currency this session — later-arriving sources
-  // must not overwrite an explicit choice.
-  const userChangedRef = useRef(false);
   // Geo lookup attempted at most once per mount.
   const geoTriedRef = useRef(false);
   // An expired cached detection, kept only as a fail-open fallback
@@ -460,12 +472,12 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // The single resolution point: whenever any source settles, pick the
-  // highest-precedence usable one. Skipped after an explicit pick
-  // (userChangedRef) — a saved preference never changes by itself.
-  // The reporting currency is only passed once the stores list has
-  // loaded, so a "USD" guess never short-circuits geo detection.
+  // highest-precedence usable one. This resolves the LOCKED display
+  // currency only — a session-only view override (viewCurrency) lives
+  // outside this effect and is never overwritten by it. The reporting
+  // currency is only passed once the stores list has loaded, so a "USD"
+  // guess never short-circuits geo detection.
   useEffect(() => {
-    if (userChangedRef.current) return;
     const resolved = resolveDisplayCurrency({
       user: sessionPref,
       server: serverCurrency,
@@ -552,61 +564,23 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     };
   }, [status, serverResolved, sessionPref, serverCurrency, storedChoice, detected]);
 
-  // Sync an EXPLICIT pick to localStorage so a revisit keeps it
-  // (logged-out, or the next sign-in before the session loads).
-  // Resolution-driven values (session, team, geo, store) are NOT
-  // written here: persisting them would turn a detected default
-  // into a fake "choice" that blocks future detection — e.g. a PKR
-  // detected on this trip would keep beating a EUR detection on
-  // the next one. Only setCurrency() (an explicit pick) flips the
-  // guard, so only it reaches this write.
-  useEffect(() => {
-    if (!userChangedRef.current) return;
-    try {
-      window.localStorage.setItem(LS_KEY, currencyCode);
-    } catch {
-      // Storage may be blocked in private browsing — fail silently
-    }
-  }, [currencyCode]);
+  const def = getCurrencyDef(viewCurrency ?? currencyCode);
 
-  const def = getCurrencyDef(currencyCode);
-
-  const setCurrency = (code: string, opts?: { persist?: boolean }) => {
+  // Session-only view-currency pick (navbar converter). Sets the
+  // in-memory override and nothing else: the display currency is
+  // LOCKED after onboarding, so this must never PATCH /api/user and
+  // never write localStorage — a persisted pick would survive a reload
+  // and look like a changed preference. opts.persist is ignored.
+  const setCurrency = (code: string) => {
     const resolved = getCurrencyDef(code).code; // validates & falls back
-    userChangedRef.current = true;
-    setCurrencyCode(resolved);
-    // Persist to the SIGNED-IN USER's own preference (PATCH /api/user)
-    // — not the team workspace setting, which the old code wrote (one
-    // member changing it changed it for the whole team).
-    // Logged-out visitors keep the localStorage-only choice, and
-    // nothing is ever POSTed for them. Fire-and-forget; on success the
-    // JWT is refreshed so the session carries the new preference (a
-    // stale session must never win over the fresh choice on reload).
-    // opts.persist === false is used by Settings after its own awaited
-    // save, so the same value isn't written twice.
-    if (opts?.persist !== false && status === "authenticated") {
-      fetch("/api/user", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayCurrency: resolved }),
-      })
-        .then((r) => {
-          if (r.ok) updateSession().catch(() => {});
-        })
-        .catch(() => {
-          // Local storage already holds the choice
-        });
-    }
+    setViewCurrency(resolved);
   };
 
-  // Clear the explicit-pick guard so the resolution effect re-runs
-  // from the (now cleared) saved preference. Called by Settings after
-  // a successful reset PATCH + session update; writes nothing itself.
-  // The browser's stored choice is an explicit choice too, so it is
-  // removed as well — otherwise the stored value would keep beating
-  // the detected currency and "automatic" would never return.
+  // Clear the view override (and the legacy stored browser choice, so
+  // a pre-lock localStorage value cannot keep beating detection) and
+  // re-resolve from the precedence rule. Writes nothing server-side.
   const resetCurrencyPreference = useCallback(() => {
-    userChangedRef.current = false;
+    setViewCurrency(null);
     try {
       window.localStorage.removeItem(LS_KEY);
     } catch {
@@ -692,6 +666,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         symbol:      def.symbol,
         currencyDef: def,
         setCurrency,
+        viewOnly:    viewCurrency !== null,
         resetCurrencyPreference,
         detectedCurrency: detected,
         baseCurrency,
