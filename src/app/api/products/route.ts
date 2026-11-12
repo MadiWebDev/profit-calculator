@@ -6,13 +6,16 @@ import { connectDB } from "@/lib/db";
 import ProductModel from "@/models/Product";
 import { logAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
+import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
 const CreateProductSchema = z
   .object({
     name: z.string().trim().min(1).max(200),
     sku: z.string().trim().max(100).optional(),
     defaultCogs: z.number().min(0).max(1_000_000_000).default(0),
-    currency: z.string().length(3).toUpperCase().default("USD"),
+    // No silent USD default: when the client sends no currency, the
+    // server derives it (user display currency > team > store).
+    currency: z.string().length(3).toUpperCase().optional(),
     imageUrl: z.string().trim().url().max(2048).optional(),
   })
   .strict();
@@ -55,10 +58,16 @@ export async function POST(req: Request) {
 
   const parsed = await parseBody(req, CreateProductSchema);
   if ("response" in parsed) return parsed.response;
-  const { name, sku, defaultCogs, currency, imageUrl } = parsed.data;
+  const { name, sku, defaultCogs, imageUrl } = parsed.data;
 
   try {
     await connectDB();
+    const currency =
+      parsed.data.currency ??
+      (await deriveMoneyCurrency({ userId: session.userId, teamId: session.teamId }));
+    if (!currency) {
+      return fail("Currency is required — set a display currency, a team currency, or connect a store", 400, "CURRENCY_REQUIRED");
+    }
 
     // Prevent duplicate SKU within the same team
     if (sku) {

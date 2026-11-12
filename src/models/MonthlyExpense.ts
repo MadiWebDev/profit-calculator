@@ -24,7 +24,8 @@ const MonthlyExpenseSchema = new Schema<IMonthlyExpense>(
     name: { type: String, required: true, trim: true, maxlength: 200 },
     category: { type: String, required: true, trim: true, maxlength: 100 },
     amount: { type: Number, required: true, min: 0 },
-    currency: { type: String, default: "USD" },
+    // No silent default: the API route always supplies an explicit or derived currency.
+    currency: { type: String },
     startDate: { type: Date, required: true },
     endDate: { type: Date, default: null },
     isRecurring: { type: Boolean, default: false },

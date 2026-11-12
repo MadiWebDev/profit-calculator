@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { OrdersClient } from "./OrdersClient";
+import { getTeamBaseCurrency } from "@/lib/reporting";
 
 async function getOrders(teamId: string, page: number, search: string) {
   await connectDB();
@@ -27,6 +28,10 @@ async function getOrders(teamId: string, page: number, search: string) {
     OrderModel.countDocuments(query),
   ]);
 
+  // An order with no stored currency is shown in the team's base
+  // currency — never silently relabelled USD.
+  const baseCurrency = await getTeamBaseCurrency(teamId);
+
   return {
     orders: orders.map((o) => ({
       id: o._id.toString(),
@@ -34,7 +39,7 @@ async function getOrders(teamId: string, page: number, search: string) {
       orderNumber: o.orderNumber ?? o.externalId,
       orderDate: o.orderDate ? new Date(o.orderDate).toISOString() : new Date().toISOString(),
       status: o.status,
-      currency: o.currency ?? "USD",
+      currency: o.currency ?? baseCurrency,
       grossRevenue: o.grossRevenue ?? 0,
       netRevenue: o.netRevenue ?? 0,
       totalCogs: o.totalCogs ?? 0,

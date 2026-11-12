@@ -26,7 +26,10 @@ export async function GET(req: Request) {
   const previous = summarizeOrders(prevOrders);
 
   const sorted = [...rows].sort((a, b) => b.netProfit - a.netProfit);
-  const currencies = [...new Set(orders.map((o) => o.currency ?? "USD"))];
+  // Rows from loadReportOrders already carry the report base currency;
+  // a row with no currency contributes nothing instead of being
+  // silently counted as USD.
+  const currencies = [...new Set(orders.map((o) => o.currency).filter((c): c is string => typeof c === "string" && c.length > 0))];
 
   if (ctx.format === "csv") {
     return csvResponse(

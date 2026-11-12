@@ -4,6 +4,8 @@ import { checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { calcOrderProfit } from "@/lib/profit-engine";
+import { normalizeCurrencyCode } from "@/lib/money-currency";
+import { formatCurrency } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import mongoose from "mongoose";
 
@@ -96,6 +98,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       } else if (field === "status") {
         const valid = ["pending", "fulfilled", "refunded", "cancelled"];
         if (valid.includes(body[field])) order.set(field, body[field]);
+      } else if (field === "currency") {
+        // Only a valid 3-letter code is ever stored. When the client
+        // sends nothing, the order KEEPS its stored currency — deriving
+        // from the session here would rewrite a synced (e.g. USD)
+        // order's currency into the editor's display currency.
+        const code = normalizeCurrencyCode(body[field]);
+        if (code) order.set(field, code);
       } else {
         order.set(field, body[field]);
       }
@@ -126,7 +135,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     teamId: new mongoose.Types.ObjectId(user.teamId),
     userId: new mongoose.Types.ObjectId(user.id!),
     action: "order.updated",
-    description: `Updated order ${order.orderNumber ?? order.externalId} — net profit $${order.netProfit}`,
+    description: `Updated order ${order.orderNumber ?? order.externalId} — net profit ${order.currency ? formatCurrency(order.netProfit, order.currency) : order.netProfit.toFixed(2)}`,
     resourceType: "Order",
     resourceId: id,
   });

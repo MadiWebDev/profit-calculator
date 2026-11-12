@@ -5,7 +5,9 @@ import { checkSubscription } from "@/lib/api-helpers";
 import { checkEntitlement } from "@/lib/entitlements";
 import { connectDB } from "@/lib/db";
 import StoreModel from "@/models/Store";
+import TeamModel from "@/models/Team";
 import OrderModel from "@/models/Order";
+import { normalizeCurrencyCode, resolveOrderCurrency } from "@/lib/money-currency";
 import { calcOrderProfit } from "@/lib/profit-engine";
 import { logAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
@@ -59,6 +61,17 @@ export async function POST(req: Request) {
     const orderEnt = await checkEntitlement(user.teamId, "orders.import", { count: data.length });
     if ("response" in orderEnt) return orderEnt.response;
 
+    // Team currency is a derivation source for rows without a currency
+    // column (user display > team > store — see src/lib/money-currency.ts).
+    const team = await TeamModel.findById(user.teamId).select("currency").lean();
+    // The CSV store has no currency of its own: give it the currency the
+    // user was working in, so it never silently becomes USD (and never
+    // votes USD in the derivation's store step).
+    const storeCurrency = resolveOrderCurrency({
+      user: (session.user as { displayCurrency?: string | null }).displayCurrency,
+      team: team?.currency,
+    });
+
     // Find or create the CSV store
     let store = await StoreModel.findOne({ teamId: user.teamId, platform: "csv_manual", name: storeName });
     if (!store) {
@@ -68,9 +81,15 @@ export async function POST(req: Request) {
         teamId: user.teamId,
         name: storeName,
         platform: "csv_manual",
+        ...(storeCurrency ? { currency: storeCurrency } : {}),
         syncStatus: "idle",
         isActive: true,
       });
+    } else if (storeCurrency && !normalizeCurrencyCode(store.currency)) {
+      // A store created before the model default was removed may have no
+      // usable currency; stamp the one the user was working in.
+      store.currency = storeCurrency;
+      await store.save();
     }
 
     let imported = 0;
@@ -101,6 +120,18 @@ export async function POST(req: Request) {
           chargebackAmount, adSpendAllocated,
         });
 
+        // No money without an explicit currency: a row's own currency
+        // column wins, else the session derivation (user display > team
+        // > store). A row with no usable currency anywhere is skipped,
+        // never stored as USD.
+        const currency = resolveOrderCurrency({
+          sent: row.currency,
+          user: (session.user as { displayCurrency?: string | null }).displayCurrency,
+          team: team?.currency,
+          store: store.currency,
+        });
+        if (!currency) { skipped++; continue; }
+
         const teamOid = new mongoose.Types.ObjectId(user.teamId);
         await OrderModel.findOneAndUpdate(
           { teamId: teamOid, storeId: store._id, externalId },
@@ -111,7 +142,7 @@ export async function POST(req: Request) {
               externalId,
               orderNumber: row.order_number ?? externalId,
               orderDate,
-              currency: row.currency ?? "USD",
+              currency,
               grossRevenue, discounts,
               netRevenue: profit.netRevenue,
               totalCogs, shippingCost, shippingRevenue,

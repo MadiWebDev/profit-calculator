@@ -8,15 +8,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth } from "@/lib/api-helpers";
-import { parseBody, toObjectId } from "@/lib/validation";
+import { parseBody, fail, toObjectId } from "@/lib/validation";
 import { connectDB } from "@/lib/db";
 import { getReportContext, loadReportOrders } from "@/lib/report-server";
 import { summarizeOrders } from "@/lib/parity-reports";
 import GatewayFeeModel from "@/models/GatewayFee";
+import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
 const CreateSchema = z.object({
   gateway: z.string().trim().min(1).max(120),
-  currency: z.string().length(3).default("USD"),
+  // No silent USD default: when the client sends no currency, the
+  // server derives it (user display currency > team > store).
+  currency: z.string().length(3).toUpperCase().optional(),
   percent: z.number().min(0).max(100),
   fixed: z.number().min(0).max(10000),
   codHandling: z.string().max(120).default("collect_on_delivery"),
@@ -70,9 +73,13 @@ export async function POST(req: Request) {
   if ("response" in parsed) return parsed.response;
   const b = parsed.data;
   await connectDB();
+  const currency = b.currency ?? (await deriveMoneyCurrency({ userId: session.userId, teamId: session.teamId }));
+  if (!currency) {
+    return fail("Currency is required — set a display currency, a team currency, or connect a store", 400, "CURRENCY_REQUIRED");
+  }
   const doc = await GatewayFeeModel.create({
     teamId: toObjectId(session.teamId),
-    gateway: b.gateway, currency: b.currency, percent: b.percent, fixed: b.fixed,
+    gateway: b.gateway, currency, percent: b.percent, fixed: b.fixed,
     codHandling: b.codHandling, payoutDelayDays: b.payoutDelayDays,
     effectiveFrom: new Date(b.effectiveFrom), effectiveTo: b.effectiveTo ? new Date(b.effectiveTo) : null,
   });

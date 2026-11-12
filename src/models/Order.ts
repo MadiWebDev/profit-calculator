@@ -103,7 +103,11 @@ const OrderSchema = new Schema<IOrder>(
     externalId: { type: String, required: true },
     orderNumber: String,
     orderDate: { type: Date, required: true, index: true },
-    currency: { type: String, default: "USD" },
+    // No silent default: every server write path sets currency explicitly
+    // (sent value, else user display > team > store — see
+    // src/lib/money-currency.ts). Required so a write that forgets it
+    // fails loudly instead of storing a wrong currency.
+    currency: { type: String, required: true },
     grossRevenue: { type: Number, default: 0 },
     discounts: { type: Number, default: 0 },
     netRevenue: { type: Number, default: 0 },

@@ -20,7 +20,8 @@ const GatewayFeeSchema = new Schema<IGatewayFee>(
   {
     teamId: { type: Schema.Types.ObjectId, ref: "Team", required: true, index: true },
     gateway: { type: String, required: true, trim: true, maxlength: 120 },
-    currency: { type: String, default: "USD" },
+    // No silent default: the API route always supplies an explicit or derived currency.
+    currency: { type: String },
     percent: { type: Number, required: true, min: 0, max: 100 },
     fixed: { type: Number, required: true, min: 0 },
     codHandling: { type: String, default: "collect_on_delivery", maxlength: 120 },

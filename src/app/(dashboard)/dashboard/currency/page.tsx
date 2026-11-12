@@ -7,14 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAsyncAction } from "@/hooks/use-async-action";
 import { FormSkeleton } from "@/components/ui/skeleton";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Settings { reportingCurrency: string; fxSource: string; fxOverrides: { currency: string; rate: number; effectiveFrom: string }[] }
 
 export default function CurrencyPage() {
+  // The reporting currency is the team's currency: the pre-load
+  // placeholder is the team's report base currency, and the saved
+  // workspace value (loaded below) governs once it arrives.
+  const { baseCurrency } = useCurrency();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ reportingCurrency: "USD", fxSource: "currencyapi.net", currency: "", rate: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
+  const [form, setForm] = useState({ reportingCurrency: baseCurrency, fxSource: "currencyapi.net", currency: "", rate: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = async () => {

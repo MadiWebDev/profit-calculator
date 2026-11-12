@@ -38,7 +38,11 @@ const StoreSchema = new Schema<IStore>(
       required: true,
     },
     domain: String,
-    currency: { type: String, default: "USD" },
+    // No default: a store's currency comes from its source (Shopify shop
+    // data on connect, or the derivation when the app creates a manual
+    // store). A silent "USD" here would vote USD in the derivation's
+    // most-common-store step and mislabel manual stores.
+    currency: { type: String },
     timezone: { type: String, default: "UTC" },
     accessToken: String,   // AES-encrypted before write
     refreshToken: String,  // AES-encrypted before write

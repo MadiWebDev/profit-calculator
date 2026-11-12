@@ -45,5 +45,8 @@ export async function GET(req: Request) {
     );
   }
 
-  return NextResponse.json({ totals, rows, cities, country: countryParam ?? null, currencies: [...new Set(orders.map((o) => o.currency ?? "USD"))] });
+  // Rows from loadReportOrders already carry the report base
+  // currency; a row with no currency contributes nothing instead of
+  // being silently counted as USD.
+  return NextResponse.json({ totals, rows, cities, country: countryParam ?? null, currencies: [...new Set(orders.map((o) => o.currency).filter((c): c is string => typeof c === "string" && c.length > 0))] });
 }

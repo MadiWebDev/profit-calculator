@@ -12,6 +12,7 @@ import { requireAuth } from "@/lib/api-helpers";
 import { parseBody, toObjectId } from "@/lib/validation";
 import { connectDB } from "@/lib/db";
 import WorkspaceSettingsModel from "@/models/WorkspaceSettings";
+import { getReportBaseCurrency } from "@/lib/report-currency";
 
 const PatchSchema = z.object({
   fiscalMonthStartDay: z.number().int().min(1).max(28).optional(),
@@ -36,10 +37,14 @@ export async function GET(req: Request) {
   if (authed instanceof NextResponse) return authed;
   await connectDB();
   const doc = await WorkspaceSettingsModel.findOne({ teamId: toObjectId(authed.session.teamId) }).lean();
+  // A team with no saved workspace settings has no saved reporting
+  // currency either: default it to the team's report base currency
+  // (most common store currency, else the team's own currency)
+  // instead of a hardcoded USD.
   const defaults = {
     fiscalMonthStartDay: 1, defaultDateRangeDays: 30,
     includeShippingRevenueInProfit: true, includeTaxesInProfit: false, includeAdSpendInProfit: true,
-    taxMode: "exclusive", reverseCharge: false, vatRates: [], reportingCurrency: "USD",
+    taxMode: "exclusive", reverseCharge: false, vatRates: [], reportingCurrency: await getReportBaseCurrency(authed.session.teamId),
     fxSource: "currencyapi.net", fxOverrides: [],
   };
   if (!doc) return NextResponse.json({ settings: { ...defaults, displayCurrency: null } });

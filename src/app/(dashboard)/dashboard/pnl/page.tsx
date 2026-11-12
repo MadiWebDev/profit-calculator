@@ -5,6 +5,12 @@ import OrderModel from "@/models/Order";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
 import { PnlClient } from "./PnlClient";
 import mongoose from "mongoose";
+import {
+  convertAmount,
+  convertOrdersToBase,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 export const dynamic = "force-dynamic";
 
@@ -42,60 +48,124 @@ async function getPnlData(teamId: string, from: Date, to: Date) {
     };
   }
 
-  const [orders, adSpend] = await Promise.all([
+  const [orders, adSpendRows] = await Promise.all([
     OrderModel.find({
       teamId: teamOid,
       orderDate: { $gte: from, $lte: to },
       status: { $ne: "cancelled" },
     }).lean(),
-    AdSpendDailyModel.aggregate([
-      { $match: { teamId: teamOid, date: { $gte: from, $lte: to } } },
-      { $group: { _id: "$platform", spend: { $sum: "$spend" } } },
-    ]),
+    AdSpendDailyModel.find({
+      teamId: teamOid,
+      date: { $gte: from, $lte: to },
+    })
+      .select("platform spend currency")
+      .lean(),
   ]);
+
+  // Per-order conversion into the report base currency BEFORE any
+  // summing — the rule every report follows (see
+  // src/lib/report-currency.ts). The previous code summed mixed-currency
+  // orders 1:1 and PnlClient then rendered the total as if it were all
+  // in the base currency, so a PKR order on a team whose base is USD was
+  // inflated ~277x in the P&L. The base is getReportBaseCurrency —
+  // the most common store currency — the same rule the dashboard
+  // client uses for its baseCurrency, so the totals arrive in the
+  // currency PnlClient converts FROM.
+  const base = await getReportBaseCurrency(teamId);
+  const rates = await getReportRates(base);
+  const n = (v: unknown): number =>
+    typeof v === "number" && Number.isFinite(v) ? v : 0;
+  const converted = convertOrdersToBase(
+    orders.map((o) => ({
+      currency: typeof o.currency === "string" ? o.currency : undefined,
+      grossRevenue: n(o.grossRevenue),
+      discounts: n(o.discounts),
+      shippingRevenue: n(o.shippingRevenue),
+      shippingCost: n(o.shippingCost),
+      totalCogs: n(o.totalCogs),
+      transactionFees: n(o.transactionFees),
+      taxes: n(o.taxes),
+      refundAmount: n(o.refundAmount),
+      chargebackAmount: n(o.chargebackAmount),
+      adSpendAllocated: n(o.adSpendAllocated),
+      otherCosts: n((o as { otherCosts?: unknown }).otherCosts),
+    })),
+    base,
+    rates,
+  );
+  // netProfit is a derived field (not in OrderCosts): convert it per
+  // order too, for the monthly chart.
+  const netProfits = orders.map((o) =>
+    convertAmount(
+      n(o.netProfit),
+      typeof o.currency === "string" ? o.currency : undefined,
+      base,
+      rates,
+    ),
+  );
+
+  // Ad spend rows carry their own (provider) currency: convert each
+  // row into the base before grouping by platform.
+  const adSpendByPlatformMap = new Map<string, number>();
+  for (const row of adSpendRows) {
+    const spend = convertAmount(
+      n(row.spend),
+      typeof row.currency === "string" ? row.currency : undefined,
+      base,
+      rates,
+    );
+    const platform = typeof row.platform === "string" ? row.platform : "unknown";
+    adSpendByPlatformMap.set(platform, (adSpendByPlatformMap.get(platform) ?? 0) + spend);
+  }
+  const adSpendByPlatform = [...adSpendByPlatformMap.entries()].map(([platform, spend]) => ({
+    _id: platform,
+    spend,
+  }));
 
   // ── Income Statement ──────────────────────────────────────────────────────
   // Core money contract (profit-engine.ts): grossRevenue is already net
   // of discounts and already includes shipping charged, so discounts and
   // shippingRevenue are memos here — subtracting them again would
   // double-count. Taxes are pass-through and never reduce profit.
-  const grossRevenue    = orders.reduce((s, o) => s + o.grossRevenue, 0);
-  const discounts       = orders.reduce((s, o) => s + o.discounts, 0);
-  const refunds         = orders.reduce((s, o) => s + o.refundAmount, 0);
-  const chargebacks     = orders.reduce((s, o) => s + o.chargebackAmount, 0);
+  // All inputs below are the per-order CONVERTED costs (base currency).
+  const grossRevenue    = converted.reduce((s, o) => s + o.grossRevenue, 0);
+  const discounts       = converted.reduce((s, o) => s + o.discounts, 0);
+  const refunds         = converted.reduce((s, o) => s + o.refundAmount, 0);
+  const chargebacks     = converted.reduce((s, o) => s + o.chargebackAmount, 0);
   const netRevenue      = grossRevenue - refunds - chargebacks;
-  const shippingRevenue = orders.reduce((s, o) => s + o.shippingRevenue, 0);
+  const shippingRevenue = converted.reduce((s, o) => s + o.shippingRevenue, 0);
   const totalRevenue    = netRevenue;
 
-  const cogs            = orders.reduce((s, o) => s + o.totalCogs, 0);
+  const cogs            = converted.reduce((s, o) => s + o.totalCogs, 0);
   const grossProfit     = totalRevenue - cogs;
   const grossMargin     = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
-  const transactionFees = orders.reduce((s, o) => s + o.transactionFees, 0);
-  const shippingCosts   = orders.reduce((s, o) => s + o.shippingCost, 0);
-  const totalAdSpend    = adSpend.reduce((s: number, a: { spend: number }) => s + a.spend, 0);
-  const adSpendByPlatform = adSpend as { _id: string; spend: number }[];
+  const transactionFees = converted.reduce((s, o) => s + o.transactionFees, 0);
+  const shippingCosts   = converted.reduce((s, o) => s + o.shippingCost, 0);
+  const totalAdSpend    = adSpendByPlatform.reduce((s, a) => s + a.spend, 0);
 
   const operatingExpenses = transactionFees + shippingCosts + totalAdSpend;
   const operatingProfit   = grossProfit - operatingExpenses;
   const operatingMargin   = totalRevenue > 0 ? (operatingProfit / totalRevenue) * 100 : 0;
 
-  const taxes             = orders.reduce((s, o) => s + o.taxes, 0);
+  const taxes             = converted.reduce((s, o) => s + o.taxes, 0);
   // Taxes collected are pass-through to the government, not a cost:
   // net profit equals operating profit. Taxes are still shown as a memo.
   const netProfit         = operatingProfit;
   const netMargin         = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-  // Monthly breakdown for chart
+  // Monthly breakdown for chart — converted costs, same as the summary.
   const monthlyMap = new Map<string, { revenue: number; cogs: number; opex: number; netProfit: number }>();
-  for (const o of orders) {
+  for (let i = 0; i < orders.length; i++) {
+    const o = orders[i];
+    const c = converted[i];
     const key = o.orderDate.toISOString().slice(0, 7);
     const cur = monthlyMap.get(key) ?? { revenue: 0, cogs: 0, opex: 0, netProfit: 0 };
-    const rev = o.grossRevenue - o.refundAmount - o.chargebackAmount;
+    const rev = c.grossRevenue - c.refundAmount - c.chargebackAmount;
     cur.revenue  += rev;
-    cur.cogs     += o.totalCogs;
-    cur.opex     += o.transactionFees + o.shippingCost + o.adSpendAllocated;
-    cur.netProfit += o.netProfit;
+    cur.cogs     += c.totalCogs;
+    cur.opex     += c.transactionFees + c.shippingCost + c.adSpendAllocated;
+    cur.netProfit += netProfits[i];
     monthlyMap.set(key, cur);
   }
   const monthlyChart = Array.from(monthlyMap.entries())
