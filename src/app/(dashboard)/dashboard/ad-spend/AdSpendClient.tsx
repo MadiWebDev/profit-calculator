@@ -201,7 +201,7 @@ export function AdSpendClient({ data }: { data: AdData }) {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Performance by Platform ({attribution.replace("_", "-")} attribution)</CardTitle>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-[var(--color-muted)] border-b border-[var(--color-border)]">
                     <tr>

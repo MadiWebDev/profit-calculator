@@ -224,7 +224,7 @@ function OrderFormModal({
           )}
 
           {/* Meta fields */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="of-num">Order Number</Label>
               <Input
@@ -248,7 +248,7 @@ function OrderFormModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="of-status">Status</Label>
               <select
@@ -303,7 +303,7 @@ function OrderFormModal({
           <div className="border-t border-[var(--color-border)]" />
 
           {/* Monetary fields */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {MONETARY_FIELDS.map(({ key, label }) => (
               <div key={key} className="space-y-1.5">
                 <Label htmlFor={`of-${key}`} className="text-xs">
