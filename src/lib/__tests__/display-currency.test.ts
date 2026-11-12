@@ -54,6 +54,37 @@ describe("resolveDisplayCurrency", () => {
     expect(resolveDisplayCurrency({})).toBe("USD");
     expect(resolveDisplayCurrency({ fallback: "PKR" })).toBe("PKR");
   });
+
+  it("prefers the saved USER preference over the team setting and everything else", () => {
+    expect(
+      resolveDisplayCurrency({
+        user: "PKR",
+        server: "EUR",
+        stored: "GBP",
+        geo: "JPY",
+        reportingCurrency: "INR",
+      }),
+    ).toBe("PKR");
+  });
+
+  it("lets the team setting beat the browser choice and geo-detected currency", () => {
+    expect(resolveDisplayCurrency({ server: "EUR", stored: "PKR", geo: "JPY" })).toBe("EUR");
+  });
+
+  it("lets the browser choice beat geo, and geo beat the reporting currency", () => {
+    expect(resolveDisplayCurrency({ stored: "PKR", geo: "JPY", reportingCurrency: "GBP" })).toBe(
+      "PKR",
+    );
+    expect(resolveDisplayCurrency({ geo: "JPY", reportingCurrency: "GBP" })).toBe("JPY");
+    expect(resolveDisplayCurrency({ reportingCurrency: "GBP", geo: null })).toBe("GBP");
+  });
+
+  it("skips invalid codes in the new slots without crashing", () => {
+    expect(
+      resolveDisplayCurrency({ user: "bogus", server: "", stored: "12", geo: "XYZ1" }),
+    ).toBe("USD");
+    expect(resolveDisplayCurrency({ user: null, geo: "pkr" })).toBe("PKR");
+  });
 });
 
 describe("mostCommonCurrency", () => {

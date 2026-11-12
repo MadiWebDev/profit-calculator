@@ -87,6 +87,7 @@ export const authConfig: NextAuthConfig = {
         token.plan     = (user as Record<string, unknown>).plan as string;
         token.role     = (user as Record<string, unknown>).role as string;
         token.teamRole = (user as Record<string, unknown>).teamRole as string | undefined;
+        token.displayCurrency = (user as Record<string, unknown>).displayCurrency as string | null | undefined;
         // S1: session revocation version + 2FA pending flag (see auth.ts).
         token.sessionVersion = (user as Record<string, unknown>).sessionVersion as number | undefined;
         token.twoFactorPending = (user as Record<string, unknown>).twoFactorPending as boolean | undefined;
@@ -104,6 +105,7 @@ export const authConfig: NextAuthConfig = {
         u.plan     = token.plan;
         u.role     = token.role;
         u.teamRole = token.teamRole;
+        u.displayCurrency = token.displayCurrency ?? null;
         u.sessionVersion = token.sessionVersion;
         u.twoFactorPending = token.twoFactorPending;
         u.twoFactorSetupRequired = token.twoFactorSetupRequired;

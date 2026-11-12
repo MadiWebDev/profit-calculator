@@ -135,6 +135,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           plan:   user.plan,
           role:   user.platformRole ?? (user.role === "superAdmin" ? "superAdmin" : "user"),
           teamRole,
+          // Personal display currency (per-user saved preference). Copied
+          // into the JWT by the base jwt() in auth.config.ts so the client
+          // can read it from the session; refreshed by the jwt() backfill
+          // below whenever it changes.
+          displayCurrency: user.displayCurrency ?? null,
           // S1: session revocation + 2FA. twoFactorPending is cleared by
           // the 2FA verify step (session update); requireAuth rejects
           // pending sessions for all API routes.
@@ -182,15 +187,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           await connectDB();
           const dbUser = await UserModel.findById(token.id)
-            .select("teamId plan platformRole role")
+            .select("teamId plan platformRole role displayCurrency")
             .lean() as {
               teamId?: unknown; plan?: string; platformRole?: string; role?: string;
+              displayCurrency?: string | null;
             } | null;
           if (dbUser) {
             if (dbUser.teamId) token.teamId = String(dbUser.teamId);
             if (dbUser.plan)   token.plan   = dbUser.plan;
             // platformRole is the source of truth; fall back to legacy role
             token.role = dbUser.platformRole ?? (dbUser.role === "superAdmin" ? "superAdmin" : "user");
+            // Personal display currency: assign unconditionally (null
+            // clears a previously saved value) so a save/reset in
+            // Settings takes effect on the next session refresh.
+            token.displayCurrency = dbUser.displayCurrency ?? null;
 
             const { default: TeamModel } = await import("@/models/Team");
             const team = await TeamModel.findById(dbUser.teamId)
@@ -220,9 +230,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           await connectDB();
           const dbUser = await UserModel.findById(token.id)
-            .select("passwordChangedAt sessionVersion lastSeenAt twoFactorEnabled plan teamId")
-            .lean() as { passwordChangedAt?: Date; sessionVersion?: number; lastSeenAt?: Date; twoFactorEnabled?: boolean; plan?: string; teamId?: unknown } | null;
+            .select("passwordChangedAt sessionVersion lastSeenAt twoFactorEnabled plan teamId displayCurrency")
+            .lean() as { passwordChangedAt?: Date; sessionVersion?: number; lastSeenAt?: Date; twoFactorEnabled?: boolean; plan?: string; teamId?: unknown; displayCurrency?: string | null } | null;
           if (dbUser?.plan) token.plan = dbUser.plan;
+          // Personal display currency refresh (same rule as the backfill
+          // above: unconditional, so a clear in Settings propagates).
+          if (dbUser) token.displayCurrency = dbUser.displayCurrency ?? null;
           token.lastPwdCheck = nowSec;
           const pwdChangedAt = dbUser?.passwordChangedAt;
           if (pwdChangedAt && token.iat * 1000 < new Date(pwdChangedAt).getTime() - 5000) {

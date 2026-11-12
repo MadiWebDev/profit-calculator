@@ -28,6 +28,15 @@ export interface IUser extends Document {
    * (and counted) by campaign sends, never errored.
    */
   phone?: string;
+  /**
+   * Personal display currency (ISO 4217, e.g. "PKR") the user picks in
+   * Dashboard → Settings → Profile. This is the user-level preference:
+   * when set it wins over the team workspace currency, the browser's
+   * stored choice, and location auto-detection — and nothing automatic
+   * ever changes it. Undefined = "never set" (precedence falls through
+   * to the team setting and below). Saved via PATCH /api/user.
+   */
+  displayCurrency?: string | null;
   // Auth hardening (Phase 4)
   failedLoginAttempts: number;
   lockoutUntil?: Date;
@@ -71,6 +80,7 @@ const UserSchema = new Schema<IUser>(
     trialEndsAt: Date,
     onboardingCompleted: { type: Boolean, default: false },
     phone: { type: String, trim: true, maxlength: 20 },
+    displayCurrency: { type: String, trim: true, uppercase: true, match: /^[A-Z]{3}$/ },
     failedLoginAttempts: { type: Number, default: 0 },
     lockoutUntil: Date,
     passwordChangedAt: Date,
