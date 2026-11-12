@@ -389,12 +389,33 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // On mount: hydrate the display currency from the team's saved
-  // workspace settings — the team default for members who never picked
-  // a personal currency. A 401 (signed out) or network failure leaves
-  // the other sources to resolve; serverResolved still flips so the
-  // geo effect knows the team value is settled.
+  // On mount AND whenever the auth state changes: hydrate the display
+  // currency from the team's saved workspace settings — the team
+  // default for members who never picked a personal currency.
+  //
+  // Auth-state matters: this provider lives in the root layout, so it
+  // does NOT remount on the client-side login navigation. A mount-only
+  // fetch runs while the user is still signed out (401), marks the
+  // team value "settled", and never re-runs after sign-in — so a team
+  // that DID set a display currency would keep showing the
+  // auto-detected one (the workspace value was never fetched). Hence
+  // the fetch is keyed on `status`: it runs when the session becomes
+  // authenticated, and resets when it is definitely logged out.
+  // A 401 (signed out) or network failure leaves the other sources
+  // to resolve; serverResolved still flips so the geo effect knows
+  // the team value is settled.
   useEffect(() => {
+    if (status === "unauthenticated") {
+      // Definitely signed out: no team setting exists for this viewer,
+      // and a stale one must not survive the sign-out. One-time
+      // auth-state reset, not a render cascade.
+      /* eslint-disable react-hooks/set-state-in-effect -- auth-state reset: clear the team currency when the session ends. */
+      setServerCurrency(null);
+      setServerResolved(false);
+      /* eslint-enable react-hooks/set-state-in-effect */
+      return;
+    }
+    if (status !== "authenticated") return; // still loading — keep the last value
     let cancelled = false;
     fetch("/api/settings/workspace")
       .then((r) => (r.ok ? r.json() : null))
@@ -403,7 +424,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         setServerCurrency(normalizeSavedCurrency(j?.settings?.displayCurrency));
       })
       .catch(() => {
-        // Signed out / offline — other sources resolve
+        // Network failure — other sources resolve
       })
       .finally(() => {
         if (!cancelled) setServerResolved(true);
@@ -411,7 +432,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [status]);
 
   // On mount: resolve the report base currency from the team's active
   // stores (most common store currency, USD when there is none).
@@ -461,9 +482,16 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   // team setting, or a browser choice: the guard below skips it
   // entirely in those cases. Server first (Vercel country header via
   // /api/geo/currency), browser-language region as the fallback.
+  //
+  // "Settled" is auth-aware: a signed-out visitor has no team to wait
+  // for, so detection runs at once (it is the right default for them);
+  // a signed-in user waits for the workspace fetch, so a team setting
+  // (when one exists) is never beaten by a detection that fired while
+  // the fetch was still in flight.
   useEffect(() => {
+    const teamSettled = status !== "authenticated" || serverResolved;
     if (
-      !serverResolved ||
+      !teamSettled ||
       sessionPref || serverCurrency || storedChoice || detected ||
       geoTriedRef.current
     ) {
@@ -509,7 +537,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [serverResolved, sessionPref, serverCurrency, storedChoice, detected]);
+  }, [status, serverResolved, sessionPref, serverCurrency, storedChoice, detected]);
 
   // Sync an EXPLICIT pick to localStorage so a revisit keeps it
   // (logged-out, or the next sign-in before the session loads).
