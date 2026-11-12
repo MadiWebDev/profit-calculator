@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
@@ -21,6 +22,15 @@ const navLinks = [
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const { data: session } = useSession();
+  const pathname = usePathname();
+
+  // Hide the marketing navbar on dashboard routes — the dashboard layout
+  // (src/app/(dashboard)/layout.tsx) renders its own DashboardTopbar,
+  // sidebar, CurrencyConverter and CurrencySelector, so the marketing
+  // header would otherwise stack above them. The Footer is untouched.
+  if (pathname === "/dashboard" || pathname?.startsWith("/dashboard/")) {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[var(--color-border)] bg-[var(--color-background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--color-background)]/60">
