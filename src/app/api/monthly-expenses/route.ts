@@ -8,17 +8,21 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth } from "@/lib/api-helpers";
-import { parseBody, toObjectId } from "@/lib/validation";
+import { parseBody, fail, toObjectId } from "@/lib/validation";
 import { connectDB } from "@/lib/db";
 import { getReportContext, loadReportOrders } from "@/lib/report-server";
 import { summarizeOrders, allocateMonthlyExpenses } from "@/lib/parity-reports";
 import MonthlyExpenseModel from "@/models/MonthlyExpense";
+import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
 const CreateSchema = z.object({
   name: z.string().trim().min(1).max(200),
   category: z.string().trim().min(1).max(100),
   amount: z.number().min(0).max(1_000_000_000),
-  currency: z.string().length(3).default("USD"),
+  // No silent USD default: when the client sends no currency, derive
+  // it from the session (user display currency > team > store). The
+  // write is rejected instead of stamped USD when nothing derives.
+  currency: z.string().length(3).toUpperCase().optional(),
   startDate: z.string(),
   endDate: z.string().optional().nullable(),
   isRecurring: z.boolean().default(false),
@@ -56,9 +60,13 @@ export async function POST(req: Request) {
   if ("response" in parsed) return parsed.response;
   const b = parsed.data;
   await connectDB();
+  const currency = b.currency ?? (await deriveMoneyCurrency({ userId: session.userId, teamId: session.teamId }));
+  if (!currency) {
+    return fail("Currency is required — set a display currency, a team currency, or connect a store", 400, "CURRENCY_REQUIRED");
+  }
   const doc = await MonthlyExpenseModel.create({
     teamId: toObjectId(session.teamId),
-    name: b.name, category: b.category, amount: b.amount, currency: b.currency,
+    name: b.name, category: b.category, amount: b.amount, currency,
     startDate: new Date(b.startDate), endDate: b.endDate ? new Date(b.endDate) : null,
     isRecurring: b.isRecurring, taxInclusive: b.taxInclusive, allocation: b.allocation, notes: b.notes,
   });

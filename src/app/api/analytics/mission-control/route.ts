@@ -100,6 +100,9 @@ export async function GET(req: Request) {
     anomalies: anomalies.slice(-10),
     healthScore,
     healthParts,
-    currencies: [...new Set(orders.map((o) => o.currency ?? "USD"))],
+    // Rows from loadReportOrders already carry the report base
+    // currency; a row with no currency contributes nothing instead of
+    // being silently counted as USD.
+    currencies: [...new Set(orders.map((o) => o.currency).filter((c): c is string => typeof c === "string" && c.length > 0))],
   });
 }

@@ -50,9 +50,12 @@ const LANDED_FIELDS: { key: keyof CogsFormValues; label: string; help: string }[
 
 export function CogsEditor({
   productId, variantId, productName, variantTitle, sku, storeId,
-  currentCogs, history = [], currency = "USD", onSaved,
+  currentCogs, history = [], currency: currencyProp, onSaved,
 }: CogsEditorProps) {
-  const { formatMoney } = useCurrency();
+  // No silent USD default: when the caller passes no currency, the
+  // COGS is typed in the currency the user is working in.
+  const { formatMoney, currency: displayCurrency } = useCurrency();
+  const currency = currencyProp ?? displayCurrency;
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);

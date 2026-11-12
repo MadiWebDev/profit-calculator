@@ -15,7 +15,7 @@ import { LoadingImage } from "@/components/ui/loading-image";
 import { formatPercent, cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useRole } from "@/components/dashboard/RoleContext";
-import { useCurrency } from "@/components/dashboard/CurrencyContext";
+import { useCurrency, getCurrencyDef } from "@/components/dashboard/CurrencyContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,10 +54,14 @@ interface CreateProductModalProps {
 }
 
 function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
+  // The form's currency defaults to the currency the user is working
+  // in — never a hardcoded USD. The modal mounts only when opened,
+  // by which time the display currency has resolved.
+  const { currency: displayCurrency } = useCurrency();
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [defaultCogs, setDefaultCogs] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(displayCurrency);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,7 +155,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="cp-cogs">Default COGS ($)</Label>
+              <Label htmlFor="cp-cogs">Default COGS ({getCurrencyDef(currency).symbol})</Label>
               <Input
                 id="cp-cogs"
                 type="number"
@@ -167,7 +171,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps) {
               <Label htmlFor="cp-currency">Currency</Label>
               <Input
                 id="cp-currency"
-                placeholder="USD"
+                placeholder={displayCurrency}
                 maxLength={3}
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value.toUpperCase())}

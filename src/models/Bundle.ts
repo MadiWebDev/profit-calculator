@@ -44,7 +44,8 @@ const BundleSchema = new Schema<IBundle>(
     totalCogs:         { type: Number, default: 0 },
     grossMargin:       { type: Number, default: 0 },
     netMarginEstimate: { type: Number, default: 0 },
-    currency:  { type: String, default: "USD" },
+    // No silent default: the API route always supplies an explicit or derived currency.
+    currency:  { type: String },
     isActive:  { type: Boolean, default: true },
   },
   { timestamps: true }

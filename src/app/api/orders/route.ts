@@ -6,6 +6,9 @@ import { checkEntitlement } from "@/lib/entitlements";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import StoreModel from "@/models/Store";
+import TeamModel from "@/models/Team";
+import { normalizeCurrencyCode, resolveOrderCurrency } from "@/lib/money-currency";
+import { formatCurrency } from "@/lib/utils";
 import { calcOrderProfit } from "@/lib/profit-engine";
 import { logAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
@@ -32,7 +35,10 @@ const CreateOrderSchema = z
     chargebackAmount: Money,
     adSpendAllocated: Money,
     customerEmail: z.email().max(254).optional(),
-    currency: z.string().length(3).toUpperCase().default("USD"),
+    // Optional on the wire: the form sends it, but when absent the
+    // server derives it from the session (user display > team > store
+    // — see below). Never a silent USD default.
+    currency: z.string().trim().length(3).toUpperCase().optional(),
   })
   .strict();
 
@@ -73,16 +79,45 @@ export async function POST(req: Request) {
       platform: "csv_manual",
       name: "Manual Entry",
     });
+
+    // No money without an explicit currency: the sent value wins, else
+    // the currency the user was working in (their locked display
+    // currency), then the team's, then the store's. If none of those
+    // yields a usable code the write is rejected — never stored as USD.
+    const team = await TeamModel.findById(session.teamId).select("currency").lean();
+    const currency = resolveOrderCurrency({
+      sent: b.currency,
+      user: session.displayCurrency,
+      team: team?.currency,
+      store: store?.currency,
+    });
+    if (!currency) {
+      return fail(
+        "Currency is required — pick a currency for this order",
+        400,
+        "ORDER_CURRENCY_MISSING"
+      );
+    }
+
     if (!store) {
       const storeEnt = await checkEntitlement(session.teamId, "stores.connect");
       if ("response" in storeEnt) return storeEnt.response;
+      // A manual store has no currency of its own: it takes the currency
+      // the user was working in, so it never silently becomes USD (and
+      // never votes USD in the derivation's store step).
       store = await StoreModel.create({
         teamId: toObjectId(session.teamId),
         name: "Manual Entry",
         platform: "csv_manual",
+        currency,
         syncStatus: "idle",
         isActive: true,
       });
+    } else if (!normalizeCurrencyCode(store.currency)) {
+      // A store created before the model default was removed may have no
+      // usable currency; stamp the one the user was working in.
+      store.currency = currency;
+      await store.save();
     }
 
     const externalId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -93,7 +128,7 @@ export async function POST(req: Request) {
       externalId,
       orderNumber: b.orderNumber || externalId,
       orderDate: new Date(b.orderDate),
-      currency: b.currency,
+      currency,
       grossRevenue: b.grossRevenue,
       discounts: b.discounts,
       netRevenue: profit.netRevenue,
@@ -117,10 +152,10 @@ export async function POST(req: Request) {
         teamId: toObjectId(session.teamId),
         userId: toObjectId(session.userId),
         action: "order.imported",
-        description: `Created manual order ${b.orderNumber || externalId} — revenue $${b.grossRevenue}, net profit $${profit.netProfit}`,
+        description: `Created manual order ${b.orderNumber || externalId} — revenue ${formatCurrency(b.grossRevenue, currency)}, net profit ${formatCurrency(profit.netProfit, currency)}`,
         resourceType: "Order",
         resourceId: order._id.toString(),
-        metadata: { grossRevenue: b.grossRevenue, netProfit: profit.netProfit, status: b.status },
+        metadata: { grossRevenue: b.grossRevenue, netProfit: profit.netProfit, status: b.status, currency },
       });
     } catch (e) {
       logger.warn("audit log failed (non-fatal)", {}, toLogError(e));
@@ -134,6 +169,7 @@ export async function POST(req: Request) {
           orderNumber: order.orderNumber,
           orderDate: order.orderDate.toISOString(),
           status: order.status,
+          currency: order.currency,
           grossRevenue: order.grossRevenue,
           netRevenue: order.netRevenue,
           totalCogs: order.totalCogs,

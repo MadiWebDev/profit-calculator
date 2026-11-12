@@ -43,7 +43,8 @@ const ProductSchema = new Schema<IProduct>(
     sku: String,
     defaultCogs: { type: Number, default: 0 },
     variantCogs: [VariantCogsSchema],
-    currency: { type: String, default: "USD" },
+    // No silent default: the API route always supplies an explicit or derived currency.
+    currency: { type: String },
     imageUrl: String,
     isActive: { type: Boolean, default: true },
     totalRevenue: { type: Number, default: 0 },

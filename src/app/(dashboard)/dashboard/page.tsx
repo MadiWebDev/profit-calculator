@@ -11,6 +11,7 @@ import { calcPeriodSummary } from "@/lib/profit-engine";
 import { getFxRates } from "@/lib/fx";
 import { logger } from "@/lib/logger";
 import { convertOrdersToBase, sumCosts } from "@/lib/report-currency";
+import { getTeamBaseCurrency } from "@/lib/reporting";
 import { OverviewClient } from "./OverviewClient";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -159,14 +160,21 @@ async function getOverviewData(
   // exact (same-currency conversion is a no-op). If FX is unavailable,
   // conversion is skipped and the old 1:1 sums are used rather than
   // failing the whole dashboard.
+  // A store with no (valid) currency does not vote — counting it as USD
+  // would skew the base toward USD for teams that never sold in USD.
+  // When no store has a currency, the team's own base currency decides,
+  // not a hardcoded USD.
+  const teamBaseCurrency = await getTeamBaseCurrency(teamId);
   const baseCurrency = (() => {
     const counts = new Map<string, number>();
     for (const st of stores) {
-      const c = ((st as { currency?: string }).currency ?? "USD").toUpperCase();
+      const raw = (st as { currency?: string }).currency;
+      if (typeof raw !== "string" || !/^[A-Za-z]{3}$/.test(raw.trim())) continue;
+      const c = raw.toUpperCase();
       counts.set(c, (counts.get(c) ?? 0) + 1);
     }
-    let best = "USD";
-    let bestN = -1;
+    let best = teamBaseCurrency;
+    let bestN = 0;
     for (const [c, n] of counts) if (n > bestN) { best = c; bestN = n; }
     return best;
   })();
@@ -374,7 +382,7 @@ async function getOverviewData(
     recentOrders: recentOrders.map((o) => ({
       id:           o._id.toString(),
       orderNumber:  o.orderNumber ?? o.externalId,
-      currency:     (o as { currency?: string }).currency ?? "USD",
+      currency:     (o as { currency?: string }).currency ?? baseCurrency,
       orderDate:    o.orderDate ? (o.orderDate instanceof Date ? o.orderDate.toISOString() : new Date(o.orderDate).toISOString()) : new Date().toISOString(),
       grossRevenue: o.grossRevenue,
       netProfit:    o.netProfit,
@@ -389,7 +397,7 @@ async function getOverviewData(
       syncStatus:  s.syncStatus,
       lastSyncAt:  s.lastSyncAt ? (s.lastSyncAt as Date).toISOString() : undefined,
       ordersCount: s.ordersCount ?? 0,
-      currency:    (s as { currency?: string }).currency ?? "USD",
+      currency:    (s as { currency?: string }).currency ?? baseCurrency,
     })),
     // Base currency for FX display conversion = most common store currency.
     // Every aggregate above was converted order-by-order into this currency

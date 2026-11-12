@@ -205,7 +205,7 @@ export default function BundlesPage() {
                   <div className="px-4 py-3 bg-[var(--color-card)] space-y-3 text-sm">
                     <p className="text-[var(--color-muted-foreground)]">
                       A <strong className="text-[var(--color-foreground)]">Skincare Starter Kit</strong> sells for{" "}
-                      <strong className="text-[var(--color-foreground)]">$49.99</strong> and contains three products:
+                      <strong className="text-[var(--color-foreground)]">{formatMoney(49.99, currency)}</strong> and contains three products:
                     </p>
                     <div className="rounded-lg border border-[var(--color-border)] overflow-x-auto">
                       <table className="w-full min-w-[420px] text-xs">
@@ -224,21 +224,21 @@ export default function BundlesPage() {
                           ].map((row) => (
                             <tr key={row.name} className="hover:bg-[var(--color-muted)]/50">
                               <td className="px-3 py-2 text-[var(--color-foreground)]">{row.name}</td>
-                              <td className="px-3 py-2 text-[var(--color-muted-foreground)]">${row.cogs.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-[var(--color-muted-foreground)]">{formatMoney(row.cogs, currency)}</td>
                               <td className="px-3 py-2 text-[var(--color-muted-foreground)]">{row.qty}</td>
-                              <td className="px-3 py-2 font-medium text-[var(--color-foreground)]">${(row.cogs * row.qty).toFixed(2)}</td>
+                              <td className="px-3 py-2 font-medium text-[var(--color-foreground)]">{formatMoney(row.cogs * row.qty, currency)}</td>
                             </tr>
                           ))}
                           <tr className="bg-[var(--color-muted)]/60 font-semibold">
                             <td className="px-3 py-2 text-[var(--color-foreground)]" colSpan={3}>Total COGS</td>
-                            <td className="px-3 py-2 text-[var(--color-foreground)]">$14.00</td>
+                            <td className="px-3 py-2 text-[var(--color-foreground)]">{formatMoney(14, currency)}</td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                     <div className="flex flex-wrap gap-4 text-xs">
-                      <span className="text-[var(--color-muted-foreground)]">Selling price: <strong className="text-[var(--color-foreground)]">$49.99</strong></span>
-                      <span className="text-[var(--color-muted-foreground)]">Gross profit: <strong className="text-green-600 dark:text-green-400">$35.99</strong></span>
+                      <span className="text-[var(--color-muted-foreground)]">Selling price: <strong className="text-[var(--color-foreground)]">{formatMoney(49.99, currency)}</strong></span>
+                      <span className="text-[var(--color-muted-foreground)]">Gross profit: <strong className="text-green-600 dark:text-green-400">{formatMoney(35.99, currency)}</strong></span>
                       <span className="text-[var(--color-muted-foreground)]">Gross margin: <strong className="text-green-600 dark:text-green-400">72.0%</strong></span>
                     </div>
                     <p className="text-xs text-[var(--color-muted-foreground)] italic">
@@ -406,9 +406,9 @@ export default function BundlesPage() {
                     </div>
                     {/* Metrics */}
                     <div className="flex flex-wrap gap-3 text-sm text-[var(--color-muted-foreground)]">
-                      <span>Sell: <strong className="text-[var(--color-foreground)]">$49.99</strong></span>
-                      <span>COGS: <strong className="text-[var(--color-foreground)]">$14.00</strong></span>
-                      <span>Profit: <strong className="text-[var(--color-primary)]">$35.99</strong></span>
+                      <span>Sell: <strong className="text-[var(--color-foreground)]">{formatMoney(49.99, currency)}</strong></span>
+                      <span>COGS: <strong className="text-[var(--color-foreground)]">{formatMoney(14, currency)}</strong></span>
+                      <span>Profit: <strong className="text-[var(--color-primary)]">{formatMoney(35.99, currency)}</strong></span>
                     </div>
                     {/* Component pills */}
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -418,7 +418,7 @@ export default function BundlesPage() {
                         { name: "2× Lip Balm",            lineCogs: 3.00 },
                       ].map((c) => (
                         <span key={c.name} className="text-xs bg-[var(--color-muted)] px-2 py-0.5 rounded-full text-[var(--color-muted-foreground)]">
-                          {c.name} (${c.lineCogs.toFixed(2)})
+                          {c.name} ({formatMoney(c.lineCogs, currency)})
                         </span>
                       ))}
                     </div>

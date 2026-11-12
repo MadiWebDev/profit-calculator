@@ -1,26 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAsyncAction } from "@/hooks/use-async-action";
 import { FormSkeleton } from "@/components/ui/skeleton";
-import { useCurrency } from "@/components/dashboard/CurrencyContext";
+import { CURRENCIES as ALL_CURRENCIES, useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface Expense { id: string; name: string; category: string; amount: number; currency: string; startDate: string; endDate?: string | null; isRecurring: boolean; allocation: string }
 
 export default function MonthlyExpensesPage() {
-  const { formatMoney, baseCurrency } = useCurrency();
+  const { formatMoney, baseCurrency, currency: displayCurrency } = useCurrency();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [allocated, setAllocated] = useState(0);
   const [before, setBefore] = useState(0);
   const [after, setAfter] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", category: "Software", amount: "", startDate: new Date().toISOString().slice(0, 10), isRecurring: true, allocation: "per_day" });
+  const [form, setForm] = useState({ name: "", category: "Software", amount: "", currency: displayCurrency, startDate: new Date().toISOString().slice(0, 10), isRecurring: true, allocation: "per_day" });
   const [msg, setMsg] = useState<string | null>(null);
+  // The display currency resolves after mount; adopt it as the form's
+  // currency until the user picks another one.
+  const currencyTouchedRef = useRef(false);
+
+  useEffect(() => {
+    if (!currencyTouchedRef.current) {
+      setForm((f) => (f.currency === displayCurrency ? f : { ...f, currency: displayCurrency }));
+    }
+  }, [displayCurrency]);
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -38,7 +47,7 @@ export default function MonthlyExpensesPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const submitAction = useAsyncAction(async () => {
-    const res = await fetch("/api/monthly-expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, amount: Number(form.amount), currency: "USD" }) });
+    const res = await fetch("/api/monthly-expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, amount: Number(form.amount) }) });
     if (!res.ok) { setMsg("Could not save that expense — check the fields and try again."); return; }
     setMsg("Expense saved. It is allocated into the last 30 days above and into Revenue By Date / P&L as profit after operating expenses.");
     setForm({ ...form, name: "", amount: "" });
@@ -70,6 +79,7 @@ export default function MonthlyExpensesPage() {
           <div className="space-y-1"><Label htmlFor="exp-name">Name</Label><Input id="exp-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Shopify apps" /></div>
           <div className="space-y-1"><Label htmlFor="exp-category">Category</Label><Input id="exp-category" required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="exp-amount">Amount</Label><Input id="exp-amount" type="number" min="0" step="0.01" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+          <div className="space-y-1"><Label htmlFor="exp-currency">Currency</Label><select id="exp-currency" required value={form.currency} onChange={(e) => { currencyTouchedRef.current = true; setForm({ ...form, currency: e.target.value }); }} className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-sm">{ALL_CURRENCIES.map((c) => (<option key={c.code} value={c.code}>{c.label}</option>))}</select></div>
           <div className="space-y-1"><Label htmlFor="exp-start">Start date</Label><Input id="exp-start" type="date" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="exp-alloc">Allocation</Label><select id="exp-alloc" value={form.allocation} onChange={(e) => setForm({ ...form, allocation: e.target.value })} className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-sm"><option value="per_day">Per day</option><option value="per_order">Per order</option><option value="by_revenue">By revenue share</option></select></div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isRecurring} onChange={(e) => setForm({ ...form, isRecurring: e.target.checked })} /> Recurring</label>

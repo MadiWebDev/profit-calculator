@@ -89,6 +89,10 @@ export async function POST(req: Request) {
     ]);
     const recent = recentReport.summary;
     const prior  = priorReport.summary;
+    // All normalized totals are expressed in the team's base currency —
+    // label prompt amounts with it, never a hardcoded "$" (a PKR team's
+    // revenue is not dollars).
+    const base = recentReport.baseCurrency;
 
     // AI v2 context: statistical anomalies + 30-day revenue forecast.
     // dailyNet uses the normalized per-order costs so the series is in one
@@ -108,38 +112,40 @@ export async function POST(req: Request) {
     const forecastTotal = forecast.reduce((a, p) => a + p.forecast, 0);
 
     const anomalyLines = anomalies.length > 0
-      ? anomalies.map((a) => `- ${a.date}: ${a.direction} to $${a.value.toFixed(2)} (expected $${a.expected.toFixed(2)}, z=${a.zScore}, ${a.severity})`).join("\n")
+      ? anomalies.map((a) => `- ${a.date}: ${a.direction} to ${base} ${a.value.toFixed(2)} (expected ${base} ${a.expected.toFixed(2)}, z=${a.zScore}, ${a.severity})`).join("\n")
       : "- No anomalies in the last 30 days";
 
     const prompt = `
 You are an ecommerce profit analyst. Analyse this merchant's last 30 days vs prior 30 days and return exactly 3 JSON insights.
 
+All amounts below are in ${base} unless noted otherwise.
+
 LAST 30 DAYS:
-- Revenue: $${recent.totalRevenue.toFixed(2)}
-- Net Profit: $${recent.netProfit.toFixed(2)}
+- Revenue: ${base} ${recent.totalRevenue.toFixed(2)}
+- Net Profit: ${base} ${recent.netProfit.toFixed(2)}
 - Net Margin: ${recent.netMargin.toFixed(1)}%
 - Gross Margin: ${recent.grossMargin.toFixed(1)}%
-- Total COGS: $${recent.totalCogs.toFixed(2)}
-- Ad Spend: $${recent.totalAdSpend.toFixed(2)}
-- Refunds: $${recent.totalRefunds.toFixed(2)}
+- Total COGS: ${base} ${recent.totalCogs.toFixed(2)}
+- Ad Spend: ${base} ${recent.totalAdSpend.toFixed(2)}
+- Refunds: ${base} ${recent.totalRefunds.toFixed(2)}
 - Orders: ${recent.orderCount}
-- Avg Order Value: $${recent.avgOrderValue.toFixed(2)}
+- Avg Order Value: ${base} ${recent.avgOrderValue.toFixed(2)}
 
 PRIOR 30 DAYS:
-- Revenue: $${prior.totalRevenue.toFixed(2)}
-- Net Profit: $${prior.netProfit.toFixed(2)}
+- Revenue: ${base} ${prior.totalRevenue.toFixed(2)}
+- Net Profit: ${base} ${prior.netProfit.toFixed(2)}
 - Net Margin: ${prior.netMargin.toFixed(1)}%
-- Ad Spend: $${prior.totalAdSpend.toFixed(2)}
+- Ad Spend: ${base} ${prior.totalAdSpend.toFixed(2)}
 
-AD PLATFORM BREAKDOWN (last 30d):
+AD PLATFORM BREAKDOWN (last 30d; amounts in each account's stored currency, not converted to ${base}):
 ${recentAds.map((a: { _id: string; spend: number; revenue: number; conversions: number }) =>
-  `- ${a._id}: spend $${a.spend.toFixed(2)}, revenue $${a.revenue.toFixed(2)}, ROAS ${a.spend > 0 ? (a.revenue / a.spend).toFixed(2) : 0}x, ${a.conversions} conversions`
+  `- ${a._id}: spend ${a.spend.toFixed(2)}, revenue ${a.revenue.toFixed(2)}, ROAS ${a.spend > 0 ? (a.revenue / a.spend).toFixed(2) : 0}x, ${a.conversions} conversions`
 ).join("\n") || "- No ad data available"}
 
 DETECTED ANOMALIES (z-score, trailing 28d baseline):
 ${anomalyLines}
 
-REVENUE FORECAST (next 30d, damped trend): $${forecastTotal.toFixed(2)} total
+REVENUE FORECAST (next 30d, damped trend): ${base} ${forecastTotal.toFixed(2)} total
 
 Return ONLY this JSON (no markdown, no explanation):
 {

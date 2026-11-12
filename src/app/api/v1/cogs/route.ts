@@ -16,6 +16,7 @@ import CogsRuleModel from "@/models/CogsRule";
 import mongoose from "mongoose";
 import { logger } from "@/lib/logger";
 import { getIdempotentResponse, storeIdempotentResponse } from "@/lib/idempotency";
+import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
 // ─── Auth helper ────────────────────────────────────────────────────────────
 // API key → scope → subscription → plan entitlement (Pro feature).
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
 //   packagingCost?       number  (default 0)
 //   prepCost?            number  (default 0)
 //   otherLandedCost?     number  (default 0)
-//   currency?            string  (default "USD")
+//   currency?            string  (derived when omitted: team currency, then the store's currency — never silently USD)
 //   note?                string
 
 export async function POST(req: NextRequest) {
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
     packagingCost     = 0,
     prepCost          = 0,
     otherLandedCost   = 0,
-    currency          = "USD",
+    currency,
     note,
   } = body as Record<string, unknown>;
 
@@ -137,6 +138,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate cost fields are numbers
+  // An explicitly sent currency must be a 3-letter ISO code; when
+  // omitted it is derived server-side (never silently USD).
+  if (currency !== undefined && (typeof currency !== "string" || !/^[A-Za-z]{3}$/.test(currency.trim()))) {
+    return NextResponse.json({ error: "currency must be a 3-letter ISO code", code: "VALIDATION_ERROR" }, { status: 400 });
+  }
+
   const costFields = { supplierCost, shippingToWarehouse, importDuties, packagingCost, prepCost, otherLandedCost };
   for (const [field, value] of Object.entries(costFields)) {
     if (typeof value !== "number" || value < 0) {
@@ -157,6 +164,20 @@ export async function POST(req: NextRequest) {
   const updatedBy = new mongoose.Types.ObjectId(session!.keyId);
 
   await connectDB();
+
+  // No user on an API-key call, so the derivation is team currency >
+  // this store's currency. When nothing derives, reject the write
+  // instead of silently stamping the rule USD.
+  const effectiveCurrency =
+    typeof currency === "string"
+      ? currency.trim().toUpperCase()
+      : await deriveMoneyCurrency({ teamId: session!.teamId, storeId: storeId as string });
+  if (!effectiveCurrency) {
+    return NextResponse.json(
+      { error: "Currency is required — set a team currency or connect a store with a currency", code: "CURRENCY_REQUIRED" },
+      { status: 400 }
+    );
+  }
 
   try {
     const rule = await CogsRuleModel.findOneAndUpdate(
@@ -182,7 +203,7 @@ export async function POST(req: NextRequest) {
           packagingCost,
           prepCost,
           otherLandedCost,
-          currency,
+          currency: effectiveCurrency,
           applyToNewOrders: true,
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

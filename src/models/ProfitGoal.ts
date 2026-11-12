@@ -48,7 +48,8 @@ const ProfitGoalSchema = new Schema<IProfitGoal>(
     targetProfit: { type: Number, required: true },
     targetRevenue: Number,
     targetMargin: Number,
-    currency: { type: String, default: "USD" },
+    // No silent default: the API route always supplies an explicit or derived currency.
+    currency: { type: String },
     alerts: { type: AlertConfigSchema, default: () => ({}) },
     currentProfit: { type: Number, default: 0 },
     currentRevenue: { type: Number, default: 0 },

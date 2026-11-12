@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db";
 import CogsRuleModel from "@/models/CogsRule";
 import { logAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
+import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
 const CogsQuerySchema = z
   .object({ storeId: objectIdString("storeId").optional() })
@@ -27,7 +28,9 @@ const UpsertCogsSchema = z
     packagingCost: MoneyField,
     prepCost: MoneyField,
     otherLandedCost: MoneyField,
-    currency: z.string().length(3).toUpperCase().default("USD"),
+    // No silent USD default: when the client sends no currency, the
+    // server derives it (user display currency > team > that store).
+    currency: z.string().length(3).toUpperCase().optional(),
     note: z.string().trim().max(500).optional(),
   })
   .strict();
@@ -82,6 +85,12 @@ export async function POST(req: Request) {
 
   try {
     await connectDB();
+    const currency =
+      b.currency ??
+      (await deriveMoneyCurrency({ userId: session.userId, teamId: session.teamId, storeId: b.storeId }));
+    if (!currency) {
+      return fail("Currency is required — set a display currency, a team currency, or connect a store", 400, "CURRENCY_REQUIRED");
+    }
 
     const historyEntry = {
       cogs,
@@ -113,7 +122,7 @@ export async function POST(req: Request) {
           packagingCost: b.packagingCost,
           prepCost: b.prepCost,
           otherLandedCost: b.otherLandedCost,
-          currency: b.currency,
+          currency,
           applyToNewOrders: true,
         },
         $push: { history: { $each: [historyEntry], $slice: -50 } }, // keep last 50
@@ -126,7 +135,7 @@ export async function POST(req: Request) {
         teamId: toObjectId(session.teamId),
         userId: toObjectId(session.userId),
         action: "product.cogs_updated",
-        description: `COGS rule set for "${b.productName}"${b.variantTitle ? ` (${b.variantTitle})` : ""}: $${cogs.toFixed(2)}`,
+        description: `COGS rule set for "${b.productName}"${b.variantTitle ? ` (${b.variantTitle})` : ""}: ${currency} ${cogs.toFixed(2)}`,
         resourceType: "CogsRule",
         resourceId: rule._id.toString(),
         metadata: { cogs, note: b.note },

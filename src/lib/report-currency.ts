@@ -19,6 +19,7 @@
 import { convertCurrency, convertOrderCosts, type OrderCosts } from "@/lib/profit-engine";
 import { getFxRates } from "@/lib/fx";
 import StoreModel from "@/models/Store";
+import TeamModel from "@/models/Team";
 
 export interface OrderMoney {
   currency?: string | null;
@@ -102,9 +103,11 @@ export function convertAmount(
 /**
  * The base currency for a report: the single store's currency when a
  * store is selected, otherwise the team's most common store currency
- * (same rule the dashboard uses), falling back to USD when the team
- * has no store with a currency. Callers must already be connected to
- * the database (every report caller is).
+ * (same rule the dashboard uses), falling back to the team's own
+ * configured currency (Team.currency) when no store has one — and to
+ * USD only when the team has no valid currency either (its model
+ * default). Callers must already be connected to the database (every
+ * report caller is).
  */
 export async function getReportBaseCurrency(
   teamId: string | object,
@@ -128,6 +131,14 @@ export async function getReportBaseCurrency(
       best = c;
       bestCount = n;
     }
+  }
+  if (bestCount === 0) {
+    // No store carries a currency: the team's own configured currency
+    // is the honest base — a team that set PKR reports in PKR even
+    // before its first store syncs — instead of a hardcoded USD.
+    const team = await TeamModel.findById(teamId).select("currency").lean();
+    const code = typeof team?.currency === "string" ? team.currency.toUpperCase().trim() : "";
+    if (/^[A-Z]{3}$/.test(code)) return code;
   }
   return best;
 }

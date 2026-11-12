@@ -57,7 +57,7 @@ const CogsRuleSchema = new Schema<ICogsRule>(
     prepCost:         { type: Number, default: 0 },
     otherLandedCost:  { type: Number, default: 0 },
     history:          [CogsHistorySchema],
-    currency:         { type: String, default: "USD" },
+    currency:         { type: String }, // No silent default: the API route always supplies an explicit or derived currency.
     applyToNewOrders: { type: Boolean, default: true },
   },
   { timestamps: true }

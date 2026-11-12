@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/db";
 import ProductModel from "@/models/Product";
 import { ProductsClient } from "./ProductsClient";
+import { getTeamBaseCurrency } from "@/lib/reporting";
 
 async function getProducts(teamId: string) {
   await connectDB();
@@ -11,10 +12,14 @@ async function getProducts(teamId: string) {
     .limit(200)
     .lean();
 
+  // A product with no stored currency is shown in the team's base
+  // currency — never silently relabelled USD.
+  const baseCurrency = await getTeamBaseCurrency(teamId);
+
   return products.map((p) => ({
     id: p._id.toString(),
     name: p.name,
-    currency: p.currency ?? "USD",
+    currency: p.currency ?? baseCurrency,
     sku: p.sku,
     defaultCogs: p.defaultCogs,
     totalRevenue: p.totalRevenue,

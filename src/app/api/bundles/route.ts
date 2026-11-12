@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db";
 import BundleModel from "@/models/Bundle";
 import { logger, toLogError } from "@/lib/logger";
 import { calcBundleMargin } from "@/lib/profit-engine";
+import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
 const DEFAULT_FEES_PCT = 5;
 
@@ -27,7 +28,9 @@ const CreateBundleSchema = z
     sku: z.string().trim().max(100).optional(),
     sellingPrice: z.number().min(0).max(1_000_000_000).default(0),
     components: z.array(ComponentSchema).min(1).max(200),
-    currency: z.string().length(3).toUpperCase().default("USD"),
+    // No silent USD default: when the client sends no currency, the
+    // server derives it (user display currency > team > store).
+    currency: z.string().length(3).toUpperCase().optional(),
   })
   .strict();
 
@@ -93,6 +96,16 @@ export async function POST(req: Request) {
     const { totalCogs, grossMargin, netMarginEstimate } = computeBundle(normalizedComponents, b.sellingPrice);
 
     await connectDB();
+    const currency =
+      b.currency ??
+      (await deriveMoneyCurrency({
+        userId: session.userId,
+        teamId: session.teamId,
+        storeId: b.storeId ?? null,
+      }));
+    if (!currency) {
+      return fail("Currency is required — set a display currency, a team currency, or connect a store", 400, "CURRENCY_REQUIRED");
+    }
     const bundle = await BundleModel.create({
       teamId: toObjectId(session.teamId),
       storeId: b.storeId ? toObjectId(b.storeId) : undefined,
@@ -103,7 +116,7 @@ export async function POST(req: Request) {
       totalCogs,
       grossMargin,
       netMarginEstimate,
-      currency: b.currency,
+      currency,
       isActive: true,
     });
 

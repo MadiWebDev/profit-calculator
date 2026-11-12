@@ -13,11 +13,12 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
-import { formatPercent, cn } from "@/lib/utils";
+import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { toIsoDateTime } from "@/lib/dates";
 import { uploadWithProgress } from "@/lib/upload-progress";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useCurrency } from "@/components/dashboard/CurrencyContext";
+import { CURRENCIES as ALL_CURRENCIES, getCurrencyDef, useCurrency } from "@/components/dashboard/CurrencyContext";
+import { defaultFormCurrency } from "@/lib/money-currency";
 import { useRole } from "@/components/dashboard/RoleContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -76,6 +77,10 @@ interface OrderFormState {
   orderDate: string;
   status: OrderStatus;
   customerEmail: string;
+  // The currency the amounts on this order are typed in. The user may
+  // pick a different currency than their display currency; the server
+  // stores exactly what is picked (never a silent USD).
+  currency: string;
   grossRevenue: string;
   discounts: string;
   totalCogs: string;
@@ -91,6 +96,9 @@ const EMPTY_FORM: OrderFormState = {
   orderDate: new Date().toISOString().slice(0, 10),
   status: "fulfilled",
   customerEmail: "",
+  // "" here is not a value: the modal defaults it to the display
+  // currency when it opens (see the useState initializer below).
+  currency: "",
   grossRevenue: "",
   discounts: "0",
   totalCogs: "0",
@@ -107,6 +115,7 @@ function orderRowToForm(o: OrderRow): OrderFormState {
     orderDate: o.orderDate.slice(0, 10),
     status: (STATUS_OPTIONS.includes(o.status as OrderStatus) ? o.status : "fulfilled") as OrderStatus,
     customerEmail: o.customerEmail ?? "",
+    currency: o.currency ?? "",
     grossRevenue: o.grossRevenue.toFixed(2),
     discounts: "0",
     totalCogs: o.totalCogs.toFixed(2),
@@ -137,8 +146,21 @@ function OrderFormModal({
   title, initialValues = EMPTY_FORM, submitLabel,
   onClose, onSubmit, loading, error,
 }: OrderFormProps) {
-  const [form, setForm] = useState<OrderFormState>(initialValues);
-  const { currency, symbol, formatMoney } = useCurrency();
+  // The display currency is read here (before the form state) because
+  // the form's currency defaults to it when the modal opens.
+  const { currency } = useCurrency();
+  const [form, setForm] = useState<OrderFormState>(() => ({
+    ...initialValues,
+    // The currency the user was working in when the form opened: the
+    // stored order currency when editing, else their display currency.
+    // The context always yields a valid code, so this never stays "".
+    currency: defaultFormCurrency(initialValues.currency, currency) ?? currency,
+  }));
+
+  // Amounts are typed in the order's own currency, so the input
+  // prefixes and the profit preview follow the selector — not the
+  // display currency — whenever the two differ.
+  const selectedDef = getCurrencyDef(form.currency);
 
   const set = (key: keyof OrderFormState, val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -256,6 +278,27 @@ function OrderFormModal({
             </div>
           </div>
 
+          {/* Currency — the amounts below are typed in this currency */}
+          <div className="space-y-1.5">
+            <Label htmlFor="of-currency">Currency</Label>
+            <select
+              id="of-currency"
+              value={form.currency}
+              onChange={(e) => set("currency", e.target.value)}
+              disabled={loading}
+              className="flex h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-1 text-sm text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
+            >
+              {ALL_CURRENCIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              Amounts on this order are in this currency. It defaults to your display currency — change it if this order was paid in another currency.
+            </p>
+          </div>
+
           {/* Divider */}
           <div className="border-t border-[var(--color-border)]" />
 
@@ -268,7 +311,7 @@ function OrderFormModal({
                 </Label>
                 <div className="relative">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-muted-foreground)] select-none">
-                    {symbol}
+                    {selectedDef.symbol}
                   </span>
                   <Input
                     id={`of-${key}`}
@@ -303,7 +346,7 @@ function OrderFormModal({
                 netProfitPreview >= 0 ? "text-green-700 dark:text-green-400" : "text-red-600"
               )}
             >
-              {formatMoney(netProfitPreview, currency)}
+              {formatCurrency(netProfitPreview, form.currency)}
             </span>
           </div>
 
@@ -716,6 +759,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
           orderDate:       toIsoDateTime(form.orderDate),
           status:          form.status,
           customerEmail:   form.customerEmail.trim() || undefined,
+          currency:        form.currency,
           grossRevenue:    n(form.grossRevenue),
           discounts:       n(form.discounts),
           totalCogs:       n(form.totalCogs),
@@ -755,6 +799,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
           orderDate:       toIsoDateTime(form.orderDate),
           status:          form.status,
           customerEmail:   form.customerEmail.trim() || undefined,
+          currency:        form.currency,
           grossRevenue:    n(form.grossRevenue),
           discounts:       n(form.discounts),
           totalCogs:       n(form.totalCogs),
@@ -782,6 +827,7 @@ export function OrdersClient({ data }: { data: OrdersData }) {
                   orderDate:       updated.order.orderDate,
                   status:          updated.order.status,
                   customerEmail:   updated.order.customerEmail,
+                  currency:        updated.order.currency,
                   grossRevenue:    updated.order.grossRevenue,
                   netRevenue:      updated.order.netRevenue,
                   totalCogs:       updated.order.totalCogs,

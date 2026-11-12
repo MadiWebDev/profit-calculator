@@ -12,6 +12,8 @@ export interface AuthedSession {
   role: string;       // platform role: "user" | "superAdmin"
   teamRole: TeamRole | null; // team-level role for permission checks
   email: string;
+  /** Locked per-user display currency (User.displayCurrency), null when unset. */
+  displayCurrency: string | null;
 }
 
 /**
@@ -53,6 +55,7 @@ export async function requireAuth(
 
   const user = session.user as {
     id?: string; teamId?: string; plan?: string; role?: string; teamRole?: TeamRole; email?: string;
+    displayCurrency?: string | null;
     twoFactorPending?: boolean;
   };
   // S1: a session that has not completed 2FA cannot call any API route
@@ -119,6 +122,7 @@ export async function requireAuth(
       role: user.role ?? "user",
       teamRole,
       email: user.email ?? "",
+      displayCurrency: user.displayCurrency ?? null,
     },
   };
 }

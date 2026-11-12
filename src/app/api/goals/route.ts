@@ -5,6 +5,7 @@ import { parseBody, fail, toObjectId } from "@/lib/validation";
 import { connectDB } from "@/lib/db";
 import ProfitGoalModel from "@/models/ProfitGoal";
 import { logger, toLogError } from "@/lib/logger";
+import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
 const CreateGoalSchema = z
   .object({
@@ -37,12 +38,21 @@ export async function POST(req: Request) {
       return fail("A goal for this month already exists", 409, "GOAL_EXISTS");
     }
 
+    // No silent USD default: derive the goal's currency from the
+    // session (user display currency > team > store). The goal's
+    // target is typed in the currency the user was working in; when
+    // nothing derives, the write is rejected instead of stamped USD.
+    const currency = await deriveMoneyCurrency({ userId: session.userId, teamId: session.teamId });
+    if (!currency) {
+      return fail("Currency is required — set a display currency, a team currency, or connect a store", 400, "CURRENCY_REQUIRED");
+    }
+
     const goal = await ProfitGoalModel.create({
       teamId: toObjectId(session.teamId),
       month,
       targetProfit,
       targetRevenue,
-      currency: "USD",
+      currency,
       alerts: {
         enabled: true,
         email: true,

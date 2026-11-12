@@ -84,7 +84,9 @@ export async function normalizeReportOrders(
 ): Promise<NormalizedReport> {
   const baseCurrency = await getTeamBaseCurrency(teamId);
   const items = orders.map((o) => ({
-    currency: (o.currency ?? "USD").toUpperCase().trim() || "USD",
+    // An order with no stored currency is treated as the team's base
+    // currency — never silently as USD.
+    currency: (o.currency ?? baseCurrency).toUpperCase().trim() || baseCurrency,
     costs: toCosts(o),
   }));
 

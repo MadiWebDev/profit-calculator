@@ -8,8 +8,8 @@
  * instagram AND order.utmCampaign must match a spend campaign id,
  * case-insensitive — see meta-attribution.ts) and computes per-campaign
  * profit = attributed revenue − COGS − fees − spend, plus break-even
- * ROAS. Spend is converted from the ad account currency to the store
- * currency with live FX rates; if conversion fails and currencies
+ * ROAS. Spend is converted from the ad account currency to the team's
+ * base currency with live FX rates; if conversion fails and currencies
  * differ, the endpoint returns 503 instead of silently reporting
  * unconverted spend. Spend with no attributed orders is reported
  * separately as unattributedSpend, never spread across campaigns.
@@ -24,7 +24,7 @@ import { connectDB } from "@/lib/db";
 import AdAccountModel from "@/models/AdAccount";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
 import OrderModel from "@/models/Order";
-import StoreModel from "@/models/Store";
+import { getTeamBaseCurrency } from "@/lib/reporting";
 import {
   attributeSpendToCampaigns,
   detectSpendAlerts,
@@ -49,7 +49,7 @@ async function buildAttribution(
   to: Date,
   adAccountId: string | undefined,
   rates: Record<string, number>,
-  storeCurrency: string
+  baseCurrency: string
 ) {
   await connectDB();
   const teamOid = toObjectId(teamId);
@@ -72,10 +72,10 @@ async function buildAttribution(
     spend: convertAdSpend(
       d.spend ?? 0,
       d.currency ?? currencyByAccount.get(d.adAccountId.toString()) ?? "USD",
-      storeCurrency,
+      baseCurrency,
       rates
     ),
-    currency: storeCurrency,
+    currency: baseCurrency,
   }));
 
   const orders = await OrderModel.find({
@@ -117,10 +117,7 @@ export async function GET(req: Request) {
   }
 
   await connectDB();
-  const store = await StoreModel.findOne({ teamId: toObjectId(session.teamId) })
-    .select("currency")
-    .lean();
-  const storeCurrency = store?.currency ?? "USD";
+  const baseCurrency = await getTeamBaseCurrency(session.teamId);
 
   let rates: Record<string, number> = {};
   try {
@@ -132,7 +129,7 @@ export async function GET(req: Request) {
   const needsFx = (await AdAccountModel.findOne({
     teamId: toObjectId(session.teamId),
     platform: "meta",
-    currency: { $ne: storeCurrency },
+    currency: { $ne: baseCurrency },
   }).lean()) !== null;
   if (needsFx && Object.keys(rates).length === 0) {
     return NextResponse.json(
@@ -141,11 +138,11 @@ export async function GET(req: Request) {
     );
   }
 
-  const current = await buildAttribution(session.teamId, from, to, parsed.data.adAccountId, rates, storeCurrency);
+  const current = await buildAttribution(session.teamId, from, to, parsed.data.adAccountId, rates, baseCurrency);
   const periodMs = to.getTime() - from.getTime();
   const prevTo = new Date(from.getTime() - 1);
   const prevFrom = new Date(prevTo.getTime() - periodMs);
-  const prev = await buildAttribution(session.teamId, prevFrom, prevTo, parsed.data.adAccountId, rates, storeCurrency);
+  const prev = await buildAttribution(session.teamId, prevFrom, prevTo, parsed.data.adAccountId, rates, baseCurrency);
   const prevPeriod: PrevCampaignPeriod[] = prev.campaigns.map((c) => ({
     campaignId: c.campaignId,
     spend: c.spend,
@@ -155,7 +152,7 @@ export async function GET(req: Request) {
   const alerts = detectSpendAlerts(current.campaigns, prevPeriod);
 
   return NextResponse.json({
-    currency: storeCurrency,
+    currency: baseCurrency,
     period: { from: from.toISOString(), to: to.toISOString() },
     campaigns: current.campaigns,
     unattributedSpend: current.unattributedSpend,

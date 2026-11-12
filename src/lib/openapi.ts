@@ -168,7 +168,7 @@ export const openApiSpec = {
                   productId: { type: "string" },
                   variantId: { type: "string" },
                   cogs: { type: "number", minimum: 0 },
-                  currency: { type: "string", default: "USD" },
+                  currency: { type: "string", description: "3-letter ISO code; when omitted, derived from the team's currency, then the store's currency — never silently USD." },
                 },
               },
             },

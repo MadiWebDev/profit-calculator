@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,12 +12,22 @@ import { useCurrency } from "@/components/dashboard/CurrencyContext";
 interface Gateway { gateway: string; orders: number; revenue: number; recordedFees: number; recomputed: number | null; delta: number | null; rule: { percent: number; fixed: number; currency: string; payoutDelayDays: number; codHandling: string } | null }
 
 export default function GatewaysPage() {
-  const { formatMoney, baseCurrency } = useCurrency();
+  const { formatMoney, baseCurrency, currency: displayCurrency } = useCurrency();
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ gateway: "", currency: "USD", percent: "", fixed: "", payoutDelayDays: "0", effectiveFrom: new Date().toISOString().slice(0, 10) });
+  // The fee is typed in the currency the user is working in — never a
+  // hardcoded USD. The display currency resolves after mount; adopt
+  // it until the user types another one.
+  const [form, setForm] = useState({ gateway: "", currency: displayCurrency, percent: "", fixed: "", payoutDelayDays: "0", effectiveFrom: new Date().toISOString().slice(0, 10) });
   const [msg, setMsg] = useState<string | null>(null);
+  const currencyTouchedRef = useRef(false);
+
+  useEffect(() => {
+    if (!currencyTouchedRef.current) {
+      setForm((f) => (f.currency === displayCurrency ? f : { ...f, currency: displayCurrency }));
+    }
+  }, [displayCurrency]);
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -58,7 +68,7 @@ export default function GatewaysPage() {
         <form onSubmit={submit}>
           <fieldset disabled={submitAction.loading} className="grid sm:grid-cols-2 gap-3 border-0 m-0 min-w-0 p-0">
           <div className="space-y-1"><Label htmlFor="gw-name">Gateway (as it appears on orders)</Label><Input id="gw-name" required value={form.gateway} onChange={(e) => setForm({ ...form, gateway: e.target.value })} placeholder="e.g. Stripe, COD" /></div>
-          <div className="space-y-1"><Label htmlFor="gw-cur">Currency</Label><Input id="gw-cur" required value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></div>
+          <div className="space-y-1"><Label htmlFor="gw-cur">Currency</Label><Input id="gw-cur" required value={form.currency} onChange={(e) => { currencyTouchedRef.current = true; setForm({ ...form, currency: e.target.value }); }} /></div>
           <div className="space-y-1"><Label htmlFor="gw-pct">Fee percent</Label><Input id="gw-pct" type="number" min="0" max="100" step="0.01" required value={form.percent} onChange={(e) => setForm({ ...form, percent: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="gw-fixed">Fixed fee per order</Label><Input id="gw-fixed" type="number" min="0" step="0.01" required value={form.fixed} onChange={(e) => setForm({ ...form, fixed: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="gw-delay">Payout delay (days)</Label><Input id="gw-delay" type="number" min="0" value={form.payoutDelayDays} onChange={(e) => setForm({ ...form, payoutDelayDays: e.target.value })} /></div>
