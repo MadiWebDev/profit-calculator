@@ -32,12 +32,7 @@ export function DashboardTopbar({ userName, userEmail, plan, role }: DashboardTo
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link href="/dashboard" className="flex items-center gap-2 font-bold">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--color-primary)] text-white">
-            <Calculator className="h-3.5 w-3.5" />
-          </span>
-          <span className="text-sm">Profit<span className="text-[var(--color-primary)]">Calc</span></span>
-        </Link> 
+       
         <div className="ml-auto flex items-center gap-1">
           <CurrencyConverter />
           <CurrencySelector size="sm" />
