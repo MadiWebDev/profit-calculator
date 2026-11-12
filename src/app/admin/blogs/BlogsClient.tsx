@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -51,6 +50,11 @@ import type { BadgeProps } from "@/components/ui/badge";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { LoadingImage } from "@/components/ui/loading-image";
+import { useAsyncAction } from "@/hooks/use-async-action";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 interface Blog {
   _id: string;
@@ -89,9 +93,13 @@ export default function BlogsClient() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
+  const { debouncedValue: debouncedSearchQuery, isPending: searchPending, flush: flushSearch } = useDebouncedValue(searchQuery);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  // True once the first fetch has settled — refetches keep the list.
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const firstLoad = loading && !loadedOnce;
 
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -111,8 +119,8 @@ export default function BlogsClient() {
         params.set("status", statusFilter);
       }
 
-      if (searchQuery) {
-        params.set("search", searchQuery);
+      if (debouncedSearchQuery) {
+        params.set("search", debouncedSearchQuery);
       }
 
       const res = await fetch(`/api/admin/blogs?${params}`);
@@ -126,8 +134,9 @@ export default function BlogsClient() {
       toast.error("Failed to fetch blogs");
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
-  }, [pagination.page, pagination.limit, sortBy, sortOrder, statusFilter, searchQuery]);
+  }, [pagination.page, pagination.limit, sortBy, sortOrder, statusFilter, debouncedSearchQuery]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- mount/filter-time data fetch: loading state flips after the client-side fetch completes; no SSR alternative for the admin list */
   useEffect(() => {
@@ -137,11 +146,13 @@ export default function BlogsClient() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    // Apply the typed term at once; the fetch effect runs off the settled
+    // value, so no direct fetch call is needed here.
     setPagination((prev) => ({ ...prev, page: 1 }));
-    fetchBlogs();
+    flushSearch();
   };
 
-  const handleDelete = async () => {
+  const deleteAction = useAsyncAction(async () => {
     if (!blogToDelete) return;
 
     try {
@@ -160,6 +171,10 @@ export default function BlogsClient() {
       setDeleteDialogOpen(false);
       setBlogToDelete(null);
     }
+  });
+
+  const handleDelete = () => {
+    void deleteAction.run();
   };
 
   const getStatusBadge = (status: string) => {
@@ -272,8 +287,14 @@ export default function BlogsClient() {
               placeholder="Search blogs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-9 pr-9"
+              aria-label="Search blogs"
             />
+            {(searchPending || loading) && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                <Spinner size="sm" label="" />
+              </span>
+            )}
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full md:w-40">
@@ -318,10 +339,8 @@ export default function BlogsClient() {
 
       {/* Blogs List */}
       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg overflow-hidden">
-        {loading ? (
-          <div className="p-12 text-center text-[var(--color-muted-foreground)]">
-            Loading...
-          </div>
+        {firstLoad ? (
+          <div className="p-5"><ListSkeleton rows={5} /></div>
         ) : blogs.length === 0 ? (
           <div className="p-12 text-center">
             <FileText className="h-12 w-12 mx-auto text-[var(--color-muted-foreground)] mb-4" />
@@ -349,12 +368,13 @@ export default function BlogsClient() {
                   {/* Featured Image */}
                   {blog.featuredImage ? (
                     <div className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-muted)]">
-                      <Image
+                      <LoadingImage
                         src={blog.featuredImage}
                         alt={blog.title}
                         width={96}
                         height={96}
                         className="w-full h-full object-cover"
+                        wrapperClassName="h-full w-full"
                       />
                     </div>
                   ) : (
@@ -468,6 +488,11 @@ export default function BlogsClient() {
             Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
             {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
             {pagination.total} blogs
+            {loading && (
+              <span className="ml-2 inline-flex items-center gap-1">
+                <Spinner size="sm" label="" /> Updating…
+              </span>
+            )}
           </div>
           <div className="flex gap-2">
             <Button
@@ -476,7 +501,7 @@ export default function BlogsClient() {
               onClick={() =>
                 setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
               }
-              disabled={pagination.page === 1}
+              disabled={pagination.page === 1 || loading}
             >
               Previous
             </Button>
@@ -493,6 +518,7 @@ export default function BlogsClient() {
                       key={page}
                       variant={page === pagination.page ? "default" : "outline"}
                       size="sm"
+                      disabled={loading}
                       onClick={() =>
                         setPagination((prev) => ({ ...prev, page }))
                       }
@@ -515,7 +541,7 @@ export default function BlogsClient() {
               onClick={() =>
                 setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
               }
-              disabled={pagination.page === pagination.pages}
+              disabled={pagination.page === pagination.pages || loading}
             >
               Next
             </Button>
@@ -537,9 +563,11 @@ export default function BlogsClient() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={deleteAction.loading}
+              aria-busy={deleteAction.loading || undefined}
               className="bg-red-600 hover:bg-red-700"
             >
-              Delete
+              {deleteAction.loading ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

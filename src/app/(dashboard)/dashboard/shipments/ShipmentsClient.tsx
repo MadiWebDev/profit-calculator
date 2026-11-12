@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Ship,
   Search,
   Truck,
   AlertTriangle,
-  Loader2,
   RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { StatsSkeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/dashboard/DashboardSkeleton";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 interface ShipmentItem {
@@ -40,10 +43,18 @@ export function ShipmentsClient() {
   const [pages, setPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [search, setSearch] = useState("");
+  const { debouncedValue: debouncedSearch, isPending: searchPending } = useDebouncedValue(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True once the first fetch has settled — distinguishes the first load
+  // (skeletons) from refetches (keep content, show an inline spinner).
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  // Sequence guard: a slow, superseded fetch (e.g. an older search term)
+  // must not overwrite newer results.
+  const requestSeq = useRef(0);
 
   const fetchShipments = useCallback(async () => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -52,20 +63,23 @@ export function ShipmentsClient() {
         limit: "50",
       });
       if (statusFilter) params.set("status", statusFilter);
-      if (search.trim()) params.set("city", search.trim());
+      if (debouncedSearch.trim()) params.set("city", debouncedSearch.trim());
 
       const res = await fetch(`/api/couriers/shipments?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to load shipments");
       const json = await res.json();
+      if (requestSeq.current !== seq) return; // superseded by a newer fetch
       setShipments(json.shipments ?? []);
       setTotal(json.total ?? 0);
       setPages(json.pages ?? 1);
     } catch {
+      if (requestSeq.current !== seq) return;
       setError("Could not load shipments. Please check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (requestSeq.current === seq) setLoading(false);
+      setLoadedOnce(true);
     }
-  }, [page, statusFilter, search]);
+  }, [page, statusFilter, debouncedSearch]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- initial load */
   useEffect(() => {
@@ -76,6 +90,7 @@ export function ShipmentsClient() {
   const deliveredCount = shipments.filter((s) => s.status === "delivered").length;
   const inTransitCount = shipments.filter((s) => ["in_transit", "out_for_delivery", "booked"].includes(s.status)).length;
   const rtoCount = shipments.filter((s) => ["rto", "returned"].includes(s.status)).length;
+  const firstLoad = loading && !loadedOnce;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -113,13 +128,16 @@ export function ShipmentsClient() {
               <Truck className="h-4 w-4" /> Courier Analytics →
             </Button>
           </Link>
-          <Button size="sm" variant="ghost" onClick={fetchShipments} disabled={loading}>
+          <Button size="sm" variant="ghost" onClick={fetchShipments} disabled={loading} aria-label="Refresh shipments" title="Refresh shipments">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
 
       {/* Summary KPI Cards */}
+      {firstLoad ? (
+        <StatsSkeleton count={4} />
+      ) : (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-1">
@@ -146,6 +164,7 @@ export function ShipmentsClient() {
           <CardContent className="text-2xl font-bold text-red-500">{rtoCount}</CardContent>
         </Card>
       </div>
+      )}
 
       {/* Filter and Search Bar */}
       <Card>
@@ -154,10 +173,16 @@ export function ShipmentsClient() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-muted-foreground)]" />
             <Input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by city or destination..."
-              className="pl-9 h-9"
+              className="pl-9 pr-9 h-9"
+              aria-label="Search shipments by city or destination"
             />
+            {(searchPending || loading) && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted-foreground)]">
+                <Spinner size="sm" label="" />
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <select
@@ -181,25 +206,22 @@ export function ShipmentsClient() {
         </CardContent>
       </Card>
 
-      {/* Main Content Area */}
-      {loading ? (
-        <Card>
-          <CardContent className="py-12 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-[var(--color-primary)]" />
-            <p className="text-sm text-[var(--color-muted-foreground)]">Loading shipment records...</p>
-          </CardContent>
-        </Card>
-      ) : error ? (
+      {/* Main Content Area — on a refetch error the previous table stays
+          visible under the error card; only the first load uses a skeleton. */}
+      {error && (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
             <AlertTriangle className="h-8 w-8 text-red-500 mx-auto" />
-            <p className="text-sm text-red-600">{error}</p>
+            <p role="alert" className="text-sm text-red-600">{error}</p>
             <Button variant="outline" size="sm" onClick={fetchShipments}>
               Retry
             </Button>
           </CardContent>
         </Card>
-      ) : shipments.length === 0 ? (
+      )}
+      {firstLoad ? (
+        <TableSkeleton rows={8} />
+      ) : shipments.length === 0 && !error ? (
         <Card>
           <CardContent className="py-14 text-center space-y-4">
             <div className="w-12 h-12 rounded-full bg-[var(--color-muted)] flex items-center justify-center mx-auto text-2xl">
@@ -232,7 +254,7 @@ export function ShipmentsClient() {
             </div>
           </CardContent>
         </Card>
-      ) : (
+      ) : shipments.length > 0 ? (
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -285,13 +307,18 @@ export function ShipmentsClient() {
             <div className="flex items-center justify-between p-4 border-t border-[var(--color-border)]">
               <span className="text-xs text-[var(--color-muted-foreground)]">
                 Page {page} of {pages} ({total} total shipments)
+                {loading && (
+                  <span className="ml-2 inline-flex items-center gap-1">
+                    <Spinner size="sm" label="" /> Updating…
+                  </span>
+                )}
               </span>
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
+                  disabled={page <= 1 || loading}
                 >
                   Previous
                 </Button>
@@ -299,7 +326,7 @@ export function ShipmentsClient() {
                   size="sm"
                   variant="outline"
                   onClick={() => setPage((p) => Math.min(pages, p + 1))}
-                  disabled={page >= pages}
+                  disabled={page >= pages || loading}
                 >
                   Next
                 </Button>
@@ -307,7 +334,7 @@ export function ShipmentsClient() {
             </div>
           )}
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -27,7 +27,6 @@ import {
   Check,
   CheckCircle,
   ArrowRight,
-  Loader2,
   Zap,
   Shield,
   X,
@@ -221,7 +220,7 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
     })();
 
     return () => { cancelled = true; };
-  }, [router]);
+  }, [router, paddleCustomerId]); // paddleCustomerId is a stable server prop; re-init if it ever changed
 
   // ── Fetch localised prices via PricePreview ──────────────────────────────
   // Re-runs whenever Paddle is ready (so we have the instance) or the
@@ -557,20 +556,13 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
                   className="w-full mb-5 gap-1.5"
                   variant={isHighlighted ? "default" : "outline"}
                   disabled={anyOpening || !paddleReady}
+                  loading={isOpening}
+                  loadingText="Opening…"
                   onClick={() => handleSubscribe(tier)}
                   aria-label={`Subscribe to ${tier.name}`}
                 >
-                  {isOpening ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                      Opening…
-                    </>
-                  ) : (
-                    <>
-                      Subscribe
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </>
-                  )}
+                  Subscribe
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
 
                 {/* Feature list */}

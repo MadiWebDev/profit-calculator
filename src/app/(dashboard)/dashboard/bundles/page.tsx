@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
-import { Plus, Trash2, Package, Loader2, Edit2, AlertCircle, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Package, Edit2, AlertCircle, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CardSkeleton } from "@/components/ui/skeleton";
+import { useAsyncAction } from "@/hooks/use-async-action";
 import { formatPercent, cn } from "@/lib/utils";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
@@ -33,7 +36,6 @@ export default function BundlesPage() {
   const [bundles, setBundles] = useState<BundleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -86,8 +88,8 @@ export default function BundlesPage() {
   useEffect(() => { load(); }, [load]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const onSubmit = async (data: BundleForm) => {
-    setSaving(true); setError(null);
+  const saveAction = useAsyncAction(async (data: BundleForm) => {
+    setError(null);
     try {
       // Numeric RHF fields become NaN when a user clears the input; catch that
       // before it ever reaches the network so the error is actionable.
@@ -122,7 +124,11 @@ export default function BundlesPage() {
       reset(); setShowForm(false); setEditId(null); await load();
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
-    } finally { setSaving(false); }
+    }
+  });
+
+  const onSubmit = (data: BundleForm) => {
+    void saveAction.run(data);
   };
 
   const deleteBundle = async (id: string) => {
@@ -174,9 +180,10 @@ export default function BundlesPage() {
             <CardTitle className="text-base">{editId ? "Edit Bundle" : "Create Bundle"}</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <fieldset disabled={saveAction.loading} className="space-y-5 border-0 m-0 min-w-0 p-0">
               {error && (
-                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 rounded-lg px-3 py-2">
+                <div role="alert" className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 rounded-lg px-3 py-2">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />{error}
                 </div>
               )}
@@ -351,26 +358,26 @@ export default function BundlesPage() {
               </div>
 
               <div className="flex gap-2">
-                <Button type="submit" disabled={saving} className="gap-2">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                <Button type="submit" loading={saveAction.loading} loadingText={editId ? "Saving changes…" : "Creating bundle…"} className="gap-2">
                   {editId ? "Save Changes" : "Create Bundle"}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditId(null); setError(null); reset(); }}>Cancel</Button>
               </div>
+              </fieldset>
             </form>
           </CardContent>
         </Card>
       )}
 
       {loadError && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 rounded-lg px-3 py-2">
+        <div role="alert" className="flex items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-950 border border-red-200 rounded-lg px-3 py-2">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />{loadError}
         </div>
       )}
 
       {/* Bundles list */}
       {loading ? (
-        <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-20 rounded-xl bg-[var(--color-muted)] animate-pulse" />)}</div>
+        <div className="space-y-3">{[1, 2, 3].map((i) => <CardSkeleton key={i} />)}</div>
       ) : bundles.length === 0 ? (
         <div className="space-y-6">
           {/* Empty state CTA */}
@@ -474,7 +481,7 @@ export default function BundlesPage() {
                         className="h-8 text-red-400 hover:text-red-600"
                         disabled={deletingId === b.id}
                       >
-                        {deletingId === b.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        {deletingId === b.id ? <Spinner size="sm" label="" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </Button>
                     </div>
                   </div>

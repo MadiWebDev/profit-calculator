@@ -7,6 +7,7 @@ import {
   AlertTriangle, MinusCircle, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface JobInfo {
   name: string;
@@ -105,9 +106,9 @@ export function JobsClient({ jobs, recentRuns }: {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-600">
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-600">
           <XCircle className="h-4 w-4 flex-shrink-0" />{error}
-          <button className="ml-auto" onClick={() => setError(null)}>✕</button>
+          <button className="ml-auto" onClick={() => setError(null)} aria-label="Dismiss error">✕</button>
         </div>
       )}
 
@@ -135,16 +136,15 @@ export function JobsClient({ jobs, recentRuns }: {
                 <p className="text-red-500 truncate" title={job.lastRun.error}>{job.lastRun.error}</p>
               )}
             </div>
-            <button
+            <Button
               onClick={() => triggerJob(job.name)}
+              loading={running === job.name}
+              loadingText="Starting…"
               disabled={running !== null}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="gap-2"
             >
-              {running === job.name
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</>
-                : <><Play className="h-4 w-4" /> Run now</>
-              }
-            </button>
+              <Play className="h-4 w-4" /> Run now
+            </Button>
           </div>
         ))}
       </div>

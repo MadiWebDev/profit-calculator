@@ -4,9 +4,11 @@ import { useState, useRef } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, Loader2, CheckCircle, Mail, X } from "lucide-react";
+import { Eye, EyeOff, CheckCircle, Mail, X } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { useAsyncAction } from "@/hooks/use-async-action";
 
 const perks = [
   "7-day free trial — no credit card",
@@ -17,32 +19,15 @@ const perks = [
 export default function RegisterPage() {
   const router = useRouter();
   const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<{ name?: string; email?: string; password?: string }>({});
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
-  const [resending, setResending] = useState(false);
 
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const name = nameRef.current?.value?.trim() ?? "";
-    const email = emailRef.current?.value?.trim() ?? "";
-    const password = passwordRef.current?.value ?? "";
-
-    const errs: typeof err = {};
-    if (!name) errs.name = "Name is required";
-    if (!email) errs.email = "Email is required";
-    if (!password) errs.password = "Password is required";
-    else if (password.length < 10) errs.password = "At least 10 characters";
-    if (Object.keys(errs).length) { setErr(errs); return; }
-    setErr({});
-
-    setLoading(true);
+  const registerAction = useAsyncAction(async (name: string, email: string, password: string) => {
     const tid = toast.loading("Creating your account…");
 
     try {
@@ -82,14 +67,29 @@ export default function RegisterPage() {
       }
     } catch {
       toast.error("Something went wrong. Try again.", { id: tid });
-    } finally {
-      setLoading(false);
     }
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const name = nameRef.current?.value?.trim() ?? "";
+    const email = emailRef.current?.value?.trim() ?? "";
+    const password = passwordRef.current?.value ?? "";
+
+    const errs: typeof err = {};
+    if (!name) errs.name = "Name is required";
+    if (!email) errs.email = "Email is required";
+    if (!password) errs.password = "Password is required";
+    else if (password.length < 10) errs.password = "At least 10 characters";
+    if (Object.keys(errs).length) { setErr(errs); return; }
+    setErr({});
+
+    void registerAction.run(name, email, password);
   };
 
-  const resendVerification = async () => {
-    if (!registeredEmail || resending) return;
-    setResending(true);
+  const resendAction = useAsyncAction(async () => {
+    if (!registeredEmail) return;
     try {
       await fetch("/api/auth/verify-email/resend", {
         method: "POST",
@@ -99,9 +99,12 @@ export default function RegisterPage() {
       toast.success("Verification email resent — check your inbox.");
     } catch {
       toast.error("Could not resend the email. Try again.");
-    } finally {
-      setResending(false);
     }
+  });
+
+  const resendVerification = () => {
+    if (!registeredEmail) return;
+    void resendAction.run();
   };
 
   return (
@@ -158,10 +161,11 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={resendVerification}
-                  disabled={resending}
+                  disabled={resendAction.loading}
+                  aria-busy={resendAction.loading || undefined}
                   className="text-[var(--color-primary)] font-medium hover:underline disabled:opacity-50"
                 >
-                  {resending ? "Sending…" : "Resend email"}
+                  {resendAction.loading ? "Sending…" : "Resend email"}
                 </button>
               </p>
             </div>
@@ -214,7 +218,7 @@ export default function RegisterPage() {
                 autoComplete="name"
                 placeholder="Your name"
                 ref={nameRef}
-                disabled={loading}
+                disabled={registerAction.loading}
                 className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
               />
               {err.name && <p className="text-xs text-red-500">{err.name}</p>}
@@ -229,7 +233,7 @@ export default function RegisterPage() {
                 autoComplete="email"
                 placeholder="you@example.com"
                 ref={emailRef}
-                disabled={loading}
+                disabled={registerAction.loading}
                 className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
               />
               {err.email && <p className="text-xs text-red-500">{err.email}</p>}
@@ -245,7 +249,7 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   placeholder="Min. 10 characters"
                   ref={passwordRef}
-                  disabled={loading}
+                  disabled={registerAction.loading}
                   className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 pr-10 text-sm placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50"
                 />
                 <button
@@ -260,13 +264,14 @@ export default function RegisterPage() {
               {err.password && <p className="text-xs text-red-500">{err.password}</p>}
             </div>
 
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className="w-full h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+              loading={registerAction.loading}
+              loadingText="Creating account…"
+              className="w-full"
             >
-              {loading ? <><Loader2 className="h-4 w-4 animate-spin"/>Creating account…</> : "Create Free Account"}
-            </button>
+              Create Free Account
+            </Button>
 
             <p className="text-xs text-center text-[var(--color-muted-foreground)]">
               By signing up you agree to our{" "}

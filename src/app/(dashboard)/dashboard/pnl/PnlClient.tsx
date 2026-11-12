@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { Download, TrendingUp, TrendingDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,7 +142,14 @@ export function PnlClient({
           </span>
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-foreground)]">P&L Statement</h1>
-            <p className="text-sm text-[var(--color-muted-foreground)]">{from} — {to}</p>
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              {from} — {to}
+              {isPending && (
+                <span className="ml-2 inline-flex items-center gap-1">
+                  <Spinner size="sm" label="" /> Updating…
+                </span>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-3">
@@ -154,7 +162,7 @@ export function PnlClient({
               <Label className="text-xs">To</Label>
               <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 text-sm" />
             </div>
-            <Button size="sm" className="h-8" onClick={apply} disabled={isPending}>Apply</Button>
+            <Button size="sm" className="h-8" onClick={apply} loading={isPending} loadingText="Loading…">Apply</Button>
           </div>
           <Button variant="outline" size="sm" className="h-8 gap-2" onClick={() => exportPnlCSV(s, from, to)}>
             <Download className="h-3.5 w-3.5" /> Export CSV
