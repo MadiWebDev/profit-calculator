@@ -38,16 +38,6 @@ const PLAN_FEATURES: Record<string, string[]> = {
   pro:     ["Unlimited orders", "Unlimited stores", "All ad platforms", "Real-time AI insights", "API access", "5 team members"],
 };
 
-const TIMEZONES = [
-  "UTC",
-  "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-  "America/Sao_Paulo", "America/Toronto", "America/Vancouver",
-  "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Madrid",
-  "Europe/Rome", "Europe/Amsterdam", "Europe/Warsaw", "Europe/Istanbul",
-  "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo",
-  "Asia/Shanghai", "Asia/Seoul", "Australia/Sydney", "Pacific/Auckland",
-];
-
 // Interval toggle config — mirrors PricingClient exactly
 const INTERVALS: { iv: PricingInterval; label: string; saving: string | null }[] = [
   { iv: "month",      label: "Monthly",    saving: null    },
@@ -304,11 +294,6 @@ export function SettingsClient({
     return list;
   }, [currencySearch, pickedCurrency]);
 
-  // ── Workspace state ───────────────────────────────────────────────────────
-  const [wsName,          setWsName]          = useState(data.team?.name     ?? "");
-  const [wsCurrency,      setWsCurrency]      = useState(data.team?.currency ?? "USD");
-  const [wsTimezone,      setWsTimezone]      = useState(data.team?.timezone ?? "UTC");
-
   // ── Notifications state ───────────────────────────────────────────────────
   const [notifPrefs, setNotifPrefs] = useState({
     email_goal_behind: true,
@@ -397,22 +382,6 @@ export function SettingsClient({
     if (!pickedCurrency) return;
     await persistCurrency(pickedCurrency);
   });
-
-  const saveWorkspaceAction = useAsyncAction(async () => {
-    try {
-      const res = await fetch("/api/team", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: wsName.trim(), currency: wsCurrency, timezone: wsTimezone }),
-      });
-      if (res.ok) { setFeedback("ok", "Workspace settings saved."); router.refresh(); }
-      else { const j = await res.json(); setFeedback("err", j.error ?? "Save failed."); }
-    } catch { setFeedback("err", "Save failed. Check your connection and try again."); }
-  });
-
-  const saveWorkspace = () => {
-    void saveWorkspaceAction.run();
-  };
 
   const saveNotifsAction = useAsyncAction(async () => {
     try {
@@ -578,7 +547,7 @@ export function SettingsClient({
       <div>
         <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Settings</h1>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">
-          Manage your account, billing, and workspace preferences.
+          Manage your account and billing preferences.
         </p>
       </div>
 
@@ -769,53 +738,11 @@ export function SettingsClient({
               ) : (
                 <p className="text-xs text-[var(--color-muted-foreground)]">
                   Not set yet — you will set it the next time the onboarding prompt appears on your dashboard.
-                  Your workspace timezone (below) is unchanged in the meantime.
                 </p>
               )}
             </CardContent>
           </Card>
 
-          {data.team && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Store className="h-4 w-4" /> Workspace
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Workspace Name</Label>
-                  <Input value={wsName} onChange={(e) => setWsName(e.target.value)} className="h-9" disabled={saveWorkspaceAction.loading} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs flex items-center gap-1"><Globe className="h-3 w-3" /> Currency</Label>
-                    <select value={wsCurrency} onChange={(e) => setWsCurrency(e.target.value)} disabled={saveWorkspaceAction.loading}
-                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm disabled:opacity-50">
-                      {ALL_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
-                      {/* A stored team currency outside the registry (the API
-                          accepts any 3-letter code) is kept as an extra option
-                          so the current value is never lost from the list. */}
-                      {!ALL_CURRENCIES.some((c) => c.code === wsCurrency) && wsCurrency && (
-                        <option key={wsCurrency} value={wsCurrency}>{wsCurrency}</option>
-                      )}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs flex items-center gap-1"><Clock className="h-3 w-3" /> Timezone</Label>
-                    <select value={wsTimezone} onChange={(e) => setWsTimezone(e.target.value)} disabled={saveWorkspaceAction.loading}
-                      className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm disabled:opacity-50">
-                      {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <Button size="sm" variant="outline" className="gap-2" onClick={saveWorkspace} loading={saveWorkspaceAction.loading} loadingText="Saving…">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Save Workspace Settings
-                </Button>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
 
