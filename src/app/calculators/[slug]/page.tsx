@@ -21,6 +21,10 @@ import {
 } from "@/config/calculators";
 
 import { ProfitCalculator } from "@/components/ProfitCalculator";
+import {
+  CalculatorCurrencyProvider,
+  CalculatorCurrencyText,
+} from "@/components/CalculatorCurrencyContext";
 import { CalculatorCard } from "@/components/CalculatorCard";
 import { AdSlot } from "@/components/AdSlot";
 import { Badge } from "@/components/ui/badge";
@@ -187,9 +191,14 @@ export default async function CalculatorPage({
       </nav>
 
       {/* -------------------------------------------------
-       * MAIN
+       * MAIN — wrapped in the calculator's own currency
+       * scope (Phase 2): the selector in ProfitCalculator
+       * and the example/FAQ amounts below all follow the
+       * page-local currency. JSON-LD / metadata above keep
+       * the raw text.
        * ------------------------------------------------- */}
 
+      <CalculatorCurrencyProvider>
       <main>
 
         {/* -------------------------------------------------
@@ -470,15 +479,9 @@ export default async function CalculatorPage({
                       {index + 1}
                     </span>
 
-                    <p
-                      className="pt-1 text-sm leading-6 text-[var(--color-muted-foreground)]"
-                      dangerouslySetInnerHTML={{
-                        __html: step.replace(
-                          /\*\*(.+?)\*\*/g,
-                          '<strong class="text-[var(--color-foreground)]">$1</strong>'
-                        ),
-                      }}
-                    />
+                    <p className="pt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
+                      <CalculatorCurrencyText text={step} bold />
+                    </p>
                   </li>
                 )
               )}
@@ -515,7 +518,7 @@ export default async function CalculatorPage({
 
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm sm:p-6">
                 <pre className="whitespace-pre-wrap text-sm leading-7 text-[var(--color-muted-foreground)]">
-                  {seoContent.workedExample}
+                  <CalculatorCurrencyText text={seoContent.workedExample} />
                 </pre>
               </div>
             </section>
@@ -582,7 +585,7 @@ export default async function CalculatorPage({
 
                   <div className="border-t border-[var(--color-border)] px-5 pb-5 pt-4">
                     <p className="text-sm leading-7 text-[var(--color-muted-foreground)]">
-                      {a}
+                      <CalculatorCurrencyText text={a} />
                     </p>
                   </div>
                 </details>
@@ -650,6 +653,7 @@ export default async function CalculatorPage({
         )}
 
       </main>
+      </CalculatorCurrencyProvider>
 
       {/* -------------------------------------------------
        * FLOATING MOBILE CTA

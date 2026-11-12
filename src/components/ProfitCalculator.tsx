@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback, useState, useRef } from "react";
+import { useMemo, useCallback, useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Copy, Share2, RefreshCw, TrendingUp, TrendingDown, Minus, Info, Download } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -11,8 +11,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResultsChart } from "@/components/ResultsChart";
-import { formatCurrency, formatPercent, formatNumber, buildShareUrl, cn } from "@/lib/utils";
-import { useCurrency } from "@/components/dashboard/CurrencyContext";
+import { cn } from "@/lib/utils";
+import {
+  buildCalculatorShareText,
+  buildCalculatorShareUrl,
+  formatCalculatorAmount,
+  formatCalculatorOutput,
+  localizeCurrencyText,
+  parseCalculatorCurrencyParam,
+} from "@/lib/calculator-currency";
+import { useCalculatorCurrency } from "@/components/CalculatorCurrencyContext";
+import { CalculatorCurrencySelector } from "@/components/CalculatorCurrencySelector";
+import { normalizeSavedCurrency } from "@/components/dashboard/CurrencyContext";
 import { logger } from "@/lib/logger";
 
 interface ProfitCalculatorProps {
@@ -20,14 +30,14 @@ interface ProfitCalculatorProps {
   slug: string;
 }
 
-function makeFormatOutput(currency: string) {
+function makeFormatOutput(currency: string, locale: string) {
   return function formatOutput(value: number, format: string): string {
-    switch (format) {
-      case "currency":   return formatCurrency(value, currency);
-      case "percent":    return formatPercent(value);
-      case "multiplier": return `${value.toFixed(2)}x`;
-      default:           return formatNumber(value, 2);
-    }
+    return formatCalculatorOutput(
+      value,
+      format as "currency" | "percent" | "number" | "multiplier",
+      currency,
+      locale,
+    );
   };
 }
 
@@ -43,15 +53,36 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
   const searchParams = useSearchParams();
   const [copied, setCopied] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const { currency, symbol } = useCurrency();
+  // The calculator's OWN currency (per-page state, defaulting to the
+  // visitor's display/geo currency). This is intentionally NOT the
+  // dashboard context's setCurrency — nothing here persists, so the
+  // locked dashboard currency is never touched.
+  const { currency, currencyDef, symbol, setCalculatorCurrency } =
+    useCalculatorCurrency();
+
+  // A shared link carries its currency (?currency=EUR): adopt it as
+  // this page's explicit choice (still local state — opening the link
+  // never writes anything to the visitor's saved preference).
+  const currencyParam = searchParams.get("currency");
+  useEffect(() => {
+    const fromParam = normalizeSavedCurrency(
+      parseCalculatorCurrencyParam(currencyParam, ""),
+    );
+    if (fromParam && fromParam !== currency) {
+      setCalculatorCurrency(fromParam);
+    }
+  }, [currencyParam, currency, setCalculatorCurrency]);
   
   // Refs for capturing content
   const inputPanelRef = useRef<HTMLDivElement>(null);
   const resultsPanelRef = useRef<HTMLDivElement>(null);
   const chartPanelRef = useRef<HTMLDivElement>(null);
 
-  // Bind formatOutput to the live currency so all outputs use the correct symbol
-  const formatOutput = useMemo(() => makeFormatOutput(currency), [currency]);
+  // Bind formatOutput to the live calculator currency so all outputs use the correct symbol
+  const formatOutput = useMemo(
+    () => makeFormatOutput(currency, currencyDef.locale),
+    [currency, currencyDef.locale],
+  );
 
   const defaultValues = useMemo(() => {
     if (!config) return {};
@@ -105,7 +136,11 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
     config.fields.forEach((f) => {
       values[f.name] = String(watchedValues[f.name] ?? f.defaultValue ?? 0);
     });
-    const path = buildShareUrl(config.slug, values as unknown as Record<string, number>);
+    const path = buildCalculatorShareUrl(
+      config.slug,
+      values as unknown as Record<string, number>,
+      currency,
+    );
     const url = `${window.location.origin}${path}`;
     try {
       await navigator.clipboard.writeText(url);
@@ -114,20 +149,24 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
     } catch {
       router.push(path);
     }
-  }, [watchedValues, config, router]);
+  }, [watchedValues, config, router, currency]);
 
   const handleCopyResults = useCallback(async () => {
     if (!results || !config) return;
-    const lines = config.outputs.map(
-      (o) => `${o.label}: ${formatOutput(results[o.key] ?? 0, o.format)}`
+    const text = buildCalculatorShareText(
+      config.title,
+      currency,
+      config.outputs.map((o) => ({
+        label: localizeCurrencyText(o.label, symbol),
+        value: formatOutput(results[o.key] ?? 0, o.format),
+      })),
     );
-    const text = `${config.title} Results (${currency})\n${"=".repeat(30)}\n${lines.join("\n")}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {}
-  }, [results, config, formatOutput, currency]);
+  }, [results, config, formatOutput, currency, symbol]);
 
   const handleReset = useCallback(() => {
     if (!config) return;
@@ -323,16 +362,17 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
       let formattedValue = String(rawValue);
 
       if (field.type === "currency") {
-        formattedValue = formatCurrency(
+        formattedValue = formatCalculatorAmount(
           Number(rawValue),
-          currency
+          currency,
+          currencyDef.locale,
         );
       } else if (field.type === "percent") {
         formattedValue = `${rawValue}%`;
       }
 
       drawLabelValue(
-        field.label,
+        localizeCurrencyText(field.label, symbol),
         formattedValue,
         x,
         rowY,
@@ -408,7 +448,7 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
         );
 
         pdf.text(
-          output.label,
+          localizeCurrencyText(output.label, symbol),
           x + 3,
           y + 5
         );
@@ -466,7 +506,7 @@ export function ProfitCalculator({ slug }: ProfitCalculatorProps) {
           y + row * 10.5;
 
         drawLabelValue(
-          output.label,
+          localizeCurrencyText(output.label, symbol),
           formatOutput(
             value,
             output.format
@@ -773,6 +813,8 @@ if (
   config,
   results,
   currency,
+  currencyDef.locale,
+  symbol,
   chartData,
   watchedValues,
   formatOutput,
@@ -794,13 +836,20 @@ if (
         <div className="lg:col-span-2 space-y-4">
           <Card ref={inputPanelRef}>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base">Inputs</CardTitle>
-                <Button variant="ghost" size="sm" onClick={handleReset} className="h-8 gap-1 text-xs">
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Reset
-                </Button>
+                <div className="flex items-center gap-2">
+                  <CalculatorCurrencySelector />
+                  <Button variant="ghost" size="sm" onClick={handleReset} className="h-8 gap-1 text-xs">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Reset
+                  </Button>
+                </div>
               </div>
+              <p className="pt-1 text-xs text-[var(--color-muted-foreground)]">
+                Amounts are in {currencyDef.name} ({currencyDef.code}) — changing
+                the currency only affects this calculator.
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               {config.fields.map((field) => {
@@ -809,7 +858,7 @@ if (
                   <div key={field.name} className="space-y-1.5">
                     <div className="flex items-center gap-1.5">
                       <Label htmlFor={field.name}>
-                        {field.label}
+                        {localizeCurrencyText(field.label, symbol)}
                         {field.type === "percent" && (
                           <span className="ml-1 text-[var(--color-muted-foreground)]">(%)</span>
                         )}
@@ -817,11 +866,11 @@ if (
                       {field.helpText && (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button type="button" aria-label={`Help for ${field.label}`}>
+                            <button type="button" aria-label={`Help for ${localizeCurrencyText(field.label, symbol)}`}>
                               <Info className="h-3.5 w-3.5 text-[var(--color-muted-foreground)]" />
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent>{field.helpText}</TooltipContent>
+                          <TooltipContent>{localizeCurrencyText(field.helpText, symbol)}</TooltipContent>
                         </Tooltip>
                       )}
                     </div>
@@ -923,7 +972,7 @@ if (
                                 : "bg-[var(--color-accent)] border-[var(--color-border)]"
                             )}
                           >
-                            <p className="text-xs text-[var(--color-muted-foreground)] mb-1">{output.label}</p>
+                            <p className="text-xs text-[var(--color-muted-foreground)] mb-1">{localizeCurrencyText(output.label, symbol)}</p>
                             <div className="flex items-center gap-1">
                               <ResultTrendIcon value={val} />
                               <p
@@ -952,15 +1001,15 @@ if (
                             className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-[var(--color-muted)] text-sm"
                           >
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[var(--color-muted-foreground)]">{output.label}</span>
+                              <span className="text-[var(--color-muted-foreground)]">{localizeCurrencyText(output.label, symbol)}</span>
                               {output.description && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button type="button" aria-label={output.description}>
+                                    <button type="button" aria-label={localizeCurrencyText(output.description, symbol)}>
                                       <Info className="h-3 w-3 text-[var(--color-muted-foreground)]" />
                                     </button>
                                   </TooltipTrigger>
-                                  <TooltipContent>{output.description}</TooltipContent>
+                                  <TooltipContent>{localizeCurrencyText(output.description, symbol)}</TooltipContent>
                                 </Tooltip>
                               )}
                             </div>
@@ -992,7 +1041,12 @@ if (
                 <CardTitle className="text-base">Cost &amp; Profit Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResultsChart data={chartData} type="pie" />
+                <ResultsChart
+                  data={chartData}
+                  type="pie"
+                  currency={currency}
+                  locale={currencyDef.locale}
+                />
               </CardContent>
             </Card>
           )}

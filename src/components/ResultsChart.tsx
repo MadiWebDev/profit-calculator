@@ -15,7 +15,7 @@ import {
   Legend,
 } from "recharts";
 import type { TooltipContentProps } from "recharts";
-import { formatCurrency } from "@/lib/utils";
+import { formatCalculatorAmount } from "@/lib/calculator-currency";
 
 const COLORS = ["#ef4444", "#f97316", "#eab308", "#3b82f6", "#22c55e", "#8b5cf6", "#ec4899"];
 
@@ -28,18 +28,30 @@ interface ChartEntry {
 interface ResultsChartProps {
   data: ChartEntry[];
   type?: "pie" | "bar";
+  /**
+   * Currency the values are denominated in. Defaults to USD so
+   * standalone uses keep today's rendering; ProfitCalculator passes
+   * the calculator's own selected currency.
+   */
+  currency?: string;
+  /** BCP 47 locale for the currency (from the currency registry). */
+  locale?: string;
 }
 
 function CustomTooltip({
   active,
   payload,
+  currency = "USD",
+  locale = "en-US",
   // Partial: recharts injects these at render time when the tooltip is
   // passed as an element (<Tooltip content={<CustomTooltip />} />).
-}: Partial<TooltipContentProps>) {
+}: Partial<TooltipContentProps> & { currency?: string; locale?: string }) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   const valueText =
-    typeof entry.value === "number" ? formatCurrency(entry.value) : String(entry.value ?? "");
+    typeof entry.value === "number"
+      ? formatCalculatorAmount(entry.value, currency, locale)
+      : String(entry.value ?? "");
   return (
     <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2 shadow-lg text-sm">
       <p className="font-medium text-[var(--color-foreground)]">{entry.name}</p>
@@ -78,7 +90,12 @@ function CustomLabel({
   );
 }
 
-export function ResultsChart({ data, type = "pie" }: ResultsChartProps) {
+export function ResultsChart({
+  data,
+  type = "pie",
+  currency = "USD",
+  locale = "en-US",
+}: ResultsChartProps) {
   const positiveData = useMemo(
     () =>
       data
@@ -103,9 +120,11 @@ export function ResultsChart({ data, type = "pie" }: ResultsChartProps) {
           />
           <YAxis
             tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
-            tickFormatter={(v) => formatCurrency(v, "USD", true)}
+            tickFormatter={(v) =>
+              formatCalculatorAmount(v, currency, locale, true)
+            }
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip currency={currency} locale={locale} />} />
           <Bar dataKey="value" radius={[4, 4, 0, 0]}>
             {positiveData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} />
@@ -133,7 +152,7 @@ export function ResultsChart({ data, type = "pie" }: ResultsChartProps) {
             <Cell key={`cell-${index}`} fill={entry.color} />
           ))}
         </Pie>
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<CustomTooltip currency={currency} locale={locale} />} />
         <Legend
           formatter={(value) => (
             <span style={{ fontSize: 12,  }}>{value}</span>
