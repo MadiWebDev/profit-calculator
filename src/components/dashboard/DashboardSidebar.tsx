@@ -7,7 +7,7 @@ import { signOut } from "next-auth/react";
 import {
   LayoutDashboard, ShoppingCart, Package, Megaphone,
   Sliders, Target, FileText, Settings, LogOut, TrendingUp, AlertTriangle, Truck, Bell, ShieldAlert, PackageSearch,
-  Calculator, ChevronRight, Users, Zap, Key, ClipboardList,
+  ChevronRight, Users, Zap, Key, ClipboardList,
   Crown, Clock, Globe, ShieldCheck, BarChart3, Gauge, BookOpen, Droplets, Wallet, Coins, Receipt, Store, Landmark, Sparkles, Bookmark, CalendarClock, Ship, ChevronDown, Search, LifeBuoy, Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -129,7 +129,12 @@ export function DashboardSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // All groups start collapsed — the sidebar opens clean and the user
+  // expands only the section they need. A saved preference (from a
+  // previous visit) still wins: the mount effect below restores it.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(NAV_GROUPS.map((g): [string, boolean] => [g.title, true])),
+  );
   const [triggeredAlerts, setTriggeredAlerts] = useState(0);
 
   /* eslint-disable react-hooks/set-state-in-effect -- restore persisted collapsed groups on mount */
