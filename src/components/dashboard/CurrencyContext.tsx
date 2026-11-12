@@ -18,6 +18,11 @@ import {
   parseFxRatesPayload,
   resolveDisplayCurrency,
 } from "@/lib/display-currency";
+import {
+  parseDetectedCache,
+  serializeDetected,
+  type DetectedCurrency,
+} from "@/lib/geo-detection";
 
 // ── Currency registry ─────────────────────────────────────────────────────────
 
@@ -201,15 +206,9 @@ const LS_KEY   = "profit_selected_currency";
 // explicit choice so a detected default never overwrites a saved one.
 const DET_KEY  = "profit_detected_currency";
 
-/** A location auto-detect result: the currency + where it came from. */
-export interface DetectedCurrency {
-  /** ISO 4217 code, e.g. "PKR" */
-  code: string;
-  /** ISO 3166-1 alpha-2 country code, e.g. "PK" — null when unknown (cached value from an older shape). */
-  country: string | null;
-  /** "vercel-geo" = Vercel country header, "language" = browser-language fallback. */
-  source: "vercel-geo" | "language";
-}
+// The detection result type lives in @/lib/geo-detection (with the
+// cache helpers); re-exported here so existing importers keep working.
+export type { DetectedCurrency } from "@/lib/geo-detection";
 
 // ── Context shape ─────────────────────────────────────────────────────────────
 
@@ -358,12 +357,20 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const userChangedRef = useRef(false);
   // Geo lookup attempted at most once per mount.
   const geoTriedRef = useRef(false);
+  // An expired cached detection, kept only as a fail-open fallback
+  // when the re-fetch fails — it must never satisfy the geo effect's
+  // guard, or the re-fetch would never run (see geo-detection.ts).
+  const staleDetectedRef = useRef<DetectedCurrency | null>(null);
 
   // On mount: hydrate the browser choices from localStorage
   // (client-only, runs after first render). The explicit choice goes
   // to storedChoice (a resolution source, not the final currency —
   // the resolution effect decides); a cached detection goes to
-  // `detected` so repeat visits don't re-fetch the geo endpoint.
+  // `detected` only while it is fresh (24 h TTL — see
+  // geo-detection.ts), so repeat visits don't re-fetch the geo
+  // endpoint. An expired (or pre-TTL, untimestamped) detection is
+  // kept only as the fallback for a failed re-fetch — it must not
+  // satisfy the geo effect's guard, or the re-fetch would never run.
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(LS_KEY);
@@ -373,16 +380,11 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setStoredChoice(storedCode);
       }
-      const cached = window.localStorage.getItem(DET_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached) as DetectedCurrency | null;
-        if (parsed && normalizeSavedCurrency(parsed.code) && parsed.country !== undefined) {
-          setDetected({
-            code: parsed.code.toUpperCase(),
-            country: parsed.country ?? null,
-            source: parsed.source === "language" ? "language" : "vercel-geo",
-          });
-        }
+      const { fresh, stale } = parseDetectedCache(window.localStorage.getItem(DET_KEY));
+      if (fresh && normalizeSavedCurrency(fresh.code)) {
+        setDetected(fresh);
+      } else if (stale && normalizeSavedCurrency(stale.code)) {
+        staleDetectedRef.current = stale;
       }
     } catch {
       // Storage may be blocked in private browsing — fail silently
@@ -501,11 +503,21 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const cacheAndSet = (d: DetectedCurrency) => {
       try {
-        window.localStorage.setItem(DET_KEY, JSON.stringify(d));
+        window.localStorage.setItem(DET_KEY, serializeDetected(d));
       } catch {
         // Storage may be blocked — the in-memory value still applies
       }
       if (!cancelled) setDetected(d);
+    };
+    // A failed re-fetch falls back to the expired detection (a real
+    // earlier Vercel result beats a language guess or nothing) — the
+    // stored entry keeps its old timestamp, so the next visit still
+    // retries the endpoint.
+    const applyStaleFallback = () => {
+      const stale = staleDetectedRef.current;
+      if (!stale) return false;
+      setDetected(stale);
+      return true;
     };
     const languageFallback = () => {
       try {
@@ -529,10 +541,11 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           });
           return;
         }
-        languageFallback();
+        if (!applyStaleFallback()) languageFallback();
       })
       .catch(() => {
-        if (!cancelled) languageFallback();
+        if (cancelled) return;
+        if (!applyStaleFallback()) languageFallback();
       });
     return () => {
       cancelled = true;
