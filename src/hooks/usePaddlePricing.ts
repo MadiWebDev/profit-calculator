@@ -5,10 +5,14 @@
  *
  * Approach:
  *   1. Initialises Paddle.js with the env token and pwCustomer for Paddle Retain.
- *   2. Calls Paddle.PricePreview() for all 12 price IDs (3 tiers × 4 intervals)
- *      once Paddle is ready — returns country-localised, already-formatted strings.
- *   3. Exposes Paddle.Checkout.open() via openCheckout(tier, interval, options).
- *   4. Performs instant checkout sync with /api/billing/sync on checkout.completed.
+ *   2. Fast path — prices first come from sessionStorage (repeat visits),
+ *      then the server-side cached preview route (/api/pricing/preview),
+ *      or from the `initialPrices` argument when the caller has one.
+ *   3. Only when the fast path misses does it call Paddle.PricePreview()
+ *      for all 12 price IDs (3 tiers × 4 intervals) once Paddle is ready —
+ *      returns country-localised, already-formatted strings.
+ *   4. Exposes Paddle.Checkout.open() via openCheckout(tier, interval, options).
+ *   5. Performs instant checkout sync with /api/billing/sync on checkout.completed.
  *
  * Prices are displayed verbatim from Paddle (e.g. "$9.00", "€8.50").
  * We never format currencies manually on the client.
@@ -18,23 +22,28 @@
  *   NEXT_PUBLIC_PADDLE_ENV            — "production" | "sandbox"
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Paddle, PaddleEventData } from "@paddle/paddle-js";
 import type { SerializedTier, PricingInterval } from "@/lib/tiers";
+import {
+  allPriceIds,
+  buildPriceMap,
+  type PriceMap,
+} from "@/lib/paddle-price-map";
+import {
+  fetchServerPrices,
+  readSessionPrices,
+  writeSessionPrices,
+} from "@/lib/paddle-prices-client";
 import { logger } from "@/lib/logger";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface FormattedPrice {
-  /** Paddle-formatted total for one billing cycle, e.g. "$9.00" */
-  total: string;
-  /** Paddle-formatted per-month equivalent */
-  perMonth: string;
-  /** ISO 4217 currency code returned by Paddle, e.g. "USD" */
-  currencyCode: string;
-}
-
-export type PriceMap = Record<string, FormattedPrice>; // key: `${tierId}_${interval}`
+// FormattedPrice / PriceMap live in @/lib/paddle-price-map — the SAME shape
+// and per-month math the server-side preview uses, so server and client
+// output agree exactly. Re-exported here so existing import sites keep
+// working.
+export type { FormattedPrice, PriceMap } from "@/lib/paddle-price-map";
 
 export interface OpenCheckoutOptions {
   /** Signed-in user's email — prefills checkout */
@@ -47,21 +56,19 @@ export interface OpenCheckoutOptions {
   onComplete?: () => void;
 }
 
-// ── Months per interval ───────────────────────────────────────────────────────
-
-const MONTHS_IN_CYCLE: Record<PricingInterval, number> = {
-  month:      1,
-  quarter:    3,
-  semiannual: 6,
-  year:       12,
-};
-
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function usePaddlePricing(
   tiers: SerializedTier[],
   countryCode?: string,
-  paddleCustomerId?: string
+  paddleCustomerId?: string,
+  /**
+   * Server-side cached preview, when the caller already has one. When
+   * present, prices are available immediately and no preview fetch runs.
+   * Callers without one get the fast path below (session cache, then the
+   * server preview route) instead.
+   */
+  initialPrices?: PriceMap
 ) {
   const paddleRef     = useRef<Paddle | null>(null);
   // Store the latest onComplete so the init-time eventCallback can call it
@@ -69,10 +76,19 @@ export function usePaddlePricing(
   const onCompleteRef = useRef<(() => void) | undefined>(undefined);
 
   const [paddleReady,  setPaddleReady]  = useState(false);
-  const [prices,       setPrices]       = useState<PriceMap>({});
-  const [pricesLoaded, setPricesLoaded] = useState(false);
+  // With server prices, the first paint already shows them — no skeleton.
+  const [prices,       setPrices]       = useState<PriceMap>(initialPrices ?? {});
+  const [pricesLoaded, setPricesLoaded] = useState(
+    !!initialPrices && Object.keys(initialPrices).length > 0
+  );
+  // True once the fast path (session cache / server route) has been tried
+  // and missed — only then is the slow client-side PricePreview allowed.
+  const [serverPricesFailed, setServerPricesFailed] = useState(false);
   const [openingTier,  setOpeningTier]  = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Price IDs in tier order — the session-cache key input (stable per render).
+  const priceIds = useMemo(() => allPriceIds(tiers), [tiers]);
 
   // ── 1. Initialise Paddle.js ───────────────────────────────────────────────
   useEffect(() => {
@@ -133,9 +149,50 @@ export function usePaddlePricing(
     };
   }, [paddleCustomerId]);
 
-  // ── 2. Fetch prices via PricePreview ──────────────────────────────────────
+  // ── 2. Fast path: session cache, then the server-side cached preview ────
+  // Runs on mount, before Paddle.js has even downloaded. When it hits,
+  // prices are already on screen and the slow client-side PricePreview
+  // below never runs.
   useEffect(() => {
-    if (!paddleReady || !paddleRef.current) return;
+    if (pricesLoaded) return;
+
+    let cancelled = false;
+
+    (async () => {
+      // Repeat visit / navigation: prices cached in this tab for ~1h.
+      const cached = readSessionPrices(countryCode, priceIds);
+      if (cached && Object.keys(cached).length > 0) {
+        if (!cancelled) {
+          setPrices(cached);
+          setPricesLoaded(true);
+        }
+        return;
+      }
+
+      // Server-side cached preview (the route is CDN/server cached too).
+      const serverPrices = await fetchServerPrices(countryCode);
+      if (cancelled) return;
+      if (serverPrices) {
+        writeSessionPrices(countryCode, priceIds, serverPrices);
+        setPrices(serverPrices);
+        setPricesLoaded(true);
+        return;
+      }
+
+      // No fast path available — allow the client-side PricePreview below.
+      setServerPricesFailed(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [countryCode, pricesLoaded, priceIds]);
+
+  // ── 3. Fallback: prices via Paddle.js PricePreview ────────────────────────
+  // Only runs when the fast path missed (no server prices) and Paddle.js
+  // is ready. Behaviour unchanged — one call for all 12 price IDs.
+  useEffect(() => {
+    if (!serverPricesFailed || pricesLoaded || !paddleReady || !paddleRef.current) return;
 
     let cancelled = false;
 
@@ -155,34 +212,18 @@ export function usePaddlePricing(
 
         if (cancelled) return;
 
-        const map: PriceMap = {};
-        for (const lineItem of response.data.details.lineItems) {
-          const priceId = lineItem.price.id;
+        // Shared map builder — the same shape/math as the server preview.
+        const map = buildPriceMap(
+          tiers,
+          response.data.details.lineItems.map((li) => ({
+            priceId: li.price.id,
+            formattedTotal: li.formattedTotals.total,
+            subtotalMinor: li.totals.subtotal,
+          })),
+          response.data.currencyCode
+        );
 
-          for (const tier of tiers) {
-            for (const iv of ["month", "quarter", "semiannual", "year"] as PricingInterval[]) {
-              if (tier.priceId[iv] === priceId) {
-                const key = `${tier.id}_${iv}`;
-                const cycleTotal = lineItem.formattedTotals.total;
-
-                let perMonth = cycleTotal;
-                if (iv !== "month") {
-                  const rawSubtotal = parseFloat(lineItem.totals.subtotal) / 100;
-                  const perMonthRaw = rawSubtotal / MONTHS_IN_CYCLE[iv];
-                  const symbol = cycleTotal.replace(/[\d.,\s]/g, "");
-                  perMonth = `${symbol}${perMonthRaw.toFixed(2)}`;
-                }
-
-                map[key] = {
-                  total:        cycleTotal,
-                  perMonth,
-                  currencyCode: response.data.currencyCode,
-                };
-              }
-            }
-          }
-        }
-
+        writeSessionPrices(countryCode, priceIds, map);
         setPrices(map);
         setPricesLoaded(true);
       } catch (err) {
@@ -193,9 +234,9 @@ export function usePaddlePricing(
     return () => {
       cancelled = true;
     };
-  }, [paddleReady, tiers, countryCode]);
+  }, [serverPricesFailed, pricesLoaded, paddleReady, tiers, countryCode, priceIds]);
 
-  // ── 3. Open checkout ──────────────────────────────────────────────────────
+  // ── 4. Open checkout ──────────────────────────────────────────────────────
   const openCheckout = useCallback(
     async (
       tier: SerializedTier,

@@ -20,6 +20,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getTiers } from "@/lib/tiers";
+import { getCachedPricePreview } from "@/lib/paddle-pricing";
 import { PricingClient } from "./PricingClient";
 
 export const metadata: Metadata = {
@@ -71,6 +72,14 @@ export default async function PricingPage() {
   // misconfigured deployment is caught at request time, not silently at pay time.
   const tiers = getTiers();
 
+  // ── Server-side price preview (fast path) ────────────────────────────────
+  // Fetched once per country per hour (cached in-memory, datacenter to
+  // datacenter) and rendered into the first paint — the browser no longer
+  // waits for Paddle.js + PricePreview before prices appear. Returns null
+  // when Paddle is unavailable; PricingClient then falls back to the
+  // client-side PricePreview exactly as before.
+  const initialPrices = await getCachedPricePreview(countryCode);
+
   return (
     <PricingClient
       tiers={tiers}
@@ -78,6 +87,7 @@ export default async function PricingPage() {
       userEmail={userEmail}
       teamId={teamId}
       paddleCustomerId={paddleCustomerId}
+      initialPrices={initialPrices ?? undefined}
     />
   );
 }

@@ -5,9 +5,13 @@
  * ─────────────
  * 3-tier pricing page with monthly / quarterly / semiannual / annual toggle.
  *
- * Prices are fetched via Paddle.PricePreview() — Paddle returns already-
- * formatted, country-localised strings (formattedTotals.total).  We display
- * those strings verbatim; we never run our own number formatting or rounding.
+ * Prices come from the server-side cached preview (passed in as
+ * `initialPrices` from SSR) when available — they render in the first
+ * paint. Otherwise the fast path tries sessionStorage, then the server
+ * preview route, and only as a last resort Paddle.PricePreview() after
+ * Paddle.js loads. Paddle returns already-formatted, country-localised
+ * strings (formattedTotals.total). We display those strings verbatim;
+ * we never run our own number formatting or rounding.
  *
  * Checkout opens as a one-page overlay via Paddle.Checkout.open().
  * On completion the user is redirected to /welcome.
@@ -20,7 +24,7 @@
  * so you never run against the wrong Paddle account silently.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -37,6 +41,16 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { Paddle, PaddleEventData } from "@paddle/paddle-js";
 import type { SerializedTier, PricingInterval } from "@/lib/tiers";
+import {
+  allPriceIds,
+  buildPriceMap,
+  type PriceMap,
+} from "@/lib/paddle-price-map";
+import {
+  fetchServerPrices,
+  readSessionPrices,
+  writeSessionPrices,
+} from "@/lib/paddle-prices-client";
 import { logger } from "@/lib/logger";
 
 // ── Env validation ────────────────────────────────────────────────────────────
@@ -65,16 +79,9 @@ if (PADDLE_ENV !== "production" && PADDLE_ENV !== "sandbox") {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface FormattedPrice {
-  /** Paddle-formatted total for one billing cycle, e.g. "$9.00" or "€8.50" */
-  total: string;
-  /** Paddle-formatted per-month equivalent (only meaningful for yearly) */
-  perMonth: string;
-  /** Raw currency code returned by Paddle, e.g. "USD" */
-  currencyCode: string;
-}
-
-type PriceMap = Record<string, FormattedPrice>; // key: `${tierId}_${interval}`
+// FormattedPrice / PriceMap live in @/lib/paddle-price-map — the SAME shape
+// and per-month math the server-side preview uses, so server and client
+// output agree exactly.
 
 // ── Feature comparison table ─────────────────────────────────────────────────
 
@@ -164,20 +171,34 @@ interface PricingClientProps {
   teamId?: string;
   /** Paddle customer ID for Paddle Retain */
   paddleCustomerId?: string;
+  /**
+   * Server-side cached preview (fetched during SSR). When present, prices
+   * render in the first paint and no client-side preview runs at all.
+   */
+  initialPrices?: PriceMap;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCustomerId }: PricingClientProps) {
+export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCustomerId, initialPrices }: PricingClientProps) {
   const router = useRouter();
 
   const paddleRef  = useRef<Paddle | null>(null);
   const [paddleReady,   setPaddleReady]   = useState(false);
-  const [prices,        setPrices]        = useState<PriceMap>({});
-  const [pricesLoaded,  setPricesLoaded]  = useState(false);
+  // With server prices, the first paint already shows them — no skeleton.
+  const [prices,        setPrices]        = useState<PriceMap>(initialPrices ?? {});
+  const [pricesLoaded,  setPricesLoaded]  = useState(
+    !!initialPrices && Object.keys(initialPrices).length > 0
+  );
+  // True once the fast path (session cache / server route) has been tried
+  // and missed — only then is the slow client-side PricePreview allowed.
+  const [serverPricesFailed, setServerPricesFailed] = useState(false);
   const [interval,      setInterval]      = useState<PricingInterval>("month");
   const [openingTier,   setOpeningTier]   = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Price IDs in tier order — the session-cache key input (stable per render).
+  const priceIds = useMemo(() => allPriceIds(tiers), [tiers]);
 
   // ── Initialise Paddle.js ─────────────────────────────────────────────────
   useEffect(() => {
@@ -222,11 +243,48 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
     return () => { cancelled = true; };
   }, [router, paddleCustomerId]); // paddleCustomerId is a stable server prop; re-init if it ever changed
 
-  // ── Fetch localised prices via PricePreview ──────────────────────────────
-  // Re-runs whenever Paddle is ready (so we have the instance) or the
-  // country changes (shouldn't happen at runtime, but defensive).
+  // ── Fast path: session cache, then the server-side cached preview ────────
+  // Runs on mount, before Paddle.js has even downloaded. When it hits,
+  // prices are already on screen and the slow client-side PricePreview
+  // below never runs.
   useEffect(() => {
-    if (!paddleReady || !paddleRef.current) return;
+    if (pricesLoaded) return;
+
+    let cancelled = false;
+
+    (async () => {
+      // Repeat visit / navigation: prices cached in this tab for ~1h.
+      const cached = readSessionPrices(countryCode, priceIds);
+      if (cached && Object.keys(cached).length > 0) {
+        if (!cancelled) {
+          setPrices(cached);
+          setPricesLoaded(true);
+        }
+        return;
+      }
+
+      // Server-side cached preview (the route is CDN/server cached too).
+      const serverPrices = await fetchServerPrices(countryCode);
+      if (cancelled) return;
+      if (serverPrices) {
+        writeSessionPrices(countryCode, priceIds, serverPrices);
+        setPrices(serverPrices);
+        setPricesLoaded(true);
+        return;
+      }
+
+      // No fast path available — allow the client-side PricePreview below.
+      setServerPricesFailed(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [countryCode, pricesLoaded, priceIds]);
+
+  // ── Fallback: localised prices via Paddle.js PricePreview ────────────────
+  // Only runs when the fast path missed (no server prices) and Paddle.js
+  // is ready. Behaviour unchanged — one call for all 12 price IDs.
+  useEffect(() => {
+    if (!serverPricesFailed || pricesLoaded || !paddleReady || !paddleRef.current) return;
 
     let cancelled = false;
 
@@ -251,50 +309,18 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
 
         if (cancelled) return;
 
-        // Build a lookup map: `${tierId}_${interval}` → FormattedPrice
-        const map: PriceMap = {};
+        // Shared map builder — the same shape/math as the server preview.
+        const map = buildPriceMap(
+          tiers,
+          response.data.details.lineItems.map((li) => ({
+            priceId: li.price.id,
+            formattedTotal: li.formattedTotals.total,
+            subtotalMinor: li.totals.subtotal,
+          })),
+          response.data.currencyCode
+        );
 
-        for (const lineItem of response.data.details.lineItems) {
-          const priceId = lineItem.price.id;
-
-          // Match this priceId back to a tier + interval
-          for (const tier of tiers) {
-            for (const iv of ["month", "quarter", "semiannual", "year"] as PricingInterval[]) {
-              if (tier.priceId[iv] === priceId) {
-                const key = `${tier.id}_${iv}`;
-
-                // formattedTotals.total is already currency-formatted by Paddle
-                // (e.g. "$9.00", "€8.50") — display as-is, no further formatting.
-                const cycleTotal = lineItem.formattedTotals.total;
-
-                // Compute a per-month equivalent for multi-month intervals.
-                // Paddle doesn't return this directly, so we divide the raw
-                // subtotal by the number of months in the cycle.
-                // This is informational only — shown as a sub-label.
-                const monthsInCycle: Record<PricingInterval, number> = {
-                  month:      1,
-                  quarter:    3,
-                  semiannual: 6,
-                  year:       12,
-                };
-                let perMonth = cycleTotal; // default: same as total (monthly)
-                if (iv !== "month") {
-                  const rawSubtotal  = parseFloat(lineItem.totals.subtotal) / 100;
-                  const perMonthRaw  = rawSubtotal / monthsInCycle[iv];
-                  const symbol       = extractCurrencySymbol(cycleTotal);
-                  perMonth = `${symbol}${perMonthRaw.toFixed(2)}`;
-                }
-
-                map[key] = {
-                  total:        cycleTotal,
-                  perMonth,
-                  currencyCode: response.data.currencyCode,
-                };
-              }
-            }
-          }
-        }
-
+        writeSessionPrices(countryCode, priceIds, map);
         setPrices(map);
         setPricesLoaded(true);
       } catch (err) {
@@ -304,7 +330,7 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
     })();
 
     return () => { cancelled = true; };
-  }, [paddleReady, tiers, countryCode]);
+  }, [serverPricesFailed, pricesLoaded, paddleReady, tiers, countryCode, priceIds]);
 
   // ── Checkout ─────────────────────────────────────────────────────────────
   const handleSubscribe = useCallback(
@@ -742,17 +768,4 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
       </section>
     </div>
   );
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Extracts the leading currency symbol from a Paddle-formatted price string.
- * e.g. "$9.00" → "$", "€8.50" → "€", "£7.99" → "£"
- * Falls back to "" if the string doesn't start with a known symbol.
- */
-function extractCurrencySymbol(formatted: string): string {
-  // Paddle formatted strings start with the symbol, optionally followed by a space
-  const match = formatted.match(/^([^0-9\s,]+)\s*/);
-  return match?.[1] ?? "";
 }
