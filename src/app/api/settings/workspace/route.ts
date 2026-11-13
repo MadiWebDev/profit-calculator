@@ -56,11 +56,22 @@ export async function GET(req: Request) {
   // the reporting currency itself (below geo), so nothing is lost —
   // and teams that DID set a display currency (doc has the field)
   // keep seeing exactly that value.
-  const d = doc as { reportingCurrency?: string; displayCurrency?: string };
+  const d = doc as { reportingCurrency?: string; reportingCurrencyExplicit?: boolean; displayCurrency?: string };
+  // reportingCurrency in the response is the EFFECTIVE base: the
+  // explicitly saved value when the team chose one on the Currency
+  // page, otherwise the computed report base (most-common store
+  // currency). A legacy stamped "USD" on a doc whose
+  // reportingCurrencyExplicit is false must never surface here —
+  // it was a schema default, not a choice.
+  const effectiveReporting =
+    d.reportingCurrencyExplicit === true && typeof d.reportingCurrency === "string" && /^[A-Z]{3}$/.test(d.reportingCurrency.trim())
+      ? d.reportingCurrency.trim().toUpperCase()
+      : defaults.reportingCurrency;
   return NextResponse.json({
     settings: {
       ...defaults,
       ...doc,
+      reportingCurrency: effectiveReporting,
       displayCurrency: d.displayCurrency ?? null,
     },
   });
@@ -74,6 +85,13 @@ export async function PATCH(req: Request) {
   const b = parsed.data;
   await connectDB();
   const update: Record<string, unknown> = { ...b };
+  if (b.reportingCurrency) {
+    // Only the Currency page sends reportingCurrency (General/Tax
+    // never do): a present value is an explicit choice, so it governs
+    // report aggregation from now on (see getReportBaseCurrency).
+    update.reportingCurrency = b.reportingCurrency.toUpperCase();
+    update.reportingCurrencyExplicit = true;
+  }
   if (b.fxOverrides) {
     update.fxOverrides = b.fxOverrides.map((o) => ({ ...o, effectiveFrom: new Date(o.effectiveFrom) }));
   }

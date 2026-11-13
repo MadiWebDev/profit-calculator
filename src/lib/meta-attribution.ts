@@ -89,6 +89,8 @@ export function convertAdSpend(
 
 export interface SpendRow {
   campaignId: string;
+  /** Human campaign name as reported by Meta (`campaign_name`). */
+  campaignName?: string;
   adsetId?: string;
   adId?: string;
   spend: number;
@@ -106,6 +108,8 @@ export interface AttributableOrder {
 
 export interface CampaignAttribution {
   campaignId: string;
+  /** Human campaign name when Meta reported one (first-seen spelling). */
+  campaignName?: string;
   spend: number;
   attributedRevenue: number;
   attributedOrders: number;
@@ -141,11 +145,16 @@ const META_SOURCES = new Set(["meta", "facebook", "instagram"]);
  * - order.utmSource (lowercased/trimmed) must be meta, facebook, or
  *   instagram — any other source (google, tiktok, direct, missing)
  *   is ignored, even if utmCampaign happens to match.
- * - order.utmCampaign must match a spend row's campaignId
- *   case-insensitively (UTM values are free text; "Summer_Sale" and
- *   "summer_sale" are the same campaign).
+ * - order.utmCampaign must match a spend row's campaignName OR
+ *   campaignId, trimmed and case-insensitive. UTM values are free
+ *   text ("Summer_Sale"), while campaignId is Meta's numeric id —
+ *   matching on the id alone could ~never match (FINAL-REPORT F4),
+ *   so the name is tried as well (id first: a UTM that literally
+ *   holds a numeric campaign id still matches exactly).
  * - Campaign ids are grouped case-insensitively; the first-seen
- *   spelling is kept in the output.
+ *   spelling is kept in the output. Names are matched the same way;
+ *   when two campaigns share a name (first-seen wins) the order
+ *   attributes to the first one — ids stay the unambiguous key.
  * - Orders whose utmCampaign matches no spend campaign are ignored
  *   (there is no spend to attribute them against).
  * - Spend rows are assumed already normalised to one currency
@@ -157,6 +166,7 @@ export function attributeSpendToCampaigns(
 ): AttributionResult {
   interface Acc {
     displayId: string;
+    displayName?: string;
     spend: number;
     revenue: number;
     cogs: number;
@@ -164,26 +174,34 @@ export function attributeSpendToCampaigns(
     orderCount: number;
   }
   const byKey = new Map<string, Acc>();
+  // Lowercased campaign name -> campaign-id key (first-seen wins).
+  const byName = new Map<string, string>();
 
   for (const row of spendRows) {
     const key = row.campaignId.toLowerCase();
     const acc = byKey.get(key) ?? {
       displayId: row.campaignId,
+      displayName: row.campaignName,
       spend: 0,
       revenue: 0,
       cogs: 0,
       fees: 0,
       orderCount: 0,
     };
+    if (!acc.displayName && row.campaignName) acc.displayName = row.campaignName;
     acc.spend += num(row.spend);
     byKey.set(key, acc);
+    const nameKey = (row.campaignName ?? "").trim().toLowerCase();
+    if (nameKey && !byName.has(nameKey)) byName.set(nameKey, key);
   }
 
   for (const order of orders) {
     const source = (order.utmSource ?? "").trim().toLowerCase();
     if (!META_SOURCES.has(source)) continue;
     if (!order.utmCampaign) continue;
-    const acc = byKey.get(order.utmCampaign.trim().toLowerCase());
+    const utm = order.utmCampaign.trim().toLowerCase();
+    // Id match first (exact numeric ids), then name match.
+    const acc = byKey.get(utm) ?? (byName.has(utm) ? byKey.get(byName.get(utm)!) : undefined);
     if (!acc) continue;
     acc.revenue += num(order.revenue);
     acc.cogs += num(order.cogs);
@@ -202,6 +220,7 @@ export function attributeSpendToCampaigns(
     const breakEvenRoas = spend > 0 ? (spend + acc.cogs + acc.fees) / spend : 0;
     campaigns.push({
       campaignId: acc.displayId,
+      ...(acc.displayName ? { campaignName: acc.displayName } : {}),
       spend: round2(spend),
       attributedRevenue: round2(acc.revenue),
       attributedOrders: acc.orderCount,

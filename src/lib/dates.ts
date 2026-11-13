@@ -31,3 +31,29 @@ export function toIsoDateTime(value: string): string {
   if (Number.isNaN(d.getTime())) throw new RangeError(`Invalid date: ${value}`);
   return d.toISOString();
 }
+
+/**
+ * Parse an optional `?from=` / `?to=` pair from a server page's
+ * searchParams into a usable range.
+ *
+ * A param that is present but unparseable (e.g. `?from=not-a-date`,
+ * `?from=`) falls back to the page's default for that end instead of
+ * producing an Invalid Date — querying Mongo with an Invalid Date
+ * throws a CastError and 500s the whole page (P&L N-1). A valid but
+ * reversed range is returned as-is: it simply matches no orders.
+ * Defaults: current month start → today, with `to` at end of day.
+ */
+export function parseDateRange(
+  fromParam?: string,
+  toParam?: string,
+  now = new Date(),
+): { from: Date; to: Date } {
+  const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const defaultTo = now.toISOString().slice(0, 10);
+  const from = new Date(fromParam ?? defaultFrom);
+  const to = new Date(toParam ?? defaultTo);
+  const validFrom = Number.isNaN(from.getTime()) ? new Date(defaultFrom) : from;
+  const validTo = Number.isNaN(to.getTime()) ? new Date(defaultTo) : to;
+  validTo.setHours(23, 59, 59, 999);
+  return { from: validFrom, to: validTo };
+}

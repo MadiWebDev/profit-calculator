@@ -17,6 +17,7 @@
  * currencies 1:1.
  */
 import TeamModel from "@/models/Team";
+import { getExplicitReportingCurrency } from "@/lib/report-currency";
 import {
   calcPeriodSummary,
   convertOrderCosts,
@@ -67,9 +68,13 @@ function toCosts(o: NormalizableOrder): OrderCosts {
   };
 }
 
-/** Team's reporting currency (defaults to USD). */
+/** Team's reporting currency.
+ *  An explicitly chosen reporting currency (Currency page) wins;
+ *  otherwise the team's own configured currency, defaulting to USD. */
 export async function getTeamBaseCurrency(teamId: string): Promise<string> {
   try {
+    const explicit = await getExplicitReportingCurrency(teamId);
+    if (explicit) return explicit;
     const team = await TeamModel.findById(teamId).select("currency").lean();
     const code = typeof team?.currency === "string" ? team.currency.toUpperCase().trim() : "";
     return /^[A-Z]{3}$/.test(code) ? code : "USD";

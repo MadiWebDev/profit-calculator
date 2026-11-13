@@ -17,7 +17,7 @@
  * grossRevenue — never subtracted or added again.
  */
 import { calcTrueNetProfit, type ExtendedOrderInput } from "@/lib/profit-extended";
-import { round, toMoney } from "@/lib/profit-engine";
+import { convertCurrency, round, toMoney } from "@/lib/profit-engine";
 
 export interface ReportOrderInput extends ExtendedOrderInput {
   currency?: string;
@@ -198,32 +198,138 @@ export interface MonthlyExpenseInput {
   currency: string;
   startDate: Date | string;
   endDate?: Date | string | null;
+  /** False (or absent) + no endDate = a one-off: the amount is that
+   *  start month's amount only. True + no endDate = recurring: the
+   *  amount repeats every month until an endDate is set. */
+  isRecurring?: boolean;
   allocation: "per_day" | "per_order" | "by_revenue";
+}
+
+/** Full-month order totals for one calendar month ("YYYY-MM"), used to
+ *  weight the per_order / by_revenue shares. `orders`/`revenue` cover
+ *  the whole month; `overlapOrders`/`overlapRevenue` cover only the
+ *  part of the month inside the reporting period. */
+export interface ExpenseMonthStats {
+  orders: number;
+  revenue: number;
+  overlapOrders: number;
+  overlapRevenue: number;
+}
+
+export interface AllocateMonthlyExpensesOptions {
+  /** Report base currency: expenses are converted into it before
+   *  summing. Without it (or without `rates`) amounts are summed
+   *  1:1 as before — callers that have a base must pass it. */
+  baseCurrency?: string;
+  /** Base-based FX rates table (as returned by getFxRates(base)). */
+  rates?: Record<string, number> | null;
+  /** Per-month order totals, keyed "YYYY-MM". Only needed for
+   *  per_order / by_revenue expenses; a month missing here falls back
+   *  to the time-proportional share for that month. */
+  monthStats?: Record<string, ExpenseMonthStats>;
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+}
+
+function monthKey(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** UTC-midnight day count between two dates, inclusive of both ends. */
+function inclusiveDays(a: Date, b: Date): number {
+  const start = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+  const end = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
+  return Math.max(0, Math.round((end - start) / 864e5) + 1);
 }
 
 /**
  * Allocate monthly/operating expenses into a reporting period.
- * per_day: overlap days / total expense days × amount. per_order and
- * by_revenue fall back to the same time-proportional share when the
- * period totals are not supplied (callers that have them should use
- * allocateWithTotals instead) — the method is recorded, never hidden.
+ *
+ * The amount is a MONTHLY amount, prorated per calendar month — never
+ * against the expense's whole lifetime. For each calendar month the
+ * expense is active in, the expense contributes
+ * `amount × share(month)`, where the share is:
+ * - per_day:     overlap days in the month / days in the month
+ * - per_order:   orders in the overlapped part of the month / orders
+ *                in the whole month (monthStats; falls back to the
+ *                per_day share when no month totals are supplied)
+ * - by_revenue:  revenue in the overlapped part of the month /
+ *                revenue in the whole month (same fallback)
+ *
+ * A recurring expense with no end date repeats every month, so a
+ * 30,000/month expense started 2026-01-01 still allocates ~30,000
+ * into any 30-day period — it no longer decays with age. A one-off
+ * expense with no end date is active only in its start month.
+ *
+ * When `baseCurrency` + `rates` are supplied, each expense is
+ * converted from its own currency into the base before summing
+ * (fail-open: an unconvertible currency passes through 1:1 rather
+ * than dropping the expense).
  */
 export function allocateMonthlyExpenses(
   expenses: MonthlyExpenseInput[],
   from: Date,
   to: Date,
+  opts: AllocateMonthlyExpensesOptions = {},
 ): number {
+  const base = opts.baseCurrency?.toUpperCase().trim();
+  const rates = opts.rates ?? null;
   let total = 0;
   for (const e of expenses) {
+    const amount = toMoney(e.amount);
+    if (amount <= 0) continue;
     const start = new Date(e.startDate);
-    const end = e.endDate ? new Date(e.endDate) : to;
-    if (end < start) continue;
+    if (Number.isNaN(start.getTime())) continue;
+    // Active window: recurring with no end repeats indefinitely;
+    // a one-off with no end is active only in its start month.
+    const explicitEnd = e.endDate ? new Date(e.endDate) : null;
+    const activeEnd = explicitEnd ?? (e.isRecurring
+      ? to
+      : new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0, 23, 59, 59, 999)));
+    if (explicitEnd && Number.isNaN(explicitEnd.getTime())) continue;
+    if (activeEnd < start) continue;
     const overlapStart = start > from ? start : from;
-    const overlapEnd = end < to ? end : to;
+    const overlapEnd = activeEnd < to ? activeEnd : to;
     if (overlapEnd < overlapStart) continue;
-    const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 864e5) + 1);
-    const overlapDays = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / 864e5) + 1;
-    total += (toMoney(e.amount) * overlapDays) / totalDays;
+
+    // Convert the monthly amount into the report base first (the
+    // proration is linear, so converting once is exact).
+    let monthly = amount;
+    if (base && rates) {
+      try {
+        monthly = convertCurrency(amount, e.currency, base, rates);
+      } catch {
+        monthly = amount;
+      }
+    }
+
+    // Walk the overlapped calendar months and prorate each one.
+    const cursor = new Date(Date.UTC(overlapStart.getUTCFullYear(), overlapStart.getUTCMonth(), 1));
+    const lastMonth = new Date(Date.UTC(overlapEnd.getUTCFullYear(), overlapEnd.getUTCMonth(), 1));
+    while (cursor <= lastMonth) {
+      const year = cursor.getUTCFullYear();
+      const month = cursor.getUTCMonth();
+      const monthStart = new Date(Date.UTC(year, month, 1));
+      const monthEnd = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+      const segStart = overlapStart > monthStart ? overlapStart : monthStart;
+      const segEnd = overlapEnd < monthEnd ? overlapEnd : monthEnd;
+      const dim = daysInMonth(year, month);
+      let share = inclusiveDays(segStart, segEnd) / dim;
+      if (e.allocation !== "per_day") {
+        const stats = opts.monthStats?.[monthKey(monthStart)];
+        if (stats) {
+          if (e.allocation === "per_order" && stats.orders > 0) {
+            share = stats.overlapOrders / stats.orders;
+          } else if (e.allocation === "by_revenue" && stats.revenue > 0) {
+            share = stats.overlapRevenue / stats.revenue;
+          }
+        }
+      }
+      total += monthly * share;
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
   }
   return round(total);
 }

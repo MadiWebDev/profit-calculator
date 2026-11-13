@@ -14,6 +14,14 @@ export interface IAdAccount extends Document {
   accessToken: string | null;   // AES-encrypted; null when disconnected
   refreshToken?: string | null; // AES-encrypted
   tokenExpiresAt?: Date;
+  /**
+   * Meta user id (from `/v21.0/me`) that connected this account.
+   * Stored at OAuth time so the data-deletion / deauthorize callbacks
+   * can find and delete the account (F11: without this field Mongoose
+   * strict mode dropped the upserted value and the deletion query
+   * could never match, yet the route still returned success to Meta).
+   */
+  metaUserId?: string;
   lastSyncAt?: Date;
   syncStatus: "idle" | "syncing" | "error" | "never" | "disconnected";
   syncError?: string;
@@ -38,6 +46,7 @@ const AdAccountSchema = new Schema<IAdAccount>(
     accessToken: { type: String, default: null },
     refreshToken: String,
     tokenExpiresAt: Date,
+    metaUserId: { type: String, index: true },
     lastSyncAt: Date,
     syncStatus: {
       type: String,

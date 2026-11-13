@@ -119,6 +119,59 @@ describe("attributeSpendToCampaigns", () => {
     expect(Number.isNaN(c.roas)).toBe(false);
     expect(Number.isNaN(c.breakEvenRoas)).toBe(false);
   });
+
+  // F4: UTM values are free-text names ("Summer_Sale"), spend rows
+  // carry numeric Meta campaign ids — matching on the id alone could
+  // ~never attribute. The stored campaignName is now matched too.
+  it("matches a UTM against the campaign NAME when the id is numeric", () => {
+    const { campaigns, unattributedSpend } = attributeSpendToCampaigns(
+      [{ campaignId: "23851234567890123", campaignName: "Summer_Sale", spend: 100, currency: "USD" }],
+      [{ orderId: "o1", utmCampaign: "summer_sale", utmSource: "facebook", revenue: 400, cogs: 150, fees: 20 }]
+    );
+    const c = campaigns[0];
+    expect(c.attributedOrders).toBe(1);
+    expect(c.attributedRevenue).toBe(400);
+    expect(c.profit).toBe(130); // 400 - 150 - 20 - 100
+    expect(c.campaignName).toBe("Summer_Sale");
+    expect(unattributedSpend).toBe(0);
+  });
+
+  it("still matches a UTM that literally holds the numeric campaign id", () => {
+    const { campaigns } = attributeSpendToCampaigns(
+      [{ campaignId: "23851234567890123", campaignName: "Summer_Sale", spend: 100, currency: "USD" }],
+      [{ orderId: "o1", utmCampaign: "23851234567890123", utmSource: "meta", revenue: 400, cogs: 150, fees: 20 }]
+    );
+    expect(campaigns[0].attributedOrders).toBe(1);
+  });
+
+  it("id match wins when a UTM equals one campaign's id and another's name", () => {
+    const { campaigns } = attributeSpendToCampaigns(
+      [
+        { campaignId: "111", campaignName: "Alpha", spend: 10, currency: "USD" },
+        { campaignId: "222", campaignName: "111", spend: 20, currency: "USD" },
+      ],
+      [{ orderId: "o1", utmCampaign: "111", utmSource: "meta", revenue: 100, cogs: 0, fees: 0 }]
+    );
+    expect(campaigns.find((c) => c.campaignId === "111")!.attributedOrders).toBe(1);
+    expect(campaigns.find((c) => c.campaignId === "222")!.attributedOrders).toBe(0);
+  });
+
+  it("trims whitespace and ignores case on name matches", () => {
+    const { campaigns } = attributeSpendToCampaigns(
+      [{ campaignId: "999", campaignName: "  Winter Clearance ", spend: 50, currency: "USD" }],
+      [{ orderId: "o1", utmCampaign: "winter clearance", utmSource: "instagram", revenue: 200, cogs: 50, fees: 5 }]
+    );
+    expect(campaigns[0].attributedOrders).toBe(1);
+  });
+
+  it("leaves spend unattributed when neither name nor id matches", () => {
+    const { unattributedSpend, unattributedCampaignIds } = attributeSpendToCampaigns(
+      [{ campaignId: "23851234567890123", campaignName: "Summer_Sale", spend: 100, currency: "USD" }],
+      [{ orderId: "o1", utmCampaign: "Autumn_Blast", utmSource: "meta", revenue: 400, cogs: 150, fees: 20 }]
+    );
+    expect(unattributedSpend).toBe(100);
+    expect(unattributedCampaignIds).toEqual(["23851234567890123"]);
+  });
 });
 
 describe("detectSpendAlerts", () => {

@@ -62,7 +62,7 @@ export default function GatewaysPage() {
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold">Gateways</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)]">Payment gateways detected from your orders, with fee percent + fixed fee per gateway and per currency, COD handling, and payout delay. The recompute preview shows what the saved schedule would charge on the last 30 days, next to what was actually recorded.</p>
+        <p className="text-sm text-[var(--color-muted-foreground)]">Payment gateways detected from your orders, with fee percent + fixed fee per gateway and per currency, COD handling, and payout delay. The recompute preview shows what the saved schedule would charge on the last 30 days, next to what was actually recorded. Only rules whose effective dates overlap the period apply, and a fixed fee is converted from the rule&apos;s currency into the report base currency before it is added.</p>
       </div>
       <Card><CardHeader><CardTitle>Save a fee schedule</CardTitle></CardHeader><CardContent>
         <form onSubmit={submit}>
@@ -81,7 +81,7 @@ export default function GatewaysPage() {
         {gateways.length === 0 && <p className="text-sm text-[var(--color-muted-foreground)]">No orders with a payment method in the last 30 days. Connect a store or import orders first.</p>}
         {gateways.map((g) => (<div key={g.gateway} className="text-sm border-b border-[var(--color-border)] pb-2 last:border-0">
           <p className="font-medium">{g.gateway} · {g.orders} orders · {formatMoney(g.revenue, baseCurrency)} revenue</p>
-          <p className="text-[var(--color-muted-foreground)]">Recorded fees: {formatMoney(g.recordedFees, baseCurrency)}{g.rule ? ` · Rule: ${g.rule.percent}% + ${formatMoney(g.rule.fixed, baseCurrency)} · Payout delay: ${g.rule.payoutDelayDays}d · COD: ${g.rule.codHandling}` : " · No fee schedule saved yet"}{g.recomputed !== null ? ` · Recomputed: ${formatMoney(g.recomputed, baseCurrency)} (delta ${formatMoney(g.delta ?? 0, baseCurrency)})` : ""}</p>
+          <p className="text-[var(--color-muted-foreground)]">Recorded fees: {formatMoney(g.recordedFees, baseCurrency)}{g.rule ? ` · Rule: ${g.rule.percent}% + ${formatMoney(g.rule.fixed, g.rule.currency ?? baseCurrency)}${g.rule.currency && g.rule.currency !== baseCurrency ? ` (${g.rule.currency}, converted to ${baseCurrency} in the recompute)` : ""} · Payout delay: ${g.rule.payoutDelayDays}d · COD: ${g.rule.codHandling}` : " · No fee schedule saved yet"}{g.recomputed !== null ? ` · Recomputed: ${formatMoney(g.recomputed, baseCurrency)} (delta ${formatMoney(g.delta ?? 0, baseCurrency)})` : ""}</p>
         </div>))}
       </CardContent></Card>
     </div>

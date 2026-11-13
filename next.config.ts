@@ -111,7 +111,6 @@ const nextConfig: NextConfig = {
   // Nothing here points at main — the live site is untouched.
   async redirects() {
     return [
-      { source: "/dashboard/shipments", destination: "/dashboard/couriers", permanent: false },
       { source: "/dashboard/true-profit", destination: "/dashboard/profit", permanent: false },
       { source: "/dashboard/order-profitability", destination: "/dashboard/orders", permanent: false },
       { source: "/dashboard/product-profitability", destination: "/dashboard/product-intel", permanent: false },

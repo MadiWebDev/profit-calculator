@@ -191,9 +191,24 @@ function cacheTtlMs(): number {
   return seconds * 1000;
 }
 
-export async function getFxRates(base: string = "USD"): Promise<FxRates> {
+export async function getFxRates(base: string = "USD", overrides?: FxOverrideInput[]): Promise<FxRates> {
   const baseCode = base.toUpperCase().trim();
   if (!isValidCode(baseCode)) throw new Error(`Invalid currency code: ${base}`);
+
+  // Manual overrides (saved on WorkspaceSettings) win over fetched
+  // rates. Overrides are stored as units per 1 USD, so they are
+  // applied to the USD-based table BEFORE re-basing — and never
+  // cached: the cache below holds provider rates only, shared across
+  // teams, and must never serve one team's overrides to another.
+  if (overrides && overrides.length > 0) {
+    const usd = await getFxRates("USD");
+    const rates: FxRates = {
+      base: baseCode,
+      rates: rebaseRates(applyFxOverrides(usd.rates, overrides), baseCode),
+      fetchedAt: usd.fetchedAt,
+    };
+    return rates;
+  }
 
   const now = Date.now();
   const cached = cache.get(baseCode);
@@ -249,6 +264,45 @@ export async function getFxRates(base: string = "USD"): Promise<FxRates> {
 export function clearFxCache(): void {
   cache.clear();
   inflight.clear();
+}
+
+/** One saved manual FX override: units of `currency` per 1 USD. */
+export interface FxOverrideInput {
+  currency: string;
+  rate: number;
+  effectiveFrom: Date | string;
+}
+
+/**
+ * Apply manual FX overrides to a USD-based rates table (units per
+ * 1 USD). Rules:
+ * - Only overrides whose effectiveFrom is on/before `now` apply; a
+ *   future-dated override is ignored until its date arrives.
+ * - When several overrides exist for one currency, the latest
+ *   effective one wins.
+ * - An override for USD itself is ignored (1 USD = 1 USD by
+ *   definition); invalid codes and non-positive rates are ignored.
+ * Pure — safe to unit-test without the network.
+ */
+export function applyFxOverrides(
+  usdRates: Record<string, number>,
+  overrides: FxOverrideInput[],
+  now: Date = new Date(),
+): Record<string, number> {
+  const out = { ...usdRates };
+  const best = new Map<string, { rate: number; from: number }>();
+  for (const o of overrides) {
+    const code = (o.currency ?? "").toUpperCase().trim();
+    if (code === "USD" || !/^[A-Z]{3}$/.test(code)) continue;
+    const rate = typeof o.rate === "number" ? o.rate : Number(o.rate);
+    if (!Number.isFinite(rate) || rate <= 0) continue;
+    const from = new Date(o.effectiveFrom).getTime();
+    if (Number.isNaN(from) || from > now.getTime()) continue;
+    const cur = best.get(code);
+    if (!cur || from >= cur.from) best.set(code, { rate, from });
+  }
+  for (const [code, { rate }] of best) out[code] = rate;
+  return out;
 }
 
 export async function logFxFailure(err: unknown): Promise<void> {

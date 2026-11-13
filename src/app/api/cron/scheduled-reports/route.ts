@@ -18,6 +18,7 @@ import {
   getReportRates,
 } from "@/lib/report-currency";
 import { sendScheduledReportEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
 
 export async function GET(req: Request) {
   const authRes = verifyCronAuth(req);
@@ -55,6 +56,20 @@ export async function GET(req: Request) {
         expenseAllocation: conv(o.expenseAllocation), orderDate: o.orderDate, status: o.status,
       };
     }));
+    // lastSentAt is stamped ONLY on a confirmed send. WhatsApp has no
+    // sender anywhere in this route, so a WhatsApp-only report must
+    // never be stamped delivered — it is logged and flagged as unsent
+    // instead (previously every due report was stamped, so a
+    // WhatsApp-only schedule silently looked delivered forever).
+    let delivered = false;
+    if (r.channel === "whatsapp") {
+      logger.warn("scheduled-report: WhatsApp channel has no sender; report not sent", {
+        reportId: r._id.toString(),
+        name: r.name,
+      });
+      skipped.push(`${r.name} (whatsapp not implemented — no sender configured)`);
+      continue;
+    }
     if (r.channel === "email" || r.channel === "both") {
       try {
         await sendScheduledReportEmail(
@@ -67,12 +82,15 @@ export async function GET(req: Request) {
           r.format === "pdf" ? "pdf" : "csv",
         );
         sent += 1;
+        delivered = true;
       } catch {
         skipped.push(`${r.name} (email failed)`);
         continue;
       }
     }
-    await ScheduledReportModel.updateOne({ _id: r._id }, { lastSentAt: now });
+    if (delivered) {
+      await ScheduledReportModel.updateOne({ _id: r._id }, { lastSentAt: now });
+    }
   }
   return NextResponse.json({ sent, skipped, runAt: now.toISOString() });
 }

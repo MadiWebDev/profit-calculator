@@ -18,7 +18,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import AdAccountModel from "@/models/AdAccount";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
-import { safeDecrypt } from "@/lib/encryption";
+import { getValidGoogleToken } from "@/lib/google-token";
 import { logger, toLogError } from "@/lib/logger";
 import { isAdMockMode, mockSpendRows } from "@/lib/ads/mock";
 
@@ -141,8 +141,11 @@ export async function syncGoogleAdSpend(
       return result;
     }
 
-    const accessToken = safeDecrypt(adAccount.accessToken);
-    if (!accessToken) throw new Error("Ad account is disconnected (no access token)");
+    // F1: the access token lives ~1h. Refresh it (via the stored
+    // refresh token) before it expires, instead of dying on the first
+    // 401 after connect. getValidGoogleToken throws NO_REFRESH_TOKEN
+    // when the account was connected without one — reconnect required.
+    let accessToken = await getValidGoogleToken(adAccount);
 
     const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
     if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN is not configured");
@@ -161,23 +164,44 @@ export async function syncGoogleAdSpend(
       "FROM campaign " +
       `WHERE segments.date BETWEEN '${fmt(startDate)}' AND '${fmt(endDate)}'`;
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${accessToken}`,
-      "developer-token": developerToken,
-      "Content-Type": "application/json",
-    };
-    if (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) {
-      headers["login-customer-id"] = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/-/g, "");
-    }
-
-    const res = await fetch(
-      `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ query }),
+    const buildHeaders = (token: string): Record<string, string> => {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        "developer-token": developerToken,
+        "Content-Type": "application/json",
+      };
+      if (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) {
+        headers["login-customer-id"] = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/-/g, "");
       }
-    );
+      return headers;
+    };
+
+    const runSearchStream = async (token: string) =>
+      fetch(
+        `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`,
+        {
+          method: "POST",
+          headers: buildHeaders(token),
+          body: JSON.stringify({ query }),
+        }
+      );
+
+    let res = await runSearchStream(accessToken);
+
+    // The stored token may have expired between the proactive check
+    // and the call (clock skew, early revocation): refresh once and
+    // retry, mirroring Meta's error-190 retry. A second 401 is fatal.
+    if (res.status === 401) {
+      const refreshed = await getValidGoogleToken({
+        ...adAccount,
+        // Force the refresh path: the stored expiry is stale.
+        tokenExpiresAt: new Date(0),
+      } as typeof adAccount).catch(() => null);
+      if (refreshed && refreshed !== accessToken) {
+        accessToken = refreshed;
+        res = await runSearchStream(accessToken);
+      }
+    }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");

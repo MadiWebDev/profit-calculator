@@ -27,9 +27,16 @@ import {
   getReportBaseCurrency,
   getReportRates,
 } from "@/lib/report-currency";
+import { getSyncedAdSpend } from "@/lib/ad-spend";
+import { round } from "@/lib/profit-engine";
 
 export interface ProductIntelRow extends RankedProduct {
   breakEven: BreakEvenResult;
+  /**
+   * Synced (AdSpendDaily) spend allocated to this product by revenue
+   * share (F5). 0 when there is no synced spend in the period.
+   */
+  syncedAdSpend: number;
 }
 
 export async function getProductIntel(
@@ -101,6 +108,41 @@ export async function getProductIntel(
   const movers = productMovers(inputs, 30, opts.to ?? new Date());
   const targetMargin = opts.targetMargin ?? 0.25;
 
+  // F5 — APPROACH: synced spend has no campaign→product mapping
+  // anywhere (AdSpendDaily carries no product/SKU field), so it
+  // cannot be attributed to products exactly. The period's synced
+  // total is therefore distributed across products by revenue share —
+  // the same allocation method this module already uses for order
+  // costs — and added to each product's ad spend. Σ per-product
+  // synced shares = the period total (largest-remainder rounding),
+  // so product totals reconcile with the dashboard/profit totals.
+  // When there is no revenue in the period the spend is unattributable
+  // to any product and stays at the period level only.
+  const syncedByProduct = new Map<string, number>();
+  const totalRevenue = ranked.reduce((s, r) => s + r.revenue, 0);
+  if (totalRevenue > 0) {
+    const orderDates = orders
+      .map((o) => new Date(o.orderDate).getTime())
+      .filter((t) => Number.isFinite(t));
+    const rangeFrom = opts.from ?? (orderDates.length ? new Date(Math.min(...orderDates)) : undefined);
+    const rangeTo = opts.to ?? (orderDates.length ? new Date(Math.max(...orderDates)) : undefined);
+    const synced = await getSyncedAdSpend(teamId, rangeFrom, rangeTo, base, {
+      rates,
+      ...(opts.storeId ? { storeId: opts.storeId } : {}),
+    });
+    if (synced.total > 0) {
+      let allocated = 0;
+      ranked.forEach((row, i) => {
+        const share =
+          i === ranked.length - 1
+            ? round(synced.total - allocated)
+            : round(synced.total * (row.revenue / totalRevenue));
+        allocated += share;
+        syncedByProduct.set(row.key, share);
+      });
+    }
+  }
+
   // Per-type revenue-share allocation for break-even unit costs.
   const perType = new Map<
     string,
@@ -139,6 +181,12 @@ export async function getProductIntel(
   const products: ProductIntelRow[] = ranked.map((row) => {
     const agg = perType.get(row.key);
     const units = agg?.units ?? row.units;
+    // F5: the product's share of synced spend also raises its
+    // per-unit ad spend in the break-even price.
+    if (agg) agg.adSpend += syncedByProduct.get(row.key) ?? 0;
+    const syncedShare = syncedByProduct.get(row.key) ?? 0;
+    const allocatedCosts = round(row.allocatedCosts + syncedShare);
+    const fullyLoadedProfit = round(row.fullyLoadedProfit - syncedShare);
     const breakEven = breakEvenForProduct(
       {
         avgCogsPerUnit: row.avgCogsPerUnit,
@@ -150,7 +198,15 @@ export async function getProductIntel(
       },
       targetMargin
     );
-    return { ...row, breakEven };
+    return {
+      ...row,
+      syncedAdSpend: round(syncedShare),
+      allocatedCosts,
+      fullyLoadedProfit,
+      fullyLoadedMargin:
+        row.revenue > 0 ? round((fullyLoadedProfit / row.revenue) * 100) : 0,
+      breakEven,
+    };
   });
 
   return { products, movers };

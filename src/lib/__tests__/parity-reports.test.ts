@@ -81,6 +81,79 @@ describe("allocateMonthlyExpenses", () => {
     );
     expect(allocated).toBe(0);
   });
+
+  it("does not decay a recurring expense with age", () => {
+    // The audit's repro: 30,000/month started 2026-01-01, no end
+    // date, allocated into the last 30 days. The old lifetime-days
+    // formula gave ~2,840; the monthly proration gives ~one month.
+    const allocated = allocateMonthlyExpenses(
+      [{ amount: 30000, currency: "USD", startDate: "2026-01-01", isRecurring: true, allocation: "per_day" }],
+      new Date("2026-10-14"), new Date("2026-11-12"),
+    );
+    // Oct 14–31 (18/31 of 30,000) + Nov 1–12 (12/30 of 30,000).
+    expect(allocated).toBeCloseTo(30000 * (18 / 31) + 30000 * (12 / 30), 2);
+    expect(allocated).toBeGreaterThan(25000);
+  });
+
+  it("allocates a full month for a recurring expense inside one month", () => {
+    const allocated = allocateMonthlyExpenses(
+      [{ amount: 30000, currency: "USD", startDate: "2026-01-01", isRecurring: true, allocation: "per_day" }],
+      new Date("2026-10-01"), new Date("2026-10-31"),
+    );
+    expect(allocated).toBe(30000);
+  });
+
+  it("treats a one-off expense with no end date as its start month only", () => {
+    const inMonth = allocateMonthlyExpenses(
+      [{ amount: 310, currency: "USD", startDate: "2026-10-01", allocation: "per_day" }],
+      new Date("2026-10-01"), new Date("2026-10-31"),
+    );
+    expect(inMonth).toBe(310);
+    const nextMonth = allocateMonthlyExpenses(
+      [{ amount: 310, currency: "USD", startDate: "2026-10-01", allocation: "per_day" }],
+      new Date("2026-11-01"), new Date("2026-11-30"),
+    );
+    expect(nextMonth).toBe(0);
+  });
+
+  it("converts each expense into the report base before summing", () => {
+    // 278.5 PKR = 1 USD at the test rates; a 27,850 PKR expense is
+    // 100 USD, allocated into a 15/31 slice of October.
+    const allocated = allocateMonthlyExpenses(
+      [{ amount: 27850, currency: "PKR", startDate: "2026-10-01", endDate: "2026-10-31", allocation: "per_day" }],
+      new Date("2026-10-01"), new Date("2026-10-15"),
+      { baseCurrency: "USD", rates: { USD: 1, PKR: 278.5 } },
+    );
+    expect(allocated).toBeCloseTo(100 * (15 / 31), 2);
+  });
+
+  it("weights per_order and by_revenue by whole-month totals", () => {
+    const monthStats = {
+      "2026-10": { orders: 100, revenue: 10000, overlapOrders: 50, overlapRevenue: 4000 },
+    };
+    const perOrder = allocateMonthlyExpenses(
+      [{ amount: 310, currency: "USD", startDate: "2026-10-01", endDate: "2026-10-31", allocation: "per_order" }],
+      new Date("2026-10-01"), new Date("2026-10-15"),
+      { monthStats },
+    );
+    // 50 of the month's 100 orders fall in the period.
+    expect(perOrder).toBe(155);
+    const byRevenue = allocateMonthlyExpenses(
+      [{ amount: 310, currency: "USD", startDate: "2026-10-01", endDate: "2026-10-31", allocation: "by_revenue" }],
+      new Date("2026-10-01"), new Date("2026-10-15"),
+      { monthStats },
+    );
+    // 4,000 of the month's 10,000 revenue falls in the period.
+    expect(byRevenue).toBe(124);
+  });
+
+  it("falls back to the time share when month totals are missing", () => {
+    const allocated = allocateMonthlyExpenses(
+      [{ amount: 310, currency: "USD", startDate: "2026-10-01", endDate: "2026-10-31", allocation: "per_order" }],
+      new Date("2026-10-01"), new Date("2026-10-15"),
+    );
+    expect(allocated).toBe(150);
+  });
 });
 
 describe("detectLeaks", () => {

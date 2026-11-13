@@ -147,6 +147,7 @@ export async function GET(req: NextRequest) {
   // ── 2. Exchange code for access token ─────────────────────────────────────
   // POST https://api.pinterest.com/v5/oauth/token (Basic auth)
   let accessToken: string;
+  let refreshToken: string | undefined;
   let tokenExpiresIn: number | undefined;
 
   try {
@@ -175,6 +176,7 @@ export async function GET(req: NextRequest) {
 
     const tokenData = (await tokenRes.json()) as {
       access_token?: string;
+      refresh_token?: string;
       expires_in?: number;
       error?: string;
       error_description?: string;
@@ -192,6 +194,10 @@ export async function GET(req: NextRequest) {
     }
 
     accessToken    = tokenData.access_token;
+    // F3: Pinterest issues a refresh token (60-day continuous window,
+    // rotated on every refresh). It must be stored or sync dies when
+    // the 30-day access token expires.
+    refreshToken   = tokenData.refresh_token;
     tokenExpiresIn = tokenData.expires_in; // seconds
   } catch (e) {
     logger.error("[Pinterest CB] Token exchange threw", toLogError(e), {});
@@ -257,6 +263,7 @@ export async function GET(req: NextRequest) {
           accountName:   acct.name,
           currency:      acct.currency ?? "USD",
           accessToken:   encrypt(accessToken),
+          ...(refreshToken ? { refreshToken: encrypt(refreshToken) } : {}),
           tokenExpiresAt,
           syncStatus:    "idle",
           isActive:      true,

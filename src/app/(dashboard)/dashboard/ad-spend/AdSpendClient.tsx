@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -27,7 +27,7 @@ interface CampaignRow {
 }
 
 interface MetaCampaign {
-  campaignId: string; spend: number; attributedRevenue: number;
+  campaignId: string; campaignName?: string; spend: number; attributedRevenue: number;
   attributedOrders: number; profit: number; roas: number; breakEvenRoas: number;
 }
 interface MetaAlert { type: string; campaignId: string; message: string; severity: string }
@@ -83,18 +83,37 @@ export function AdSpendClient({ data }: { data: AdData }) {
   const adjustedPlatforms = useMemo(() => applyAttribution(byPlatform, attribution), [byPlatform, attribution]);
 
   // Phase 5: true per-campaign Meta profit (UTM-attributed, break-even
-  // ROAS, alerts). Loaded client-side; a failure only hides this
-  // section, never the rest of the page. While it loads, a skeleton
-  // reserves the section's space.
+  // ROAS, alerts). Loaded client-side. A failure no longer hides the
+  // whole section (F10/R-2): the error is shown with a retry, so a
+  // broken attribution endpoint looks broken instead of like "no data".
   const [metaAttr, setMetaAttr] = useState<MetaAttribution | null>(null);
   const [metaAttrLoading, setMetaAttrLoading] = useState(true);
-  useEffect(() => {
+  const [metaAttrError, setMetaAttrError] = useState<string | null>(null);
+  // Starts the fetch only — no synchronous setState here, so calling
+  // it from the effect below does not cascade renders. Loading starts
+  // true (initial state); retries re-arm it in the click handler.
+  const fetchMetaAttr = useCallback(() => {
     fetch("/api/analytics/meta-attribution")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => null);
+          throw new Error(body?.code ?? body?.error ?? `HTTP ${r.status}`);
+        }
+        return r.json();
+      })
       .then((j) => j && setMetaAttr(j))
-      .catch(() => undefined)
+      .catch((e) => setMetaAttrError(e instanceof Error ? e.message : "Attribution failed to load"))
       .finally(() => setMetaAttrLoading(false));
   }, []);
+  useEffect(() => {
+    fetchMetaAttr();
+  }, [fetchMetaAttr]);
+  const retryMetaAttr = () => {
+    setMetaAttr(null);
+    setMetaAttrError(null);
+    setMetaAttrLoading(true);
+    fetchMetaAttr();
+  };
 
   const hasData = byPlatform.length > 0;
 
@@ -267,6 +286,19 @@ export function AdSpendClient({ data }: { data: AdData }) {
           {/* Phase 5: Meta true profit (UTM-attributed, not Meta-reported) */}
           {metaAttrLoading ? (
             <TableSkeleton rows={4} />
+          ) : metaAttrError ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Meta True Profit per Campaign</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-red-600">
+                  Attribution could not be loaded ({metaAttrError}). The spend above is unaffected.
+                  {metaAttrError === "FX_UNAVAILABLE" && " FX rates are unavailable, so spend cannot be converted to the store currency."}
+                </p>
+                <Button variant="outline" size="sm" onClick={retryMetaAttr}>Retry</Button>
+              </CardContent>
+            </Card>
           ) : metaAttr && metaAttr.campaigns.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
@@ -294,7 +326,7 @@ export function AdSpendClient({ data }: { data: AdData }) {
                     <tbody className="divide-y divide-[var(--color-border)]">
                       {metaAttr.campaigns.map((c) => (
                         <tr key={c.campaignId} className="hover:bg-[var(--color-muted)]/30">
-                          <td className="px-4 py-2.5 max-w-[200px] truncate font-medium">{c.campaignId}</td>
+                          <td className="px-4 py-2.5 max-w-[200px] truncate font-medium">{c.campaignName ?? c.campaignId}</td>
                           <td className="px-4 py-2.5">{formatMoney(c.spend, baseCurrency)}</td>
                           <td className="px-4 py-2.5">{formatMoney(c.attributedRevenue, baseCurrency)}</td>
                           <td className="px-4 py-2.5">{c.attributedOrders}</td>
@@ -310,18 +342,31 @@ export function AdSpendClient({ data }: { data: AdData }) {
             </Card>
           )}
 
-          {/* Campaign breakdown */}
+          {/* Campaign breakdown.
+              F9: the last column used to be labelled "Net Profit", but
+              the stored profitAttributed is revenue − ad spend only —
+              it ignores COGS and fees, so it is not profit. It is now
+              labelled honestly. True profit (revenue − COGS − fees −
+              spend) is shown per Meta campaign in the section above,
+              where UTM-attributed orders make it computable; other
+              platforms have no per-campaign COGS data. Note also that
+              Meta's attributed revenue is 0 when the pixel reports no
+              purchase values, so a 0 here can mean "no pixel data",
+              not "no sales". */}
           {byCampaign.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Top Campaigns</CardTitle>
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  &ldquo;Revenue − ad spend&rdquo; excludes COGS and fees; it is not net profit.
+                </p>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-[var(--color-muted)] border-b border-[var(--color-border)]">
                       <tr>
-                        {["Campaign", "Platform", "Spend", "Revenue", "ROAS", "CPA", "Net Profit"].map((h) => (
+                        {["Campaign", "Platform", "Spend", "Revenue", "ROAS", "CPA", "Revenue − ad spend"].map((h) => (
                           <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-muted-foreground)]">{h}</th>
                         ))}
                       </tr>

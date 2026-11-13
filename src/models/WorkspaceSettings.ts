@@ -7,6 +7,15 @@ import mongoose, { Schema, Document, model, models } from "mongoose";
  *
  *  Two currency fields, different jobs:
  *   - reportingCurrency: what server reports are aggregated in.
+ *     It governs aggregation ONLY when the team explicitly set it on
+ *     the Currency page, recorded by `reportingCurrencyExplicit`.
+ *     The field has NO default, deliberately: WorkspaceSettings docs
+ *     are also created by the General/Tax pages, and a defaulted
+ *     "USD" stamped by one of those saves would silently override
+ *     the team's store currency as the report base. Readers must
+ *     check `reportingCurrencyExplicit` (see getReportBaseCurrency /
+ *     getExplicitReportingCurrency in report-currency.ts) and fall
+ *     back to the store-currency rule when it is false.
  *   - displayCurrency: what money figures are SHOWN in on the
  *     dashboard (the header switcher's choice). It never changes
  *     stored numbers — figures are converted at display time from
@@ -31,6 +40,11 @@ export interface IWorkspaceSettings extends Document {
   reverseCharge: boolean;
   vatRates: { country: string; rate: number }[];
   reportingCurrency: string;
+  /** True only when the team explicitly saved a reporting currency
+   *  on the Currency page. False/absent = no choice made: reports
+   *  use the store-currency rule, and the stored reportingCurrency
+   *  value (if any) must be ignored. */
+  reportingCurrencyExplicit?: boolean;
   /** Team default display currency — undefined when the team never chose one (see the note above). */
   displayCurrency?: string;
   fxSource: string;
@@ -55,7 +69,12 @@ const WorkspaceSettingsSchema = new Schema<IWorkspaceSettings>(
     taxMode: { type: String, enum: ["exclusive", "inclusive"], default: "exclusive" },
     reverseCharge: { type: Boolean, default: false },
     vatRates: { type: [VatRateSchema], default: [] },
-    reportingCurrency: { type: String, default: "USD" },
+    reportingCurrency: { type: String },
+    // No default — see the comment on reportingCurrency above: a
+    // defaulted "USD" stamped by a General/Tax save would silently
+    // become the report base. Only an explicit Currency-page save
+    // sets this field, together with reportingCurrencyExplicit.
+    reportingCurrencyExplicit: { type: Boolean, default: false },
     // No default — see the comment on the interface above.
     displayCurrency: { type: String },
     fxSource: { type: String, default: "currencyapi.net" },

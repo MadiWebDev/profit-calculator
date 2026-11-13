@@ -14,6 +14,11 @@ import { withRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { toObjectId } from "@/lib/validation";
+import {
+  convertAmount,
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
 
 export async function GET(req: Request) {
   const rl = await withRateLimit(req, "standard", "risk-stats");
@@ -26,7 +31,14 @@ export async function GET(req: Request) {
 
   await connectDB();
   const teamId = toObjectId(session.teamId);
-  const [byBand, byStatus, money, rto] = await Promise.all([
+  // Band/status counts are currency-free, so the $group aggregations
+  // stay. The money stats must NOT be $sums: a Mongo $sum cannot
+  // convert, so a multi-currency team got 1:1 mixed-currency totals
+  // labelled as base currency. Fetch the contributing orders and
+  // convert each one into the report base currency before summing —
+  // the same rule P&L / LTV follow. (The backfill 100-cap UX is
+  // Phase 2 #23, deliberately untouched here.)
+  const [byBand, byStatus, fakeOrders, rtoOrders] = await Promise.all([
     OrderModel.aggregate([
       { $match: { teamId, riskScore: { $exists: true } } },
       { $group: { _id: "$riskBand", count: { $sum: 1 } } },
@@ -35,15 +47,25 @@ export async function GET(req: Request) {
       { $match: { teamId, riskScore: { $exists: true } } },
       { $group: { _id: "$riskStatus", count: { $sum: 1 } } },
     ]),
-    OrderModel.aggregate([
-      { $match: { teamId, riskStatus: "fake" } },
-      { $group: { _id: null, moneySaved: { $sum: "$moneySaved" }, valueProtected: { $sum: "$grossRevenue" } } },
-    ]),
-    OrderModel.aggregate([
-      { $match: { teamId } },
-      { $group: { _id: null, rtoLoss: { $sum: "$rtoLoss" } } },
-    ]),
+    OrderModel.find({ teamId, riskStatus: "fake" })
+      .select("moneySaved grossRevenue currency")
+      .lean(),
+    OrderModel.find({ teamId, rtoLoss: { $exists: true, $ne: 0 } })
+      .select("rtoLoss currency")
+      .lean(),
   ]);
+  const base = await getReportBaseCurrency(session.teamId);
+  const rates = await getReportRates(base);
+  const n = (v: unknown): number =>
+    typeof v === "number" && Number.isFinite(v) ? v : 0;
+  const cur = (o: { currency?: unknown }): string | undefined =>
+    typeof o.currency === "string" ? o.currency : undefined;
+  const moneySaved = fakeOrders.reduce(
+    (s, o) => s + convertAmount(n(o.moneySaved), cur(o), base, rates), 0);
+  const valueProtected = fakeOrders.reduce(
+    (s, o) => s + convertAmount(n(o.grossRevenue), cur(o), base, rates), 0);
+  const realisedRtoLoss = rtoOrders.reduce(
+    (s, o) => s + convertAmount(n(o.rtoLoss), cur(o), base, rates), 0);
   const bandCounts: Record<string, number> = {};
   for (const b of byBand as { _id: string; count: number }[]) bandCounts[b._id ?? "unknown"] = b.count;
   const statusCounts: Record<string, number> = {};
@@ -56,9 +78,9 @@ export async function GET(req: Request) {
     byStatus: statusCounts,
     reviewed,
     precision: reviewed > 0 ? Math.round((fake / reviewed) * 100 * 100) / 100 : 0,
-    moneySaved: money[0]?.moneySaved ?? 0,
-    valueProtected: money[0]?.valueProtected ?? 0,
-    realisedRtoLoss: rto[0]?.rtoLoss ?? 0,
+    moneySaved,
+    valueProtected,
+    realisedRtoLoss,
     generatedAt: new Date().toISOString(),
   });
 }

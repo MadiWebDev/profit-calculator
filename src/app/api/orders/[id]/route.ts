@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { checkSubscription } from "@/lib/api-helpers";
+import { requireAuth, checkSubscription } from "@/lib/api-helpers";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { calcOrderProfit } from "@/lib/profit-engine";
@@ -53,20 +53,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 // ── PATCH /api/orders/[id] ────────────────────────────────────────────────────
+// Requires write:data — a viewer (read-only) gets 403, like POST /api/orders.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = session.user as { id?: string; teamId?: string; role?: string };
-  if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
-
-  const block = await checkSubscription(user.teamId);
-  if (block) return block;
+  const authed = await requireAuth(req, { permission: "write:data" });
+  if (authed instanceof NextResponse) return authed;
+  const { session } = authed;
 
   const { id } = await params;
   const body = await req.json();
 
   await connectDB();
-  const order = await OrderModel.findOne({ _id: id, teamId: user.teamId });
+  const order = await OrderModel.findOne({ _id: id, teamId: session.teamId });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Fields that, if changed, require profit recomputation
@@ -132,8 +129,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   await order.save();
 
   await logAudit({
-    teamId: new mongoose.Types.ObjectId(user.teamId),
-    userId: new mongoose.Types.ObjectId(user.id!),
+    teamId: new mongoose.Types.ObjectId(session.teamId),
+    userId: new mongoose.Types.ObjectId(session.userId),
     action: "order.updated",
     description: `Updated order ${order.orderNumber ?? order.externalId} — net profit ${order.currency ? formatCurrency(order.netProfit, order.currency) : order.netProfit.toFixed(2)}`,
     resourceType: "Order",
@@ -144,28 +141,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 // ── DELETE /api/orders/[id] ───────────────────────────────────────────────────
-// Hard-deletes the order. Only owner / admin may delete.
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = session.user as { id?: string; teamId?: string; role?: string };
-  if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
-
-  const block = await checkSubscription(user.teamId);
-  if (block) return block;
+// Hard-deletes the order. Requires write:data (owner/admin/member) —
+// a viewer (read-only) gets 403.
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authed = await requireAuth(req, { permission: "write:data" });
+  if (authed instanceof NextResponse) return authed;
+  const { session } = authed;
 
   const { id } = await params;
 
   await connectDB();
-  const order = await OrderModel.findOne({ _id: id, teamId: user.teamId });
+  const order = await OrderModel.findOne({ _id: id, teamId: session.teamId });
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const label = order.orderNumber ?? order.externalId;
   await order.deleteOne();
 
   await logAudit({
-    teamId: new mongoose.Types.ObjectId(user.teamId),
-    userId: new mongoose.Types.ObjectId(user.id!),
+    teamId: new mongoose.Types.ObjectId(session.teamId),
+    userId: new mongoose.Types.ObjectId(session.userId),
     action: "order.deleted",
     description: `Deleted order ${label}`,
     resourceType: "Order",

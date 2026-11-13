@@ -19,7 +19,7 @@ interface PnlSummary {
   grossRevenue: number; discounts: number; refunds: number; chargebacks: number;
   shippingRevenue: number; netRevenue: number; totalRevenue: number;
   cogs: number; grossProfit: number; grossMargin: number;
-  transactionFees: number; shippingCosts: number; totalAdSpend: number; operatingExpenses: number;
+  transactionFees: number; shippingCosts: number; totalAdSpend: number; monthlyExpenses: number; otherFees: number; operatingExpenses: number;
   operatingProfit: number; operatingMargin: number;
   taxes: number; netProfit: number; netMargin: number; orderCount: number;
 }
@@ -87,10 +87,14 @@ function exportPnlCSV(s: PnlSummary, from: string, to: string) {
     ["", "Amount (USD)", "% of Revenue"],
     ["REVENUE"],
     ["  Gross Revenue", s.grossRevenue.toFixed(2), ""],
-    ["  Less: Discounts", `(${s.discounts.toFixed(2)})`, ""],
+    // Discounts and shipping revenue are memos, not subtractions:
+    // grossRevenue is already net of discounts and already includes
+    // shipping charged, so subtracting them again would double-count
+    // and the column would not sum to Net Revenue (N-3).
+    ["  Discounts (memo — already in Gross Revenue)", s.discounts.toFixed(2), ""],
     ["  Less: Refunds", `(${s.refunds.toFixed(2)})`, ""],
     ["  Less: Chargebacks", `(${s.chargebacks.toFixed(2)})`, ""],
-    ["  Shipping Revenue", s.shippingRevenue.toFixed(2), ""],
+    ["  Shipping Revenue (memo — already in Gross Revenue)", s.shippingRevenue.toFixed(2), ""],
     ["NET REVENUE", s.totalRevenue.toFixed(2), "100.0%"],
     [],
     ["COST OF GOODS SOLD"],
@@ -101,9 +105,14 @@ function exportPnlCSV(s: PnlSummary, from: string, to: string) {
     ["  Transaction Fees", `(${s.transactionFees.toFixed(2)})`, ""],
     ["  Shipping Costs", `(${s.shippingCosts.toFixed(2)})`, ""],
     ["  Advertising Spend", `(${s.totalAdSpend.toFixed(2)})`, ""],
+    ["  Monthly Expenses", `(${(s.monthlyExpenses ?? 0).toFixed(2)})`, ""],
+    ["  Other Fees", `(${(s.otherFees ?? 0).toFixed(2)})`, ""],
     ["OPERATING PROFIT (EBIT)", s.operatingProfit.toFixed(2), `${s.operatingMargin.toFixed(1)}%`],
     [],
-    ["  Taxes", `(${s.taxes.toFixed(2)})`, ""],
+    // Taxes are pass-through to the government, never a cost: Net
+    // Profit equals Operating Profit, so taxes are a memo row, not a
+    // deduction — otherwise the column would not sum to Net Profit.
+    ["  Taxes Collected (memo — pass-through, not deducted)", s.taxes.toFixed(2), ""],
     ["NET PROFIT", s.netProfit.toFixed(2), `${s.netMargin.toFixed(1)}%`],
     [],
     ["ORDERS", s.orderCount.toString(), ""],
@@ -214,12 +223,21 @@ export function PnlClient({
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Reconciliation contract (see pnl/page.tsx): grossRevenue
+                      is already net of discounts and already includes
+                      shipping charged, and taxes are pass-through. So
+                      Discounts / Shipping Revenue / Taxes Collected are
+                      MEMO rows — shown for information, never subtracted —
+                      and the column adds up: gross − refunds − chargebacks
+                      = Net Revenue; Net Revenue − COGS = Gross Profit;
+                      Gross Profit − operating expenses = Operating Profit
+                      = Net Profit. */}
                   <PnlRow label="REVENUE" style="header" />
                   <PnlRow label="Gross Revenue"     style="indent" value={s.grossRevenue}     pct={s.totalRevenue > 0 ? (s.grossRevenue / s.totalRevenue) * 100 : 0} currency={baseCurrency} />
-                  <PnlRow label="Less: Discounts"   style="indent" value={-s.discounts}       currency={baseCurrency} />
+                  <PnlRow label="Discounts"         style="indent" value={s.discounts}        note="memo — already in Gross Revenue" currency={baseCurrency} />
                   <PnlRow label="Less: Refunds"      style="indent" value={-s.refunds}         currency={baseCurrency} />
                   <PnlRow label="Less: Chargebacks"  style="indent" value={-s.chargebacks}     currency={baseCurrency} />
-                  <PnlRow label="Shipping Revenue"   style="indent" value={s.shippingRevenue}  currency={baseCurrency} />
+                  <PnlRow label="Shipping Revenue"   style="indent" value={s.shippingRevenue}  note="memo — already in Gross Revenue" currency={baseCurrency} />
                   <PnlRow label="Net Revenue" style="subtotal" value={s.totalRevenue} pct={100} currency={baseCurrency} />
                   <PnlRow label="" style="spacer" />
                   <PnlRow label="COST OF GOODS SOLD" style="header" />
@@ -230,11 +248,13 @@ export function PnlClient({
                   <PnlRow label="Transaction Fees"   style="indent" value={-s.transactionFees} currency={baseCurrency} />
                   <PnlRow label="Shipping Costs"     style="indent" value={-s.shippingCosts}   currency={baseCurrency} />
                   <PnlRow label="Advertising Spend"  style="indent" value={-s.totalAdSpend}    note={adSpendByPlatform.map((a) => `${a._id}: ${a.spend.toFixed(0)}`).join(", ")} currency={baseCurrency} />
+                  <PnlRow label="Monthly Expenses"   style="indent" value={-(s.monthlyExpenses ?? 0)} note="From Monthly Expenses" currency={baseCurrency} />
+                  <PnlRow label="Other Fees"         style="indent" value={-(s.otherFees ?? 0)} note="From Other Fees rules" currency={baseCurrency} />
                   <PnlRow label="Total Operating Expenses" style="subtotal" value={-s.operatingExpenses} currency={baseCurrency} />
                   <PnlRow label="Operating Profit (EBIT)" style="subtotal" value={s.operatingProfit} pct={s.operatingMargin} currency={baseCurrency} />
                   <PnlRow label="" style="spacer" />
                   <PnlRow label="TAX & OTHER" style="header" />
-                  <PnlRow label="Taxes Collected" style="indent" value={-s.taxes} note="Pass-through" currency={baseCurrency} />
+                  <PnlRow label="Taxes Collected" style="indent" value={s.taxes} note="Pass-through — memo, not deducted" currency={baseCurrency} />
                   <PnlRow label="NET PROFIT" style="total" value={s.netProfit} pct={s.netMargin} currency={baseCurrency} />
                 </tbody>
               </table>

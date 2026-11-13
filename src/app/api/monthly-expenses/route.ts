@@ -1,9 +1,10 @@
 /**
  * Monthly Expenses — CRUD for recurring/one-off operating costs.
  * GET also returns the amount allocated into the requested period
- * (per-day overlap, see parity-reports.ts) and profit before/after
- * operating expenses for that period, so the P&L effect is visible
- * without changing the core profit formula.
+ * (monthly amount prorated per calendar month, converted into the
+ * report base currency — see parity-reports.ts) and profit before/
+ * after operating expenses for that period. The same allocation is
+ * deducted as an operating expense in P&L, so the two surfaces agree.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -11,7 +12,8 @@ import { requireAuth } from "@/lib/api-helpers";
 import { parseBody, fail, toObjectId } from "@/lib/validation";
 import { connectDB } from "@/lib/db";
 import { getReportContext, loadReportOrders } from "@/lib/report-server";
-import { summarizeOrders, allocateMonthlyExpenses } from "@/lib/parity-reports";
+import { summarizeOrders } from "@/lib/parity-reports";
+import { getAllocatedMonthlyExpenses } from "@/lib/monthly-expenses-server";
 import MonthlyExpenseModel from "@/models/MonthlyExpense";
 import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
@@ -37,10 +39,11 @@ export async function GET(req: Request) {
   const ctx = ctxRes.ctx;
   await connectDB();
   const expenses = await MonthlyExpenseModel.find({ teamId: toObjectId(ctx.session.teamId), isActive: true }).sort({ startDate: -1 }).lean();
-  const allocated = allocateMonthlyExpenses(
-    expenses.map((e) => ({ amount: e.amount, currency: e.currency, startDate: e.startDate, endDate: e.endDate, allocation: e.allocation })),
-    ctx.from, ctx.to,
-  );
+  // Allocated in the report base currency, prorated per calendar
+  // month (a recurring expense no longer decays with age) and
+  // converted from each expense's own currency — the same helper
+  // P&L uses, so both surfaces agree.
+  const { allocated } = await getAllocatedMonthlyExpenses(ctx);
   const orders = await loadReportOrders(ctx);
   const totals = summarizeOrders(orders);
   return NextResponse.json({

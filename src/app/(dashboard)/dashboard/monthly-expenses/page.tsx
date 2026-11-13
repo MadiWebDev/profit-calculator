@@ -19,7 +19,7 @@ export default function MonthlyExpensesPage() {
   const [after, setAfter] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", category: "Software", amount: "", currency: displayCurrency, startDate: new Date().toISOString().slice(0, 10), isRecurring: true, allocation: "per_day" });
+  const [form, setForm] = useState({ name: "", category: "Software", amount: "", currency: displayCurrency, startDate: new Date().toISOString().slice(0, 10), endDate: "", isRecurring: true, allocation: "per_day" });
   const [msg, setMsg] = useState<string | null>(null);
   // The display currency resolves after mount; adopt it as the form's
   // currency until the user picks another one.
@@ -47,10 +47,10 @@ export default function MonthlyExpensesPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const submitAction = useAsyncAction(async () => {
-    const res = await fetch("/api/monthly-expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, amount: Number(form.amount) }) });
+    const res = await fetch("/api/monthly-expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, amount: Number(form.amount), endDate: form.endDate || undefined }) });
     if (!res.ok) { setMsg("Could not save that expense — check the fields and try again."); return; }
-    setMsg("Expense saved. It is allocated into the last 30 days above and into Revenue By Date / P&L as profit after operating expenses.");
-    setForm({ ...form, name: "", amount: "" });
+    setMsg("Expense saved. It is allocated into the last 30 days above and deducted as an operating expense in P&L.");
+    setForm({ ...form, name: "", amount: "", endDate: "" });
     await load();
   });
 
@@ -66,7 +66,7 @@ export default function MonthlyExpensesPage() {
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold">Monthly Expenses</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)]">Recurring and one-off operating costs (rent, salaries, software, agency, freelancers, shipping subscriptions). Allocated per day into the period below — profit before and after operating expenses are both shown, so the headline profit formula never changes silently.</p>
+        <p className="text-sm text-[var(--color-muted-foreground)]">Recurring and one-off operating costs (rent, salaries, software, agency, freelancers, shipping subscriptions). Each expense is a monthly amount, prorated per calendar month into the period below — a recurring expense repeats every month until its end date, so it never shrinks with age — and converted into the report base currency. Profit before and after operating expenses are both shown, and the same allocation is deducted as an operating expense in P&L.</p>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-medium text-[var(--color-muted-foreground)]">Allocated (last 30 days)</CardTitle></CardHeader><CardContent className="text-xl font-bold">{formatMoney(allocated, baseCurrency)}</CardContent></Card>
@@ -81,15 +81,16 @@ export default function MonthlyExpensesPage() {
           <div className="space-y-1"><Label htmlFor="exp-amount">Amount</Label><Input id="exp-amount" type="number" min="0" step="0.01" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="exp-currency">Currency</Label><select id="exp-currency" required value={form.currency} onChange={(e) => { currencyTouchedRef.current = true; setForm({ ...form, currency: e.target.value }); }} className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-sm">{ALL_CURRENCIES.map((c) => (<option key={c.code} value={c.code}>{c.label}</option>))}</select></div>
           <div className="space-y-1"><Label htmlFor="exp-start">Start date</Label><Input id="exp-start" type="date" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></div>
+          <div className="space-y-1"><Label htmlFor="exp-end">End date <span className="text-[var(--color-muted-foreground)]">(optional)</span></Label><Input id="exp-end" type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></div>
           <div className="space-y-1"><Label htmlFor="exp-alloc">Allocation</Label><select id="exp-alloc" value={form.allocation} onChange={(e) => setForm({ ...form, allocation: e.target.value })} className="flex h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 text-sm"><option value="per_day">Per day</option><option value="per_order">Per order</option><option value="by_revenue">By revenue share</option></select></div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isRecurring} onChange={(e) => setForm({ ...form, isRecurring: e.target.checked })} /> Recurring</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isRecurring} onChange={(e) => setForm({ ...form, isRecurring: e.target.checked })} /> Recurring {form.isRecurring && !form.endDate ? <span className="text-[var(--color-muted-foreground)]">(repeats every month until an end date is set)</span> : null}</label>
           <div className="sm:col-span-2"><Button type="submit" loading={submitAction.loading} loadingText="Saving…">Save expense</Button>{msg && <p className="text-sm text-[var(--color-muted-foreground)] mt-2">{msg}</p>}</div>
           </fieldset>
         </form>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Expenses</CardTitle></CardHeader><CardContent className="space-y-2">
         {expenses.length === 0 && <p className="text-sm text-[var(--color-muted-foreground)]">No expenses yet. Add your first one above — rent, salaries, or software.</p>}
-        {expenses.map((e) => (<div key={e.id} className="flex justify-between gap-3 text-sm border-b border-[var(--color-border)] pb-2 last:border-0"><span>{e.name} · {e.category}{e.isRecurring ? " · recurring" : ""}</span><span>{formatMoney(e.amount, e.currency ?? baseCurrency)} · {e.allocation}</span></div>))}
+        {expenses.map((e) => (<div key={e.id} className="flex justify-between gap-3 text-sm border-b border-[var(--color-border)] pb-2 last:border-0"><span>{e.name} · {e.category}{e.isRecurring ? " · recurring" : ""}{e.endDate ? ` · until ${new Date(e.endDate).toLocaleDateString()}` : ""}</span><span>{formatMoney(e.amount, e.currency ?? baseCurrency)} · {e.allocation}</span></div>))}
       </CardContent></Card>
     </div>
   );

@@ -12,6 +12,7 @@ import { parseBody, fail, toObjectId } from "@/lib/validation";
 import { connectDB } from "@/lib/db";
 import { getReportContext, loadReportOrders } from "@/lib/report-server";
 import { summarizeOrders } from "@/lib/parity-reports";
+import { convertAmount, getReportBaseCurrency, getReportRates } from "@/lib/report-currency";
 import GatewayFeeModel from "@/models/GatewayFee";
 import { deriveMoneyCurrency } from "@/lib/money-currency-server";
 
@@ -36,6 +37,12 @@ export async function GET(req: Request) {
   const fees = await GatewayFeeModel.find({ teamId: toObjectId(ctx.session.teamId), isActive: true }).lean();
   const orders = await loadReportOrders(ctx);
   const totals = summarizeOrders(orders);
+  // The preview is in the report base currency (orders arrive
+  // converted into it by loadReportOrders), so the rule's fixed fee —
+  // denominated in the RULE's currency — must be converted into the
+  // base before it is added. The percent is currency-agnostic.
+  const base = ctx.currency ?? (await getReportBaseCurrency(ctx.session.teamId, ctx.storeId));
+  const rates = await getReportRates(base, ctx.session.teamId);
 
   const byGateway = new Map<string, { orders: number; revenue: number; recordedFees: number }>();
   for (const o of orders) {
@@ -48,9 +55,35 @@ export async function GET(req: Request) {
     byGateway.set(g, cur);
   }
   const gateways = [...byGateway.entries()].map(([gateway, v]) => {
-    const rule = fees.find((f) => f.gateway.toLowerCase() === gateway.toLowerCase());
+    // Rule lookup is by gateway AND currency: with two rules for one
+    // gateway in different currencies the first match used to win
+    // arbitrarily. Prefer a rule denominated in the base currency;
+    // otherwise the latest-effective rule. A rule only applies when
+    // its effective window overlaps the period — a future-dated or
+    // expired rule no longer previews against the last 30 days.
+    const candidates = fees
+      .filter((f) => f.gateway.toLowerCase() === gateway.toLowerCase())
+      .filter((f) => {
+        const from = new Date(f.effectiveFrom);
+        if (Number.isNaN(from.getTime()) || from > ctx.to) return false;
+        if (f.effectiveTo) {
+          const to = new Date(f.effectiveTo);
+          if (!Number.isNaN(to.getTime()) && to < ctx.from) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const aBase = (a.currency ?? "").toUpperCase() === base ? 0 : 1;
+        const bBase = (b.currency ?? "").toUpperCase() === base ? 0 : 1;
+        if (aBase !== bBase) return aBase - bBase;
+        return new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime();
+      });
+    const rule = candidates[0];
+    const fixedInBase = rule
+      ? convertAmount(rule.fixed, rule.currency, base, rates)
+      : 0;
     const recomputed = rule
-      ? Math.round(((v.revenue * rule.percent) / 100 + v.orders * rule.fixed) * 100) / 100
+      ? Math.round(((v.revenue * rule.percent) / 100 + v.orders * fixedInBase) * 100) / 100
       : null;
     return {
       gateway, ...v,

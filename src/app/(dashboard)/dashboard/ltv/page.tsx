@@ -4,6 +4,11 @@ import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { LtvClient } from "./LtvClient";
 import mongoose from "mongoose";
+import {
+  getReportBaseCurrency,
+  getReportRates,
+} from "@/lib/report-currency";
+import { aggregateLtvOrders } from "@/lib/ltv";
 
 export const dynamic = "force-dynamic";
 
@@ -38,88 +43,26 @@ async function getLtvData(teamId: string) {
   }
 
   // ── Per-customer lifetime aggregation ────────────────────────────────────
-  const [customerData, monthlyTrend, orderFrequency] = await Promise.all([
-
-    // Full per-customer lifetime stats (all non-cancelled with email)
-    OrderModel.aggregate([
-      {
-        $match: {
-          teamId: teamOid,
-          status: { $ne: "cancelled" },
-          customerEmail: { $exists: true, $nin: [null, ""] },
-        },
-      },
-      { $sort: { orderDate: 1 } },
-      {
-        $group: {
-          _id: "$customerEmail",
-          firstOrderDate: { $first: "$orderDate" },
-          lastOrderDate:  { $last:  "$orderDate" },
-          orderCount:     { $sum: 1 },
-          totalRevenue:   { $sum: "$netRevenue" },
-          totalProfit:    { $sum: "$netProfit" },
-          totalCogs:      { $sum: "$totalCogs" },
-          totalAdSpend:   { $sum: "$adSpendAllocated" },
-          avgOrderValue:  { $avg: "$netRevenue" },
-        },
-      },
-    ]),
-
-    // Monthly new customers + revenue trend (last 12 months)
-    OrderModel.aggregate([
-      {
-        $match: {
-          teamId: teamOid,
-          status: { $ne: "cancelled" },
-          customerEmail: { $exists: true, $nin: [null, ""] },
-          orderDate: { $gte: new Date(now.getFullYear() - 1, now.getMonth(), 1) },
-        },
-      },
-      { $sort: { orderDate: 1 } },
-      {
-        $group: {
-          _id: {
-            email: "$customerEmail",
-            month: { $dateToString: { format: "%Y-%m", date: "$orderDate" } },
-          },
-          revenue: { $sum: "$netRevenue" },
-          profit:  { $sum: "$netProfit" },
-          orders:  { $sum: 1 },
-          firstEver: { $first: "$orderDate" },
-        },
-      },
-      {
-        $group: {
-          _id: "$_id.month",
-          totalRevenue:    { $sum: "$revenue" },
-          totalProfit:     { $sum: "$profit" },
-          activeCustomers: { $sum: 1 },
-          totalOrders:     { $sum: "$orders" },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]),
-
-    // Order-frequency distribution (how many customers placed 1, 2, 3+ orders)
-    OrderModel.aggregate([
-      {
-        $match: {
-          teamId: teamOid,
-          status: { $ne: "cancelled" },
-          customerEmail: { $exists: true, $nin: [null, ""] },
-        },
-      },
-      { $group: { _id: "$customerEmail", count: { $sum: 1 } } },
-      {
-        $bucket: {
-          groupBy: "$count",
-          boundaries: [1, 2, 3, 4, 6, 11],
-          default: "many",
-          output: { customers: { $sum: 1 } },
-        },
-      },
-    ]),
-  ]);
+  // A Mongo $sum cannot convert currencies, so the old code summed
+  // mixed-currency orders 1:1 (runtime-proven ~37x inflation: the Oct
+  // cohort showed Rs 13,944,244.99 for ~Rs 378k of real revenue).
+  // Instead fetch the orders once and aggregate in JS via
+  // aggregateLtvOrders, which converts each order into the report base
+  // currency BEFORE summing — the same rule P&L / product-intel / RFM
+  // follow. Ad spend stays per-order adSpendAllocated only:
+  // campaign-level synced spend cannot be attributed per customer.
+  const orders = await OrderModel.find({
+    teamId: teamOid,
+    status: { $ne: "cancelled" },
+    customerEmail: { $exists: true, $nin: [null, ""] },
+  })
+    .select("customerEmail orderDate currency netRevenue netProfit totalCogs adSpendAllocated")
+    .sort({ orderDate: 1 })
+    .lean();
+  const base = await getReportBaseCurrency(teamId);
+  const rates = await getReportRates(base);
+  const { customers: customerData, trend: monthlyTrend, frequency: orderFrequency } =
+    aggregateLtvOrders(orders, base, rates, now);
 
   // ── Build cohort table ────────────────────────────────────────────────────
   const cohortMap = new Map<string, {

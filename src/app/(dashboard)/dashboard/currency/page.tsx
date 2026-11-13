@@ -45,7 +45,7 @@ export default function CurrencyPage() {
     }
     const res = await fetch("/api/settings/workspace", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportingCurrency: form.reportingCurrency, fxSource: form.fxSource, fxOverrides: overrides }) });
     if (!res.ok) { setMsg("Could not save currency settings."); return; }
-    setMsg("Currency settings saved. Manual overrides apply from their effective date and are recorded in the history below.");
+    setMsg("Currency settings saved. The reporting currency now governs report aggregation, and manual overrides apply from their effective date and are recorded in the history below.");
     await load();
   });
 
@@ -61,7 +61,7 @@ export default function CurrencyPage() {
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold">Currency</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)]">Reporting currency, FX source, and manual rate overrides with effective dates. The display currency only changes how money figures are shown — converted at the live rate — while the reporting currency is what reports are aggregated in. Display currency is now a personal choice: set it in Settings → Profile or with the switcher in the dashboard header. Store and ad-account currencies are shown on the Stores and Ad Platforms pages; reports filter by order currency and never mix currencies in one total.</p>
+        <p className="text-sm text-[var(--color-muted-foreground)]">Reporting currency, FX source, and manual rate overrides with effective dates. The display currency only changes how money figures are shown — converted at the live rate — while the reporting currency set below is what reports are aggregated in: every report converts each order into it before summing. Until you set one here, reports use the most common store currency instead. Manual overrides replace the live rate for that currency from their effective date, in reports and in display conversion. Display currency is now a personal choice: set it in Settings → Profile or with the switcher in the dashboard header. Store and ad-account currencies are shown on the Stores and Ad Platforms pages; reports filter by order currency and never mix currencies in one total.</p>
       </div>
       <Card><CardHeader><CardTitle>Reporting currency &amp; FX</CardTitle></CardHeader><CardContent>
         <form onSubmit={save}>
