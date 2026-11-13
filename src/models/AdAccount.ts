@@ -23,6 +23,14 @@ export interface IAdAccount extends Document {
    */
   metaUserId?: string;
   lastSyncAt?: Date;
+  /**
+   * Oldest date with contiguous ad-spend coverage (backfill tracker).
+   * Null = never backfilled. After each backfill chunk the sync
+   * persists the chunk's start here, so a later run resumes from it
+   * instead of re-pulling completed chunks; once this is ≥365 days
+   * ago, runs are incremental only.
+   */
+  backfillThrough?: Date | null;
   syncStatus: "idle" | "syncing" | "error" | "never" | "disconnected";
   syncError?: string;
   isActive: boolean;
@@ -48,6 +56,7 @@ const AdAccountSchema = new Schema<IAdAccount>(
     tokenExpiresAt: Date,
     metaUserId: { type: String, index: true },
     lastSyncAt: Date,
+    backfillThrough: Date,
     syncStatus: {
       type: String,
       enum: ["idle", "syncing", "error", "never", "disconnected"],

@@ -47,7 +47,12 @@ import {
   parseTokenExchangeResponse,
 } from "@/lib/meta-ads-hardening";
 import { logger, toLogError } from "@/lib/logger";
-import { isAdMockMode, mockSpendRows } from "@/lib/ads/mock";
+import { isAdMockMode, mockSpendRowsForRange } from "@/lib/ads/mock";
+import {
+  runAdSpendBackfill,
+  type BackfillResult,
+  type DateChunk,
+} from "./backfill";
 
 export interface MetaSyncOptions {
   lookbackDays?: number;
@@ -60,6 +65,8 @@ export interface MetaSyncResult {
   pages: number;
   /** "full" on first/manual sync, "incremental" on repeat runs. */
   mode: SyncWindowMode;
+  /** Backfill summary (older days fetched this run, if any). */
+  backfill?: BackfillResult;
 }
 
 type SyncWindowMode = "full" | "incremental";
@@ -220,72 +227,79 @@ export async function syncMetaAdSpend(
     if (process.env.NODE_ENV === "production" && isAdMockMode()) {
       throw new Error("AD_MOCK_MODE is not allowed in production");
     }
-    // ── Mock mode: deterministic fixtures, no provider calls ──────────────
-    if (isAdMockMode()) {
-      for (const row of mockSpendRows(adAccount.accountId)) {
-        await upsertRow(adAccount, teamId, {
-          ...row,
-          date: new Date(row.date),
-        });
-        result.synced++;
+    // Fetch one window (the incremental window, or one backfill
+    // chunk). Mock mode upserts deterministic fixtures for the window
+    // instead of calling Meta; the production guard above keeps mock
+    // spend out of production. Credentials are resolved once and
+    // reused across chunks.
+    let accessToken: string | null = null;
+    let timezone: string | null = adAccount.timezone ?? null;
+    const ensureCredentials = async (): Promise<string> => {
+      if (accessToken) return accessToken;
+      const decrypted = safeDecrypt(adAccount.accessToken);
+      if (!decrypted) throw new Error("Ad account is disconnected (no access token)");
+      accessToken = decrypted;
+
+      // Node id for every Graph call below (see metaAdAccountNodeId).
+      const accountNodeId = metaAdAccountNodeId(adAccount.accountId);
+
+      // Proactive refresh when the token expires within 7 days.
+      const expiresSoon =
+        adAccount.tokenExpiresAt && adAccount.tokenExpiresAt.getTime() - Date.now() < 7 * 864e5;
+      if (expiresSoon) {
+        const refreshed = await refreshMetaToken(adAccount).catch(() => null);
+        if (refreshed) accessToken = refreshed;
       }
-      result.pages = 1;
-      await AdAccountModel.findByIdAndUpdate(adAccountId, {
-        syncStatus: "idle",
-        syncError: null,
-        lastSyncAt: new Date(),
-      });
-      return result;
-    }
 
-    let accessToken = safeDecrypt(adAccount.accessToken);
-    if (!accessToken) throw new Error("Ad account is disconnected (no access token)");
-
-    // Node id for every Graph call below (see metaAdAccountNodeId).
-    const accountNodeId = metaAdAccountNodeId(adAccount.accountId);
-
-    // Proactive refresh when the token expires within 7 days.
-    const expiresSoon =
-      adAccount.tokenExpiresAt && adAccount.tokenExpiresAt.getTime() - Date.now() < 7 * 864e5;
-    if (expiresSoon) {
-      const refreshed = await refreshMetaToken(adAccount).catch(() => null);
-      if (refreshed) accessToken = refreshed;
-    }
-
-    // Ad account timezone, best-effort: one cheap call, cached on the
-    // account so repeat syncs don't pay for it again.
-    let timezone = adAccount.timezone ?? null;
-    if (!timezone) {
-      try {
-        const tzRes = await fetch(
-          `https://graph.facebook.com/${API_VERSION}/${accountNodeId}?fields=timezone_name&access_token=${encodeURIComponent(accessToken)}`
-        );
-        const tzJson = (await tzRes.json().catch(() => ({}))) as { timezone_name?: string };
-        if (tzJson.timezone_name) {
-          timezone = tzJson.timezone_name;
-          await AdAccountModel.findByIdAndUpdate(adAccount._id, { timezone });
+      // Ad account timezone, best-effort: one cheap call, cached on the
+      // account so repeat syncs don't pay for it again.
+      if (!timezone) {
+        try {
+          const tzRes = await fetch(
+            `https://graph.facebook.com/${API_VERSION}/${accountNodeId}?fields=timezone_name&access_token=${encodeURIComponent(accessToken)}`
+          );
+          const tzJson = (await tzRes.json().catch(() => ({}))) as { timezone_name?: string };
+          if (tzJson.timezone_name) {
+            timezone = tzJson.timezone_name;
+            await AdAccountModel.findByIdAndUpdate(adAccount._id, { timezone });
+          }
+        } catch {
+          // Timezone stays null -> UTC dates (documented fallback).
         }
-      } catch {
-        // Timezone stays null -> UTC dates (documented fallback).
       }
-    }
+      return accessToken;
+    };
 
-    const params = new URLSearchParams({
-      fields: "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values",
-      time_range: JSON.stringify({
-        since: dateInTimezone(window.startDate, timezone),
-        until: dateInTimezone(window.endDate, timezone),
-      }),
-      time_increment: "1",
-      limit: "100",
-      access_token: accessToken,
-    });
-    let url: string | null =
-      `https://graph.facebook.com/${API_VERSION}/${accountNodeId}/insights?${params.toString()}`;
+    const fetchWindow = async (startDate: Date, endDate: Date): Promise<void> => {
+      if (isAdMockMode()) {
+        for (const row of mockSpendRowsForRange(adAccount.accountId, startDate, endDate)) {
+          await upsertRow(adAccount, teamId, {
+            ...row,
+            date: new Date(row.date),
+          });
+          result.synced++;
+        }
+        result.pages += 1;
+        return;
+      }
+      let token = await ensureCredentials();
+      const accountNodeId = metaAdAccountNodeId(adAccount.accountId);
+      const params = new URLSearchParams({
+        fields: "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values",
+        time_range: JSON.stringify({
+          since: dateInTimezone(startDate, timezone),
+          until: dateInTimezone(endDate, timezone),
+        }),
+        time_increment: "1",
+        limit: "100",
+        access_token: token,
+      });
+      let url: string | null =
+        `https://graph.facebook.com/${API_VERSION}/${accountNodeId}/insights?${params.toString()}`;
 
-    const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
-    let pages = 0;
-    let tokenRefreshedOnce = false;
+      const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
+      let pages = 0;
+      let tokenRefreshedOnce = false;
 
     while (url && pages < maxPages) {
       const { status, json: raw } = await metaFetch(url);
@@ -301,9 +315,10 @@ export async function syncMetaAdSpend(
           const refreshed = await refreshMetaToken(adAccount).catch(() => null);
           if (refreshed) {
             tokenRefreshedOnce = true;
+            token = refreshed;
             accessToken = refreshed;
             const retryParams = new URLSearchParams(params);
-            retryParams.set("access_token", accessToken);
+            retryParams.set("access_token", token);
             url = `https://graph.facebook.com/${API_VERSION}/${accountNodeId}/insights?${retryParams.toString()}`;
             continue;
           }
@@ -350,6 +365,17 @@ export async function syncMetaAdSpend(
 
       url = json.paging?.next ?? null;
     }
+    };
+
+    // Incremental window first (recent data), then the backfill gap
+    // (older days, newest chunk first). Backfill is best-effort: a
+    // chunk failure is recorded on the result but never fails the sync.
+    await fetchWindow(window.startDate, window.endDate);
+    result.backfill = await runAdSpendBackfill({
+      adAccountId,
+      coverageStart: window.startDate,
+      fetchChunk: (chunk: DateChunk) => fetchWindow(chunk.startDate, chunk.endDate),
+    });
 
     await AdAccountModel.findByIdAndUpdate(adAccountId, {
       syncStatus: "idle",

@@ -13,8 +13,15 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import AdAccountModel from "@/models/AdAccount";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
-import { getValidTikTokToken, TikTokTokenError } from "@/lib/tiktok-token";
+import { getValidTikTokToken } from "@/lib/tiktok-token";
 import { logger, toLogError } from "@/lib/logger";
+import { isAdMockMode, mockSpendRowsForRange } from "@/lib/ads/mock";
+import {
+  computeIncrementalWindow,
+  runAdSpendBackfill,
+  type BackfillResult,
+  type DateChunk,
+} from "./backfill";
 
 export interface TikTokSyncOptions {
   lookbackDays?: number;
@@ -25,10 +32,51 @@ export interface TikTokSyncResult {
   adAccountId: string;
   synced: number;
   pages: number;
+  /** Backfill summary (older days fetched this run, if any). */
+  backfill?: BackfillResult;
 }
 
-const DEFAULT_LOOKBACK_DAYS = 30;
 const DEFAULT_MAX_PAGES = 50;
+
+async function upsertRow(
+  adAccount: { _id: mongoose.Types.ObjectId; storeId: mongoose.Types.ObjectId; currency?: string },
+  teamId: string,
+  row: {
+    date: Date;
+    campaignId: string;
+    campaignName: string;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    revenue: number;
+  }
+): Promise<void> {
+  const roas = row.spend > 0 ? row.revenue / row.spend : 0;
+  const cpa = row.conversions > 0 ? row.spend / row.conversions : 0;
+  await AdSpendDailyModel.findOneAndUpdate(
+    { adAccountId: adAccount._id, date: row.date, campaignId: row.campaignId },
+    {
+      adAccountId: adAccount._id,
+      teamId: new mongoose.Types.ObjectId(teamId),
+      storeId: adAccount.storeId,
+      platform: "tiktok",
+      date: row.date,
+      campaignId: row.campaignId,
+      campaignName: row.campaignName,
+      spend: row.spend,
+      impressions: row.impressions,
+      clicks: row.clicks,
+      conversions: row.conversions,
+      revenueAttributed: row.revenue,
+      profitAttributed: row.revenue - row.spend,
+      roas,
+      cpa,
+      currency: adAccount.currency ?? "USD",
+    },
+    { upsert: true, new: true }
+  );
+}
 
 export async function syncTikTokAdSpend(
   adAccountId: string,
@@ -52,21 +100,6 @@ export async function syncTikTokAdSpend(
   });
   if (!adAccount) throw new Error("Ad account not found");
 
-  let accessToken: string;
-  try {
-    accessToken = await getValidTikTokToken(adAccount);
-  } catch (err) {
-    const msg =
-      err instanceof TikTokTokenError
-        ? err.message
-        : "Failed to obtain TikTok access token";
-    await AdAccountModel.findByIdAndUpdate(adAccountId, {
-      syncStatus: "error",
-      syncError: msg,
-    });
-    throw new Error(msg);
-  }
-
   await AdAccountModel.findByIdAndUpdate(adAccountId, {
     syncStatus: "syncing",
     syncError: null,
@@ -78,136 +111,152 @@ export async function syncTikTokAdSpend(
     pages: 0,
   };
 
-  const endDate = new Date();
-  const startDate = new Date(Date.now() - (options.lookbackDays ?? DEFAULT_LOOKBACK_DAYS) * 864e5);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10); // "YYYY-MM-DD"
-  const advertiserId = adAccount.accountId;
+  const window = computeIncrementalWindow({
+    lastSyncAt: adAccount.lastSyncAt ?? null,
+    lookbackDays: options.lookbackDays,
+  });
 
   try {
-    let page = 1;
-    const pageSize = 100;
-    let hasMore = true;
-    const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
+    // Fetch one window (the incremental window, or one backfill
+    // chunk). Mock mode upserts deterministic fixtures for the window
+    // instead of calling TikTok. The token is resolved once and
+    // reused across chunks.
+    let accessToken: string | null = null;
+    const ensureToken = async (): Promise<string> => {
+      if (accessToken) return accessToken;
+      accessToken = await getValidTikTokToken(adAccount);
+      return accessToken;
+    };
 
-    while (hasMore && page <= maxPages) {
-      const reportRes = await fetch(
-        "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/",
-        {
-          method: "POST",
-          headers: {
-            "Access-Token": accessToken,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            advertiser_id: advertiserId,
-            report_type: "BASIC",
-            data_level: "AUCTION_CAMPAIGN",
-            dimensions: ["stat_time_day", "campaign_id"],
-            metrics: [
-              "spend",
-              "impressions",
-              "clicks",
-              "conversion",
-              "total_purchase_value",
-              "campaign_name",
-            ],
-            start_date: fmt(startDate),
-            end_date: fmt(endDate),
-            page,
-            page_size: pageSize,
-            order_field: "stat_time_day",
-            order_type: "ASC",
-          }),
+    const fetchWindow = async (startDate: Date, endDate: Date): Promise<void> => {
+      if (isAdMockMode()) {
+        for (const row of mockSpendRowsForRange(adAccount.accountId, startDate, endDate)) {
+          await upsertRow(adAccount, teamId, {
+            ...row,
+            date: new Date(row.date),
+          });
+          result.synced++;
         }
-      );
-
-      if (!reportRes.ok) {
-        throw new Error(`TikTok report API HTTP ${reportRes.status}`);
+        result.pages += 1;
+        return;
       }
+      const token = await ensureToken();
+      const fmt = (d: Date) => d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+      const advertiserId = adAccount.accountId;
 
-      const reportJson = (await reportRes.json()) as {
-        code?: number;
-        message?: string;
-        data?: {
-          list?: {
-            dimensions?: { stat_time_day?: string; campaign_id?: string };
-            metrics?: {
-              spend?: string;
-              impressions?: string;
-              clicks?: string;
-              conversion?: string;
-              total_purchase_value?: string;
-              campaign_name?: string;
-            };
-          }[];
-          page_info?: { total_number?: number; page?: number; page_size?: number };
-        };
-      };
+      let page = 1;
+      const pageSize = 100;
+      let hasMore = true;
+      const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
 
-      if (reportJson.code !== 0) {
-        throw new Error(`TikTok report API error: ${reportJson.message ?? "unknown"}`);
-      }
-
-      const rows = reportJson.data?.list ?? [];
-      const pgInfo = reportJson.data?.page_info;
-      result.pages++;
-
-      for (const row of rows) {
-        const dim = row.dimensions ?? {};
-        const metrics = row.metrics ?? {};
-        const dateStr = dim.stat_time_day ?? "";
-        const campaignId = dim.campaign_id ?? "";
-        if (!dateStr || !campaignId) continue;
-
-        const num = (v: string | undefined): number => {
-          const n = parseFloat(v ?? "0");
-          return Number.isFinite(n) ? n : 0;
-        };
-        const int = (v: string | undefined): number => {
-          const n = parseInt(v ?? "0", 10);
-          return Number.isFinite(n) ? n : 0;
-        };
-
-        const date = new Date(dateStr);
-        const spend = num(metrics.spend);
-        const impr = int(metrics.impressions);
-        const clicks = int(metrics.clicks);
-        const convs = int(metrics.conversion);
-        const revenue = num(metrics.total_purchase_value);
-
-        const roas = spend > 0 ? revenue / spend : 0;
-        const cpa = convs > 0 ? spend / convs : 0;
-
-        await AdSpendDailyModel.findOneAndUpdate(
-          { adAccountId: adAccount._id, date, campaignId },
+      while (hasMore && page <= maxPages) {
+        const reportRes = await fetch(
+          "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/",
           {
-            adAccountId: adAccount._id,
-            teamId: new mongoose.Types.ObjectId(teamId),
-            storeId: adAccount.storeId,
-            platform: "tiktok",
-            date,
-            campaignId,
-            campaignName: metrics.campaign_name ?? "",
-            spend,
-            impressions: impr,
-            clicks,
-            conversions: convs,
-            revenueAttributed: revenue,
-            profitAttributed: revenue - spend,
-            roas,
-            cpa,
-            currency: adAccount.currency ?? "USD",
-          },
-          { upsert: true, new: true }
+            method: "POST",
+            headers: {
+              "Access-Token": token,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              advertiser_id: advertiserId,
+              report_type: "BASIC",
+              data_level: "AUCTION_CAMPAIGN",
+              dimensions: ["stat_time_day", "campaign_id"],
+              metrics: [
+                "spend",
+                "impressions",
+                "clicks",
+                "conversion",
+                "total_purchase_value",
+                "campaign_name",
+              ],
+              start_date: fmt(startDate),
+              end_date: fmt(endDate),
+              page,
+              page_size: pageSize,
+              order_field: "stat_time_day",
+              order_type: "ASC",
+            }),
+          }
         );
 
-        result.synced++;
-      }
+        if (!reportRes.ok) {
+          throw new Error(`TikTok report API HTTP ${reportRes.status}`);
+        }
 
-      const totalRows = pgInfo?.total_number ?? 0;
-      hasMore = page * pageSize < totalRows && rows.length === pageSize;
-      page++;
-    }
+        const reportJson = (await reportRes.json()) as {
+          code?: number;
+          message?: string;
+          data?: {
+            list?: {
+              dimensions?: { stat_time_day?: string; campaign_id?: string };
+              metrics?: {
+                spend?: string;
+                impressions?: string;
+                clicks?: string;
+                conversion?: string;
+                total_purchase_value?: string;
+                campaign_name?: string;
+              };
+            }[];
+            page_info?: { total_number?: number; page?: number; page_size?: number };
+          };
+        };
+
+        if (reportJson.code !== 0) {
+          throw new Error(`TikTok report API error: ${reportJson.message ?? "unknown"}`);
+        }
+
+        const rows = reportJson.data?.list ?? [];
+        const pgInfo = reportJson.data?.page_info;
+        result.pages++;
+
+        for (const row of rows) {
+          const dim = row.dimensions ?? {};
+          const metrics = row.metrics ?? {};
+          const dateStr = dim.stat_time_day ?? "";
+          const campaignId = dim.campaign_id ?? "";
+          if (!dateStr || !campaignId) continue;
+
+          const num = (v: string | undefined): number => {
+            const n = parseFloat(v ?? "0");
+            return Number.isFinite(n) ? n : 0;
+          };
+          const int = (v: string | undefined): number => {
+            const n = parseInt(v ?? "0", 10);
+            return Number.isFinite(n) ? n : 0;
+          };
+
+          await upsertRow(adAccount, teamId, {
+            date: new Date(dateStr),
+            campaignId,
+            campaignName: metrics.campaign_name ?? "",
+            spend: num(metrics.spend),
+            impressions: int(metrics.impressions),
+            clicks: int(metrics.clicks),
+            conversions: int(metrics.conversion),
+            revenue: num(metrics.total_purchase_value),
+          });
+
+          result.synced++;
+        }
+
+        const totalRows = pgInfo?.total_number ?? 0;
+        hasMore = page * pageSize < totalRows && rows.length === pageSize;
+        page++;
+      }
+    };
+
+    // Incremental window first (recent data), then the backfill gap
+    // (older days, newest chunk first). Backfill is best-effort: a
+    // chunk failure is recorded on the result but never fails the sync.
+    await fetchWindow(window.startDate, window.endDate);
+    result.backfill = await runAdSpendBackfill({
+      adAccountId,
+      coverageStart: window.startDate,
+      fetchChunk: (chunk: DateChunk) => fetchWindow(chunk.startDate, chunk.endDate),
+    });
 
     await AdAccountModel.findByIdAndUpdate(adAccountId, {
       syncStatus: "idle",
