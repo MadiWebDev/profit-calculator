@@ -386,7 +386,7 @@ async function getOverviewData(
       orderDate:    o.orderDate ? (o.orderDate instanceof Date ? o.orderDate.toISOString() : new Date(o.orderDate).toISOString()) : new Date().toISOString(),
       grossRevenue: o.grossRevenue,
       netProfit:    o.netProfit,
-      profitMargin: o.profitMargin,
+      profitMargin: o.profitMargin ?? 0,
       status:       o.status,
       customerEmail: o.customerEmail ?? null,
     })),
