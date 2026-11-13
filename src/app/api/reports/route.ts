@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
         o.orderNumber ?? o.externalId, o.orderDate.toISOString().slice(0, 10), o.status,
         o.grossRevenue.toFixed(2), o.discounts.toFixed(2), o.totalCogs.toFixed(2),
         o.shippingCost.toFixed(2), o.transactionFees.toFixed(2), o.refundAmount.toFixed(2),
-        o.adSpendAllocated.toFixed(2), o.netProfit.toFixed(2), o.profitMargin.toFixed(2),
+        o.adSpendAllocated.toFixed(2), o.netProfit.toFixed(2), (o.profitMargin ?? 0).toFixed(2),
       ]),
     ]);
   }

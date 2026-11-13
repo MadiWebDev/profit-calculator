@@ -63,11 +63,18 @@ export function formatCurrency(
 
 
 export function formatPercent(value: number, decimals: number = 2): string {
-  return `${value.toFixed(decimals)}%`;
+  // A missing or non-finite value (e.g. a legacy / directly-inserted order
+  // with no profitMargin) must render as 0% — never throw. The unguarded
+  // value.toFixed() crashed the whole dashboard overview (OverviewClient)
+  // when a single order lacked profitMargin.
+  const v = Number.isFinite(value) ? value : 0;
+  return `${v.toFixed(decimals)}%`;
 }
 
 export function formatNumber(value: number, decimals: number = 2): string {
-  return value.toFixed(decimals);
+  // Same guard as formatPercent: non-finite input renders as 0, never throws.
+  const v = Number.isFinite(value) ? value : 0;
+  return v.toFixed(decimals);
 }
 
 export function debounce<T extends (...args: unknown[]) => void>(
