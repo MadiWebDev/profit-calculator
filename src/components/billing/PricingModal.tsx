@@ -120,16 +120,6 @@ export function PricingModal({
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="relative bg-gradient-to-br from-[var(--color-primary)]/10 to-transparent px-4 sm:px-6 pt-6 sm:pt-8 pb-5 sm:pb-6 text-center border-b border-[var(--color-border)]">
-          {dismissible && onClose && (
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 rounded-full p-1.5 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-muted)] transition-colors"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-
           <div className="inline-flex items-center gap-2 bg-[var(--color-primary)]/10 text-[var(--color-primary)] rounded-full px-3 py-1 text-xs font-semibold mb-3">
             <Zap className="h-3.5 w-3.5" />
             Upgrade to continue
