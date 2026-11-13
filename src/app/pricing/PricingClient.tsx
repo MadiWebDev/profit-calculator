@@ -51,6 +51,13 @@ import {
   readSessionPrices,
   writeSessionPrices,
 } from "@/lib/paddle-prices-client";
+import {
+  CHECKOUT_NEEDS_ACCOUNT_MESSAGE,
+  HOSTED_CHECKOUT_OPENING_MESSAGE,
+  initWithTimeoutAndRetry,
+  mapPricingIntervalToBillingInterval,
+  requestHostedCheckout,
+} from "@/lib/paddle-checkout";
 import { logger } from "@/lib/logger";
 
 // ── Env validation ────────────────────────────────────────────────────────────
@@ -196,47 +203,60 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
   const [interval,      setInterval]      = useState<PricingInterval>("month");
   const [openingTier,   setOpeningTier]   = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  // Transient status while the hosted-checkout fallback is opening.
+  const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
 
   // Price IDs in tier order — the session-cache key input (stable per render).
   const priceIds = useMemo(() => allPriceIds(tiers), [tiers]);
 
   // ── Initialise Paddle.js ─────────────────────────────────────────────────
+  // One init attempt may hang forever on a blocked/slow CDN, leaving
+  // Subscribe dead. Bound it with a timeout + one retry; on final failure
+  // the hosted-checkout fallback in handleSubscribe still lets the user pay.
   useEffect(() => {
     let cancelled = false;
 
+    const initOnce = async () => {
+      const { initializePaddle } = await import("@paddle/paddle-js");
+      const paddle = await initializePaddle({
+        environment: PADDLE_ENV as "production" | "sandbox",
+        token:       CLIENT_TOKEN as string,
+        ...(paddleCustomerId ? { pwCustomer: { id: paddleCustomerId } } : {}),
+        eventCallback(event: PaddleEventData) {
+          // Redirect to /welcome when checkout completes successfully
+          if (event.name === "checkout.completed") {
+            const eventData = event.data as Record<string, unknown> | undefined;
+            const txId = (eventData?.transaction_id ?? eventData?.id) as string | undefined;
+            if (txId) {
+              fetch("/api/billing/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ transactionId: txId }),
+              }).finally(() => {
+                router.push("/welcome");
+              });
+            } else {
+              router.push("/welcome");
+            }
+          }
+        },
+      });
+      if (!paddle) throw new Error("Paddle.js did not initialise");
+      return paddle;
+    };
+
     (async () => {
       try {
-        const { initializePaddle } = await import("@paddle/paddle-js");
-        const paddle = await initializePaddle({
-          environment: PADDLE_ENV as "production" | "sandbox",
-          token:       CLIENT_TOKEN as string,
-          ...(paddleCustomerId ? { pwCustomer: { id: paddleCustomerId } } : {}),
-          eventCallback(event: PaddleEventData) {
-            // Redirect to /welcome when checkout completes successfully
-            if (event.name === "checkout.completed") {
-              const eventData = event.data as Record<string, unknown> | undefined;
-              const txId = (eventData?.transaction_id ?? eventData?.id) as string | undefined;
-              if (txId) {
-                fetch("/api/billing/sync", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ transactionId: txId }),
-                }).finally(() => {
-                  router.push("/welcome");
-                });
-              } else {
-                router.push("/welcome");
-              }
-            }
-          },
+        const paddle = await initWithTimeoutAndRetry(initOnce, {
+          label: "Paddle initialisation",
         });
-        if (!cancelled && paddle) {
+        if (!cancelled) {
           paddleRef.current = paddle;
           setPaddleReady(true);
         }
       } catch (err) {
         logger.error("[Paddle] init error", err);
-        if (!cancelled) setPaddleReady(true); // unblock UI; Subscribe will show an error
+        if (!cancelled) setPaddleReady(true); // unblock UI; checkout falls back to hosted
       }
     })();
 
@@ -335,52 +355,72 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
   // ── Checkout ─────────────────────────────────────────────────────────────
   const handleSubscribe = useCallback(
     async (tier: SerializedTier) => {
-      if (!paddleRef.current) {
-        setCheckoutError("Paddle is still loading. Please try again in a moment.");
-        return;
-      }
-
       // Anonymous checkout cannot be provisioned: without a signed-in team
       // there is no customData.teamId for webhooks to attach the subscription
       // to, so a paying visitor would get no access. Send them to create a
-      // free account first instead of taking payment.
+      // free account first instead of taking payment. Checked FIRST, so the
+      // hosted-checkout fallback below can never run for an anonymous visitor.
       if (!teamId) {
-        setCheckoutError("Please create a free account first, so we can activate your plan right after payment.");
+        setCheckoutError(CHECKOUT_NEEDS_ACCOUNT_MESSAGE);
+        return;
+      }
+      setCheckoutError(null);
+
+      // Primary path: the one-page overlay, whenever Paddle.js is ready.
+      if (paddleRef.current) {
+        const priceId = tier.priceId[interval];
+        setOpeningTier(tier.id);
+
+        try {
+          const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+          const successUrl = `${siteUrl}/welcome`;
+
+          paddleRef.current.Checkout.open({
+            items: [{ priceId, quantity: 1 }],
+            settings: {
+              displayMode: "overlay",
+              variant:     "one-page",
+              successUrl,
+            },
+            // teamId is passed as customData so the webhook handler can
+            // provision the correct team after payment.  It was resolved
+            // server-side from the JWT — never from client input.
+            ...(teamId ? { customData: { teamId } } : {}),
+            // Prefill email if the user is signed in
+            ...(userEmail
+              ? { customer: { email: userEmail } }
+              : {}),
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Could not open checkout. Please try again.";
+          setCheckoutError(msg);
+        } finally {
+          // openingTier is cleared on checkout.completed (via eventCallback) or
+          // immediately here if open() threw. For the non-error path Paddle
+          // manages its own loading state; we just unblock the button.
+          setOpeningTier(null);
+        }
         return;
       }
 
-      const priceId = tier.priceId[interval];
+      // Fallback path: Paddle.js never initialised (blocked CDN, hung
+      // script, failed init). The server creates a hosted checkout and we
+      // redirect the browser to it — checkout still works instead of
+      // dead-ending on "Paddle is still loading".
       setOpeningTier(tier.id);
-      setCheckoutError(null);
-
+      setCheckoutStatus(HOSTED_CHECKOUT_OPENING_MESSAGE);
       try {
-        const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-        const successUrl = `${siteUrl}/welcome`;
-
-        paddleRef.current.Checkout.open({
-          items: [{ priceId, quantity: 1 }],
-          settings: {
-            displayMode: "overlay",
-            variant:     "one-page",
-            successUrl,
-          },
-          // teamId is passed as customData so the webhook handler can
-          // provision the correct team after payment.  It was resolved
-          // server-side from the JWT — never from client input.
-          ...(teamId ? { customData: { teamId } } : {}),
-          // Prefill email if the user is signed in
-          ...(userEmail
-            ? { customer: { email: userEmail } }
-            : {}),
-        });
+        const { url } = await requestHostedCheckout(
+          tier.id,
+          mapPricingIntervalToBillingInterval(interval)
+        );
+        window.location.href = url;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Could not open checkout. Please try again.";
         setCheckoutError(msg);
       } finally {
-        // openingTier is cleared on checkout.completed (via eventCallback) or
-        // immediately here if open() threw. For the non-error path Paddle
-        // manages its own loading state; we just unblock the button.
         setOpeningTier(null);
+        setCheckoutStatus(null);
       }
     },
     [interval, userEmail, teamId]
@@ -519,6 +559,16 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
             </div>
           )}
 
+          {/* Hosted-checkout fallback in flight — the overlay was unavailable */}
+          {checkoutStatus && (
+            <div
+              role="status"
+              className="sm:col-span-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950 px-4 py-3 text-sm text-blue-700 dark:text-blue-300"
+            >
+              {checkoutStatus}
+            </div>
+          )}
+
           {tiers.map((tier) => {
             const isHighlighted = !!tier.highlighted;
             const isOpening     = openingTier === tier.id;
@@ -581,9 +631,12 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
                 <Button
                   className="w-full mb-5 gap-1.5"
                   variant={isHighlighted ? "default" : "outline"}
-                  disabled={anyOpening || !paddleReady}
+                  // NOT gated on paddleReady: when Paddle.js never loads, the
+                  // click falls back to the hosted checkout instead of
+                  // dead-ending. Only one checkout may open at a time.
+                  disabled={anyOpening}
                   loading={isOpening}
-                  loadingText="Opening…"
+                  loadingText={checkoutStatus ?? "Opening…"}
                   onClick={() => handleSubscribe(tier)}
                   aria-label={`Subscribe to ${tier.name}`}
                 >
