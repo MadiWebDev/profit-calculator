@@ -7,6 +7,7 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
 import { CurrencyConverter } from "@/components/currency/CurrencyConverter";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
 
@@ -45,6 +46,7 @@ export function DashboardTopbar({ userName, userEmail, plan, role }: DashboardTo
           <CurrencyConverter />
           <CurrencySelector size="sm" />
           <NotificationBell />
+          <ThemeToggle />
         </div>
       </header>
 

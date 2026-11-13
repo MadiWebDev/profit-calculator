@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UsageMeter } from "@/components/dashboard/UsageMeter";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
 
 interface NavItem {
@@ -309,6 +310,9 @@ export function DashboardSidebar({
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-[var(--color-foreground)] truncate">{userName}</p>
             <p className="text-xs text-[var(--color-muted-foreground)] truncate">{userEmail}</p>
+          </div>
+          <div className="ml-auto shrink-0">
+            <ThemeToggle />
           </div>
         </div>
         <button
