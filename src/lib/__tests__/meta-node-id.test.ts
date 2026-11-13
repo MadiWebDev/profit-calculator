@@ -17,6 +17,7 @@ import mongoose from "mongoose";
 import { setupTestDb, teardownTestDb, clearDb } from "./setup-db";
 import { syncMetaAdSpend } from "@/lib/sync/meta-ads";
 import AdAccountModel from "@/models/AdAccount";
+import AdSpendDailyModel from "@/models/AdSpendDaily";
 import { encrypt } from "@/lib/encryption";
 
 describe("syncMetaAdSpend — ad account node id (live path)", () => {
@@ -89,7 +90,12 @@ describe("syncMetaAdSpend — ad account node id (live path)", () => {
   it("builds act_<id> (not act_act_<id>) when the stored id already has the prefix", async () => {
     const acct = await createLiveAccount("act_123");
     const result = await syncMetaAdSpend(acct._id.toString(), teamId.toString(), {});
-    expect(result.synced).toBe(1);
+    // 1 incremental window + 12 backfill chunks; the stub returns the
+    // same 1-row fixture for every window, so 13 upserts land on the
+    // same single stored row (upsert idempotency across chunks).
+    expect(result.synced).toBe(13);
+    expect(result.backfill?.chunksCompleted).toBe(12);
+    expect(await AdSpendDailyModel.countDocuments({ adAccountId: acct._id })).toBe(1);
     expect(requestedUrls.some((u) => u.includes("act_act_"))).toBe(false);
     expect(requestedUrls.some((u) => u.includes("/act_123/insights"))).toBe(true);
     expect(requestedUrls.some((u) => u.includes("/act_123?fields=timezone_name"))).toBe(true);
@@ -102,7 +108,9 @@ describe("syncMetaAdSpend — ad account node id (live path)", () => {
   it("builds act_<id> when the stored id is bare", async () => {
     const acct = await createLiveAccount("456");
     const result = await syncMetaAdSpend(acct._id.toString(), teamId.toString(), {});
-    expect(result.synced).toBe(1);
+    // Same 1 incremental + 12 backfill windows as above.
+    expect(result.synced).toBe(13);
+    expect(result.backfill?.chunksCompleted).toBe(12);
     expect(requestedUrls.some((u) => u.includes("act_act_"))).toBe(false);
     expect(requestedUrls.some((u) => u.includes("/act_456/insights"))).toBe(true);
   });

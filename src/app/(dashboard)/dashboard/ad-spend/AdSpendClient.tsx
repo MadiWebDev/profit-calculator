@@ -13,6 +13,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { TableSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
+import { AD_SPEND_DAY_OPTIONS, type AdSpendDays } from "@/lib/sync/ad-spend-days";
 
 type AttributionModel = "last_click" | "first_click" | "linear";
 
@@ -74,7 +75,7 @@ function applyAttribution(
   });
 }
 
-export function AdSpendClient({ data }: { data: AdData }) {
+export function AdSpendClient({ data, days }: { data: AdData; days: AdSpendDays }) {
   const router = useRouter();
   const [attribution, setAttribution] = useState<AttributionModel>("last_click");
   const { summary, byPlatform, byDay, byCampaign } = data;
@@ -126,7 +127,29 @@ export function AdSpendClient({ data }: { data: AdData }) {
           </span>
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Ad Spend</h1>
-            <p className="text-sm text-[var(--color-muted-foreground)]">Last 30 days across all connected platforms.</p>
+            <p className="text-sm text-[var(--color-muted-foreground)]">Last {days} days across all connected platforms.</p>
+          </div>
+        </div>
+
+      <div className="flex flex-wrap items-start gap-4">
+        {/* Date range selector — server re-fetches the page for the range */}
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs text-[var(--color-muted-foreground)]">Date Range</div>
+          <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
+            {AD_SPEND_DAY_OPTIONS.map((d) => (
+              <button
+                key={d}
+                onClick={() => router.replace(`/dashboard/ad-spend?days=${d}`)}
+                className={cn(
+                  "px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  days === d
+                    ? "bg-[var(--color-primary)] text-white"
+                    : "bg-[var(--color-card)] text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]"
+                )}
+              >
+                {d}d
+              </button>
+            ))}
           </div>
         </div>
 
@@ -156,6 +179,7 @@ export function AdSpendClient({ data }: { data: AdData }) {
           )}
         </div>
       </div>
+    </div>
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -69,23 +69,32 @@ describe("syncMetaAdSpend — mock mode", () => {
     });
   }
 
-  it("upserts 60 fixture rows and is idempotent", async () => {
+  it("backfills 365 days on first sync and is idempotent afterwards", async () => {
     const acct = await createAccount();
+    // First sync: incremental window (last 30 days) + backfill of the
+    // older gap, newest chunk first. Distinct stored rows cover 366
+    // calendar days (365 days ago .. today) x 2 campaigns.
     const r1 = await syncMetaAdSpend(acct._id.toString(), teamId.toString(), {});
-    expect(r1.synced).toBe(60);
+    expect(r1.backfill?.chunksCompleted).toBe(12);
+    expect(r1.backfill?.error).toBeUndefined();
+    expect(r1.synced).toBeGreaterThan(700);
 
     const count1 = await AdSpendDailyModel.countDocuments({ adAccountId: acct._id });
-    expect(count1).toBe(60);
+    expect(count1).toBe(732);
 
-    // Second run upserts the same rows — no duplicates
+    // Second run: coverage already reaches 365 days, so no backfill —
+    // only the incremental tail (lastSyncAt − 3 days) is re-fetched,
+    // and upserts stay idempotent (no duplicates).
     const r2 = await syncMetaAdSpend(acct._id.toString(), teamId.toString(), {});
-    expect(r2.synced).toBe(60);
+    expect(r2.backfill?.chunksCompleted).toBe(0);
+    expect(r2.synced).toBeLessThanOrEqual(10);
     const count2 = await AdSpendDailyModel.countDocuments({ adAccountId: acct._id });
-    expect(count2).toBe(60);
+    expect(count2).toBe(732);
 
     const updated = await AdAccountModel.findById(acct._id).lean();
     expect(updated?.syncStatus).toBe("idle");
     expect(updated?.lastSyncAt).toBeDefined();
+    expect(updated?.backfillThrough).toBeDefined();
   });
 
   it("throws for unknown account", async () => {

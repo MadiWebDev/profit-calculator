@@ -5,6 +5,7 @@ import AdSpendDailyModel from "@/models/AdSpendDaily";
 import { AdSpendClient } from "./AdSpendClient";
 import mongoose from "mongoose";
 import { convertAmount, getReportBaseCurrency, getReportRates } from "@/lib/report-currency";
+import { parseAdSpendDays } from "@/lib/sync/ad-spend-days";
 
 export const dynamic = "force-dynamic";
 
@@ -93,12 +94,20 @@ async function getAdData(teamId: string, days = 30) {
   };
 }
 
-export default async function AdSpendPage() {
+interface Props {
+  searchParams: Promise<{ days?: string }>;
+}
+
+export default async function AdSpendPage({ searchParams }: Props) {
   const session = await auth();
   if (!session?.user) redirect("/auth/login");
   const user = session.user as { teamId?: string };
   if (!user.teamId) redirect("/onboarding");
 
-  const data = await getAdData(user.teamId, 30);
-  return <AdSpendClient data={data} />;
+  const params = await searchParams;
+  // Only the offered ranges (30/60/90/120/150/180/365) are accepted;
+  // anything else falls back to 30 instead of erroring.
+  const days = parseAdSpendDays(params.days);
+  const data = await getAdData(user.teamId, days);
+  return <AdSpendClient data={data} days={days} />;
 }

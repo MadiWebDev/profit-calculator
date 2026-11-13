@@ -20,7 +20,13 @@ import AdAccountModel from "@/models/AdAccount";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
 import { getValidGoogleToken } from "@/lib/google-token";
 import { logger, toLogError } from "@/lib/logger";
-import { isAdMockMode, mockSpendRows } from "@/lib/ads/mock";
+import { isAdMockMode, mockSpendRowsForRange } from "@/lib/ads/mock";
+import {
+  computeIncrementalWindow,
+  runAdSpendBackfill,
+  type BackfillResult,
+  type DateChunk,
+} from "./backfill";
 
 export interface GoogleSyncOptions {
   lookbackDays?: number;
@@ -31,10 +37,11 @@ export interface GoogleSyncResult {
   adAccountId: string;
   synced: number;
   pages: number;
+  /** Backfill summary (older days fetched this run, if any). */
+  backfill?: BackfillResult;
 }
 
 const ADS_API_VERSION = "v18";
-const DEFAULT_LOOKBACK_DAYS = 30;
 const DEFAULT_MAX_PAGES = 50;
 
 interface GoogleStreamRow {
@@ -122,131 +129,150 @@ export async function syncGoogleAdSpend(
     syncError: null,
   });
 
+  const window = computeIncrementalWindow({
+    lastSyncAt: adAccount.lastSyncAt ?? null,
+    lookbackDays: options.lookbackDays,
+  });
+
   try {
-    // ── Mock mode: deterministic fixtures, no provider calls ──────────────
-    if (isAdMockMode()) {
-      for (const row of mockSpendRows(adAccount.accountId)) {
-        await upsertRow(adAccount, teamId, {
-          ...row,
-          date: new Date(row.date),
-        });
-        result.synced++;
-      }
-      result.pages = 1;
-      await AdAccountModel.findByIdAndUpdate(adAccountId, {
-        syncStatus: "idle",
-        syncError: null,
-        lastSyncAt: new Date(),
-      });
-      return result;
-    }
-
-    // F1: the access token lives ~1h. Refresh it (via the stored
-    // refresh token) before it expires, instead of dying on the first
-    // 401 after connect. getValidGoogleToken throws NO_REFRESH_TOKEN
-    // when the account was connected without one — reconnect required.
-    let accessToken = await getValidGoogleToken(adAccount);
-
-    const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-    if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN is not configured");
-
-    const endDate = new Date();
-    const startDate = new Date(
-      Date.now() - (options.lookbackDays ?? DEFAULT_LOOKBACK_DAYS) * 864e5
-    );
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    const customerId = adAccount.accountId.replace(/-/g, "");
-
-    const query =
-      "SELECT campaign.id, campaign.name, segments.date, " +
-      "metrics.cost_micros, metrics.impressions, metrics.clicks, " +
-      "metrics.conversions, metrics.conversions_value " +
-      "FROM campaign " +
-      `WHERE segments.date BETWEEN '${fmt(startDate)}' AND '${fmt(endDate)}'`;
-
-    const buildHeaders = (token: string): Record<string, string> => {
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
-        "developer-token": developerToken,
-        "Content-Type": "application/json",
-      };
-      if (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) {
-        headers["login-customer-id"] = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/-/g, "");
-      }
-      return headers;
+    // Fetch one window (the incremental window, or one backfill
+    // chunk). Mock mode upserts deterministic fixtures for the window
+    // instead of calling Google. Credentials are resolved once and
+    // reused across chunks.
+    let accessToken: string | null = null;
+    const ensureToken = async (): Promise<string> => {
+      if (accessToken) return accessToken;
+      // F1: the access token lives ~1h. Refresh it (via the stored
+      // refresh token) before it expires, instead of dying on the first
+      // 401 after connect. getValidGoogleToken throws NO_REFRESH_TOKEN
+      // when the account was connected without one — reconnect required.
+      accessToken = await getValidGoogleToken(adAccount);
+      return accessToken;
     };
 
-    const runSearchStream = async (token: string) =>
-      fetch(
-        `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`,
-        {
-          method: "POST",
-          headers: buildHeaders(token),
-          body: JSON.stringify({ query }),
+    const fetchWindow = async (startDate: Date, endDate: Date): Promise<void> => {
+      if (isAdMockMode()) {
+        for (const row of mockSpendRowsForRange(adAccount.accountId, startDate, endDate)) {
+          await upsertRow(adAccount, teamId, {
+            ...row,
+            date: new Date(row.date),
+          });
+          result.synced++;
         }
-      );
-
-    let res = await runSearchStream(accessToken);
-
-    // The stored token may have expired between the proactive check
-    // and the call (clock skew, early revocation): refresh once and
-    // retry, mirroring Meta's error-190 retry. A second 401 is fatal.
-    if (res.status === 401) {
-      const refreshed = await getValidGoogleToken({
-        ...adAccount,
-        // Force the refresh path: the stored expiry is stale.
-        tokenExpiresAt: new Date(0),
-      } as typeof adAccount).catch(() => null);
-      if (refreshed && refreshed !== accessToken) {
-        accessToken = refreshed;
-        res = await runSearchStream(accessToken);
+        result.pages += 1;
+        return;
       }
-    }
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`Google Ads API HTTP ${res.status}: ${body.slice(0, 200)}`);
-    }
+      let token = await ensureToken();
 
-    // searchStream returns a JSON array of response batches
-    const batches = (await res.json()) as Array<{
-      results?: GoogleStreamRow[];
-      fieldMask?: string;
-      requestId?: string;
-    }>;
-    result.pages = batches.length;
+      const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+      if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN is not configured");
 
-    const maxRows = (options.maxPages ?? DEFAULT_MAX_PAGES) * 1000;
-    let rowsSeen = 0;
+      const fmt = (d: Date) => d.toISOString().slice(0, 10);
+      const customerId = adAccount.accountId.replace(/-/g, "");
 
-    for (const batch of batches) {
-      for (const row of batch.results ?? []) {
-        if (rowsSeen >= maxRows) break;
-        rowsSeen++;
+      const query =
+        "SELECT campaign.id, campaign.name, segments.date, " +
+        "metrics.cost_micros, metrics.impressions, metrics.clicks, " +
+        "metrics.conversions, metrics.conversions_value " +
+        "FROM campaign " +
+        `WHERE segments.date BETWEEN '${fmt(startDate)}' AND '${fmt(endDate)}'`;
 
-        const dateStr = row.segments?.date ?? "";
-        const campaignId = row.campaign?.id ?? "";
-        if (!dateStr || !campaignId) continue;
-
-        const num = (v: string | undefined): number => {
-          const n = parseFloat(v ?? "0");
-          return Number.isFinite(n) ? n : 0;
+      const buildHeaders = (t: string): Record<string, string> => {
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${t}`,
+          "developer-token": developerToken,
+          "Content-Type": "application/json",
         };
+        if (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) {
+          headers["login-customer-id"] = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/-/g, "");
+        }
+        return headers;
+      };
 
-        await upsertRow(adAccount, teamId, {
-          date: new Date(dateStr),
-          campaignId,
-          campaignName: row.campaign?.name ?? "",
-          spend: num(row.metrics?.costMicros) / 1e6,
-          impressions: Math.round(num(row.metrics?.impressions)),
-          clicks: Math.round(num(row.metrics?.clicks)),
-          conversions: num(row.metrics?.conversions),
-          revenue: num(row.metrics?.conversionsValue),
-        });
-        result.synced++;
+      const runSearchStream = async (t: string) =>
+        fetch(
+          `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`,
+          {
+            method: "POST",
+            headers: buildHeaders(t),
+            body: JSON.stringify({ query }),
+          }
+        );
+
+      let res = await runSearchStream(token);
+
+      // The stored token may have expired between the proactive check
+      // and the call (clock skew, early revocation): refresh once and
+      // retry, mirroring Meta's error-190 retry. A second 401 is fatal.
+      if (res.status === 401) {
+        const refreshed = await getValidGoogleToken({
+          ...adAccount,
+          // Force the refresh path: the stored expiry is stale.
+          tokenExpiresAt: new Date(0),
+        } as typeof adAccount).catch(() => null);
+        if (refreshed && refreshed !== token) {
+          token = refreshed;
+          accessToken = refreshed;
+          res = await runSearchStream(token);
+        }
       }
-      if (rowsSeen >= maxRows) break;
-    }
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`Google Ads API HTTP ${res.status}: ${body.slice(0, 200)}`);
+      }
+
+      // searchStream returns a JSON array of response batches
+      const batches = (await res.json()) as Array<{
+        results?: GoogleStreamRow[];
+        fieldMask?: string;
+        requestId?: string;
+      }>;
+      result.pages += batches.length;
+
+      const maxRows = (options.maxPages ?? DEFAULT_MAX_PAGES) * 1000;
+      let rowsSeen = 0;
+
+      for (const batch of batches) {
+        for (const row of batch.results ?? []) {
+          if (rowsSeen >= maxRows) break;
+          rowsSeen++;
+
+          const dateStr = row.segments?.date ?? "";
+          const campaignId = row.campaign?.id ?? "";
+          if (!dateStr || !campaignId) continue;
+
+          const num = (v: string | undefined): number => {
+            const n = parseFloat(v ?? "0");
+            return Number.isFinite(n) ? n : 0;
+          };
+
+          await upsertRow(adAccount, teamId, {
+            date: new Date(dateStr),
+            campaignId,
+            campaignName: row.campaign?.name ?? "",
+            spend: num(row.metrics?.costMicros) / 1e6,
+            impressions: Math.round(num(row.metrics?.impressions)),
+            clicks: Math.round(num(row.metrics?.clicks)),
+            conversions: num(row.metrics?.conversions),
+            revenue: num(row.metrics?.conversionsValue),
+          });
+          result.synced++;
+        }
+        if (rowsSeen >= maxRows) break;
+      }
+    };
+
+    // Incremental window first (recent data), then the backfill gap
+    // (older days, newest chunk first). Backfill is best-effort: a
+    // chunk failure is recorded on the result but never fails the sync.
+    await fetchWindow(window.startDate, window.endDate);
+    result.backfill = await runAdSpendBackfill({
+      adAccountId,
+      coverageStart: window.startDate,
+      fetchChunk: (chunk: DateChunk) => fetchWindow(chunk.startDate, chunk.endDate),
+    });
 
     await AdAccountModel.findByIdAndUpdate(adAccountId, {
       syncStatus: "idle",

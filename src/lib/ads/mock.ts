@@ -68,3 +68,47 @@ export function mockSpendRows(accountId: string, days = 30): MockSpendRow[] {
   }
   return rows;
 }
+
+/**
+ * Deterministic fixture rows for an explicit date range (inclusive of
+ * both ends). Used by the sync backfill: the same window always
+ * produces the same rows, because each day is seeded independently
+ * (`admock:<account>:<YYYY-MM-DD>`) instead of from one shared
+ * stream — so a chunk re-fetched on a later run yields identical
+ * values and upserts stay idempotent.
+ */
+export function mockSpendRowsForRange(
+  accountId: string,
+  startDate: Date,
+  endDate: Date
+): MockSpendRow[] {
+  const rows: MockSpendRow[] = [];
+  const start = new Date(
+    Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
+  );
+  const end = new Date(
+    Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate())
+  );
+  for (let t = start.getTime(); t <= end.getTime(); t += 864e5) {
+    const date = new Date(t).toISOString().slice(0, 10);
+    const rand = seededRandom(`admock:${accountId}:${date}`);
+    for (let c = 0; c < 2; c++) {
+      const spend = Math.round((20 + rand() * 180) * 100) / 100;
+      const impressions = Math.floor(1000 + rand() * 20000);
+      const clicks = Math.floor(impressions * (0.005 + rand() * 0.02));
+      const conversions = Math.floor(clicks * (0.02 + rand() * 0.08));
+      const revenue = Math.round(spend * (1.5 + rand() * 3) * 100) / 100;
+      rows.push({
+        date,
+        campaignId: `mock_campaign_${c + 1}`,
+        campaignName: `Mock Campaign ${c + 1}`,
+        spend,
+        impressions,
+        clicks,
+        conversions,
+        revenue,
+      });
+    }
+  }
+  return rows;
+}
