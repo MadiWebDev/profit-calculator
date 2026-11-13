@@ -7,8 +7,9 @@ import ProfitGoalModel from "@/models/ProfitGoal";
 import ProductModel from "@/models/Product";
 import AdAccountModel from "@/models/AdAccount";
 import CourierModel from "@/models/Courier";
-import { calcPeriodSummary } from "@/lib/profit-engine";
+import { calcPeriodSummary, type PeriodSummary } from "@/lib/profit-engine";
 import { getFxRates } from "@/lib/fx";
+import { getSyncedAdSpend } from "@/lib/ad-spend";
 import { logger } from "@/lib/logger";
 import { convertOrdersToBase, sumCosts } from "@/lib/report-currency";
 import { getTeamBaseCurrency } from "@/lib/reporting";
@@ -188,6 +189,15 @@ async function getOverviewData(
     });
   }
 
+  // F5: synced ad spend (AdSpendDaily) for this period and the prior
+  // period. The headline figures used to read only per-order
+  // adSpendAllocated, which Shopify sync always writes as 0, so
+  // synced spend never reached the dashboard. rates=null here means
+  // "no FX available": the helper sums unconverted, matching this
+  // page's existing fail-open convention for orders.
+  const syncedSpend = await getSyncedAdSpend(teamId, from, toEOD, baseCurrency, { rates: fxRates });
+  const priorSyncedSpend = await getSyncedAdSpend(teamId, priorFrom, priorTo, baseCurrency, { rates: fxRates });
+
   const toCosts = (orders: typeof currentOrders) =>
     convertOrdersToBase(
       orders.map((o) => ({
@@ -259,6 +269,15 @@ async function getOverviewData(
     dailyMap.set(key, entry);
   }
 
+  // F5: add synced spend to the daily chart (byDay is keyed YYYY-MM-DD).
+  // Days with synced spend but no orders get an entry so the chart
+  // shows the spend instead of dropping it.
+  for (const [day, spend] of Object.entries(syncedSpend.byDay)) {
+    const entry = dailyMap.get(day) ?? { revenue: 0, profit: 0, orders: 0, adSpend: 0, cogs: 0 };
+    entry.adSpend += spend;
+    dailyMap.set(day, entry);
+  }
+
   // ── Build filled daily chart data ─────────────────────────────────────────
   const chartData: {
     date: string;
@@ -285,8 +304,25 @@ async function getOverviewData(
   }
 
   // ── Period summaries (from converted costs) ───────────────────────────────
-  const current = calcPeriodSummary(currentCosts);
-  const last    = calcPeriodSummary(lastCosts);
+  // F5: fold synced spend into the summaries. calcPeriodSummary only
+  // sees per-order adSpendAllocated, so add the synced total to ad
+  // spend and subtract it from net profit (plus the figures derived
+  // from net profit). Revenue/COGS are untouched — the profit
+  // definition does not change beyond the added spend term.
+  const withSyncedSpend = (s: PeriodSummary, syncedTotal: number): PeriodSummary => {
+    const totalAdSpend = round2(s.totalAdSpend + syncedTotal);
+    const netProfit = round2(s.netProfit - syncedTotal);
+    const netRevenue = s.totalRevenue - s.totalRefunds - s.totalChargebacks;
+    return {
+      ...s,
+      totalAdSpend,
+      netProfit,
+      netMargin: netRevenue > 0 ? round2((netProfit / netRevenue) * 100) : 0,
+      avgNetProfit: s.orderCount > 0 ? round2(netProfit / s.orderCount) : 0,
+    };
+  };
+  const current = withSyncedSpend(calcPeriodSummary(currentCosts), syncedSpend.total);
+  const last    = withSyncedSpend(calcPeriodSummary(lastCosts), priorSyncedSpend.total);
 
   const pct = (curr: number, prev: number) =>
     prev !== 0 ? round2(((curr - prev) / Math.abs(prev)) * 100) : 0;
@@ -300,11 +336,15 @@ async function getOverviewData(
   // gross minus refunds/chargebacks only. discounts/shippingRevenue are memos.
   const cbSums = sumCosts(currentCosts);
   const grossRev   = cbSums.grossRevenue;
-  const totalCosts = cbSums.totalCogs + cbSums.shippingCost + cbSums.transactionFees + cbSums.adSpendAllocated;
+  // F5: total ad spend = synced spend + Σ per-order adSpendAllocated
+  // (dictated formula). The two sources are disjoint by construction,
+  // so there is no double-counting.
+  const totalAdSpend = round2(cbSums.adSpendAllocated + syncedSpend.total);
+  const totalCosts = cbSums.totalCogs + cbSums.shippingCost + cbSums.transactionFees + totalAdSpend;
   const netRev     = grossRev - cbSums.refundAmount - cbSums.chargebackAmount;
 
-  // ROAS: net revenue generated per $ of ad spend
-  const roas = cbSums.adSpendAllocated > 0 ? round2(netRev / (cbSums.adSpendAllocated || 1)) : 0;
+  // ROAS: net revenue generated per $ of ad spend (synced + allocated)
+  const roas = totalAdSpend > 0 ? round2(netRev / totalAdSpend) : 0;
 
   // Gross revenue already includes shipping charged to the customer
   const totalGrossRevenue = grossRev;
@@ -371,7 +411,7 @@ async function getOverviewData(
       shippingCost:     round2(cbSums.shippingCost),
       shippingRevenue:  round2(cbSums.shippingRevenue),
       transactionFees:  round2(cbSums.transactionFees),
-      adSpend:          round2(cbSums.adSpendAllocated),
+      adSpend:          totalAdSpend,
       taxes:            round2(cbSums.taxes),
       netProfit:        round2(current.netProfit),
       totalCosts:       round2(totalCosts),

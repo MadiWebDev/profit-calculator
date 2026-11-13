@@ -98,33 +98,46 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 4. Delete Meta ad account tokens for this user ───────────────────────
+  // F11: this used to query a `metaUserId` field the schema did not
+  // have (Mongoose strict mode dropped the value at OAuth time), so
+  // the query could never match — yet the route still returned
+  // success to Meta. The field now exists on the schema (stored by
+  // the Meta callback from `/v21.0/me`), so the match works, and
+  // when nothing matches we say so instead of confirming a deletion
+  // that never happened.
+  let deletedCount = 0;
+  let spendRowsDeleted = 0;
   try {
     await connectDB();
 
-    // Find all Meta AdAccounts where the external metaUserId matches
-    // We store metaUserId in the accountId field during OAuth
-    const deleted = await AdAccountModel.deleteMany({
+    const accounts = await AdAccountModel.find({
       platform: "meta",
-      metaUserId: metaUserId,
-    });
+      metaUserId,
+    }).select("_id").lean();
+    if (accounts.length === 0) {
+      logger.warn("[Meta Data Deletion] No Meta accounts for user", { metaUserId });
+      return NextResponse.json(
+        { error: "no_matching_accounts", code: "NO_MATCHING_ACCOUNTS" },
+        { status: 404 }
+      );
+    }
 
-    // Also nullify tokens on any account linked by this meta user id
-    // in case they were stored differently
-    await AdAccountModel.updateMany(
-      { platform: "meta", accountId: metaUserId },
-      {
-        $set: {
-          accessToken:  null,
-          refreshToken: null,
-          isActive:     false,
-          syncStatus:   "deleted",
-        },
-      }
-    );
+    const accountIds = accounts.map((a) => a._id);
+    const deleted = await AdAccountModel.deleteMany({ _id: { $in: accountIds } });
+    deletedCount = deleted.deletedCount ?? 0;
+
+    // The user's synced ad-spend rows are their ad-account data too —
+    // delete them with the account instead of leaving orphaned rows.
+    const { default: AdSpendDailyModel } = await import("@/models/AdSpendDaily");
+    const spendDeleted = await AdSpendDailyModel.deleteMany({
+      adAccountId: { $in: accountIds },
+    });
+    spendRowsDeleted = spendDeleted.deletedCount ?? 0;
 
     logger.info("[Meta Data Deletion] Meta accounts deleted", {
       metaUserId,
-      deletedCount: deleted.deletedCount,
+      deletedCount,
+      spendRowsDeleted,
     });
 
     // Audit log (best-effort, no teamId available from Meta callback)
@@ -136,14 +149,19 @@ export async function POST(req: NextRequest) {
         description: `Meta data deletion callback received for user ${metaUserId}`,
         resourceType: "AdAccount",
         resourceId:   metaUserId,
-        metadata:     { platform: "meta", metaUserId, deletedCount: deleted.deletedCount },
+        metadata:     { platform: "meta", metaUserId, deletedCount, spendRowsDeleted },
       });
     } catch {
       // Non-fatal — audit failure must not break the deletion response
     }
   } catch (err) {
     logger.error("[Meta Data Deletion] DB error", err);
-    // Still return success to Meta — we log internally and handle manually
+    // Do NOT return success: Meta must know the deletion did not
+    // happen so it can retry, instead of believing the data is gone.
+    return NextResponse.json(
+      { error: "deletion_failed", code: "DELETION_FAILED" },
+      { status: 500 }
+    );
   }
 
   // ── 5. Return confirmation response ──────────────────────────────────────

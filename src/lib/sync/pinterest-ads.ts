@@ -18,7 +18,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import AdAccountModel from "@/models/AdAccount";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
-import { safeDecrypt } from "@/lib/encryption";
+import { getValidPinterestToken } from "@/lib/pinterest-token";
 import { logger, toLogError } from "@/lib/logger";
 import { isAdMockMode, mockSpendRows } from "@/lib/ads/mock";
 
@@ -146,8 +146,12 @@ export async function syncPinterestAdSpend(
       return result;
     }
 
-    const accessToken = safeDecrypt(adAccount.accessToken);
-    if (!accessToken) throw new Error("Ad account is disconnected (no access token)");
+    // F3: the access token lives 30 days. Refresh it (via the stored
+    // refresh token, which rotates on every refresh) before it
+    // expires, instead of dying at token expiry. getValidPinterestToken
+    // throws NO_REFRESH_TOKEN when the account was connected without
+    // one — reconnect required.
+    const accessToken = await getValidPinterestToken(adAccount);
 
     const endDate = new Date();
     const startDate = new Date(

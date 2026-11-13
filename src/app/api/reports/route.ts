@@ -7,7 +7,7 @@ import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import ProductModel from "@/models/Product";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
-import { calcTaxSetAside } from "@/lib/profit-engine";
+import { calcTaxSetAside, calcOrderProfit } from "@/lib/profit-engine";
 import { neutralizeCsvCell } from "@/lib/csv-injection";
 import { normalizeReportOrders } from "@/lib/reporting";
 
@@ -75,14 +75,38 @@ export async function GET(req: NextRequest) {
 
   else if (type === "order_detail") {
     const orders = await OrderModel.find({ teamId: teamOid, orderDate: { $gte: from, $lte: to } }).lean();
+    // Convert each row per-order into the base currency BEFORE writing
+    // it — the old code wrote raw stored values, so a multi-currency
+    // team got 1:1 mixed-currency rows with no currency column at all.
+    // Same normalizeReportOrders path as profit_summary / tax_estimate
+    // in this file; `normalized` is aligned with `orders`. Net profit
+    // and margin are recomputed from the CONVERTED costs (so the row
+    // is internally consistent), which also subsumes the stored
+    // profitMargin guard — that field is no longer read here.
+    const n = (v: unknown): number =>
+      typeof v === "number" && Number.isFinite(v) ? v : 0;
+    const { normalized, baseCurrency } = await normalizeReportOrders(orders.map((o) => ({
+      currency: o.currency,
+      grossRevenue: n(o.grossRevenue), discounts: n(o.discounts), shippingRevenue: n(o.shippingRevenue),
+      shippingCost: n(o.shippingCost), totalCogs: n(o.totalCogs), transactionFees: n(o.transactionFees),
+      taxes: n(o.taxes), refundAmount: n(o.refundAmount), chargebackAmount: n(o.chargebackAmount), adSpendAllocated: n(o.adSpendAllocated),
+    })), session.teamId);
     csv = toCSV([
-      ["Order #", "Date", "Status", "Revenue", "Discounts", "COGS", "Shipping Cost", "Fees", "Refund", "Ad Spend", "Net Profit", "Margin %"],
-      ...orders.map((o) => [
-        o.orderNumber ?? o.externalId, o.orderDate.toISOString().slice(0, 10), o.status,
-        o.grossRevenue.toFixed(2), o.discounts.toFixed(2), o.totalCogs.toFixed(2),
-        o.shippingCost.toFixed(2), o.transactionFees.toFixed(2), o.refundAmount.toFixed(2),
-        o.adSpendAllocated.toFixed(2), o.netProfit.toFixed(2), (o.profitMargin ?? 0).toFixed(2),
-      ]),
+      ["Order #", "Date", "Status", "Revenue", "Discounts", "COGS", "Shipping Cost", "Fees", "Refund", "Ad Spend", "Net Profit", "Margin %", "Order Currency", "Amounts Currency"],
+      ...orders.map((o, i) => {
+        const c = normalized[i];
+        const profit = calcOrderProfit(c);
+        return [
+          o.orderNumber ?? o.externalId ?? "",
+          o.orderDate ? new Date(o.orderDate).toISOString().slice(0, 10) : "",
+          o.status ?? "",
+          c.grossRevenue.toFixed(2), c.discounts.toFixed(2), c.totalCogs.toFixed(2),
+          c.shippingCost.toFixed(2), c.transactionFees.toFixed(2), c.refundAmount.toFixed(2),
+          c.adSpendAllocated.toFixed(2), profit.netProfit.toFixed(2), profit.netMargin.toFixed(2),
+          typeof o.currency === "string" && o.currency ? o.currency.toUpperCase() : baseCurrency,
+          baseCurrency,
+        ];
+      }),
     ]);
   }
 

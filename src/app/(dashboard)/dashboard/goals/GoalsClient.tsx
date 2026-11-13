@@ -34,7 +34,7 @@ interface GoalForm {
 }
 
 function GoalCard({ goal }: { goal: GoalRow }) {
-  const { formatMoney, baseCurrency } = useCurrency();
+  const { formatMoney } = useCurrency();
   const pct = Math.max(0, Math.min(100, goal.progressPercent));
   const color = pct >= 80 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-500";
   const [year, mo] = goal.month.split("-");
@@ -46,9 +46,9 @@ function GoalCard({ goal }: { goal: GoalRow }) {
         <div className="flex items-start justify-between mb-4">
           <div>
             <p className="text-xs text-[var(--color-muted-foreground)] mb-1">{label}</p>
-            {/* Current progress is summed from orders in the report base
-                currency; the target was set in the goal's own currency. */}
-            <p className="text-2xl font-bold text-[var(--color-foreground)]">{formatMoney(goal.currentProfit, baseCurrency)}</p>
+            {/* Current progress is converted into the goal's own
+                currency, so current and target are comparable. */}
+            <p className="text-2xl font-bold text-[var(--color-foreground)]">{formatMoney(goal.currentProfit, goal.currency)}</p>
             <p className="text-xs text-[var(--color-muted-foreground)]">of {formatMoney(goal.targetProfit, goal.currency)} target</p>
           </div>
           <div className="text-right">
@@ -77,7 +77,7 @@ function GoalCard({ goal }: { goal: GoalRow }) {
               <TrendingUp className="h-3.5 w-3.5" /> Revenue progress
             </span>
             <span className="font-medium text-[var(--color-foreground)]">
-              {formatMoney(goal.currentRevenue, baseCurrency)} / {formatMoney(goal.targetRevenue, goal.currency)}
+              {formatMoney(goal.currentRevenue, goal.currency)} / {formatMoney(goal.targetRevenue, goal.currency)}
             </span>
           </div>
         )}
@@ -90,6 +90,10 @@ export function GoalsClient({ goals }: { goals: GoalRow[] }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The target is saved in the currency the user is working in
+  // (their display currency) — show it on the form so the target is
+  // never typed in an unknown currency.
+  const { currency: displayCurrency } = useCurrency();
 
   const currentMonth = new Date().toISOString().slice(0, 7);
 
@@ -156,12 +160,12 @@ export function GoalsClient({ goals }: { goals: GoalRow[] }) {
                 {errors.month && <p className="text-xs text-red-500">{errors.month.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="targetProfit">Target Net Profit</Label>
+                <Label htmlFor="targetProfit">Target Net Profit ({displayCurrency})</Label>
                 <Input id="targetProfit" type="number" min={0} step={100} placeholder="5000" {...register("targetProfit", { required: "Required", valueAsNumber: true })} />
                 {errors.targetProfit && <p className="text-xs text-red-500">{errors.targetProfit.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="targetRevenue">Target Revenue <span className="text-[var(--color-muted-foreground)]">(optional)</span></Label>
+                <Label htmlFor="targetRevenue">Target Revenue ({displayCurrency}) <span className="text-[var(--color-muted-foreground)]">(optional)</span></Label>
                 <Input id="targetRevenue" type="number" min={0} step={100} placeholder="20000" {...register("targetRevenue", { valueAsNumber: true })} />
               </div>
               <div className="space-y-1.5">
@@ -175,6 +179,7 @@ export function GoalsClient({ goals }: { goals: GoalRow[] }) {
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
               </div>
+              <p className="sm:col-span-2 lg:col-span-4 text-xs text-[var(--color-muted-foreground)]">Targets are saved in {displayCurrency} (your display currency). Progress converts each order into that currency before comparing, so multi-currency months count correctly.</p>
               </fieldset>
             </form>
           </CardContent>

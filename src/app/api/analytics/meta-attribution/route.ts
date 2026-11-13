@@ -5,8 +5,8 @@
  *
  * Meta-reported ROAS is not profit. This endpoint attributes spend to
  * orders ONLY on a UTM match (order.source must be meta/facebook/
- * instagram AND order.utmCampaign must match a spend campaign id,
- * case-insensitive — see meta-attribution.ts) and computes per-campaign
+ * instagram AND order.utmCampaign must match a spend campaign's name
+ * or id, case-insensitive — see meta-attribution.ts) and computes per-campaign
  * profit = attributed revenue − COGS − fees − spend, plus break-even
  * ROAS. Spend is converted from the ad account currency to the team's
  * base currency with live FX rates; if conversion fails and currencies
@@ -65,10 +65,13 @@ async function buildAttribution(
     ...(accountIds.length ? { adAccountId: { $in: accountIds } } : {}),
     date: { $gte: from, $lte: to },
   })
-    .select("adAccountId campaignId spend currency")
+    .select("adAccountId campaignId campaignName spend currency")
     .lean();
   const spendRows: SpendRow[] = spendDocs.map((d) => ({
     campaignId: d.campaignId ?? "",
+    // Pass the stored campaign name through: UTM values are free-text
+    // names, so matching on the numeric id alone ~never attributes (F4).
+    campaignName: d.campaignName ?? undefined,
     spend: convertAdSpend(
       d.spend ?? 0,
       d.currency ?? currencyByAccount.get(d.adAccountId.toString()) ?? "USD",
@@ -121,7 +124,11 @@ export async function GET(req: Request) {
 
   let rates: Record<string, number> = {};
   try {
-    rates = (await getFxRates("USD")) as unknown as Record<string, number>;
+    // R-2: pass the rates TABLE, not the whole FxRates envelope
+    // ({base, rates, fetchedAt}) — the envelope has no currency keys,
+    // so every cross-currency conversion threw "Unknown FX rate" and
+    // the endpoint 500d for any non-USD-base team.
+    rates = (await getFxRates("USD")).rates;
   } catch {
     rates = {};
   }
@@ -138,11 +145,26 @@ export async function GET(req: Request) {
     );
   }
 
-  const current = await buildAttribution(session.teamId, from, to, parsed.data.adAccountId, rates, baseCurrency);
-  const periodMs = to.getTime() - from.getTime();
-  const prevTo = new Date(from.getTime() - 1);
-  const prevFrom = new Date(prevTo.getTime() - periodMs);
-  const prev = await buildAttribution(session.teamId, prevFrom, prevTo, parsed.data.adAccountId, rates, baseCurrency);
+  // A conversion error inside attribution (e.g. a spend row in a
+  // currency missing from the rates table) is an FX failure, not a
+  // 500: answer the documented 503 FX_UNAVAILABLE.
+  let current;
+  let prev;
+  try {
+    current = await buildAttribution(session.teamId, from, to, parsed.data.adAccountId, rates, baseCurrency);
+    const periodMs = to.getTime() - from.getTime();
+    const prevTo = new Date(from.getTime() - 1);
+    const prevFrom = new Date(prevTo.getTime() - periodMs);
+    prev = await buildAttribution(session.teamId, prevFrom, prevTo, parsed.data.adAccountId, rates, baseCurrency);
+  } catch (err) {
+    if (err instanceof Error && /Unknown FX rate|FX rate/i.test(err.message)) {
+      return NextResponse.json(
+        { error: "FX rates unavailable; cannot convert ad spend to store currency", code: "FX_UNAVAILABLE" },
+        { status: 503 }
+      );
+    }
+    throw err;
+  }
   const prevPeriod: PrevCampaignPeriod[] = prev.campaigns.map((c) => ({
     campaignId: c.campaignId,
     spend: c.spend,

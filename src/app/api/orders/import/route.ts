@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { withRateLimit } from "@/lib/rate-limit";
-import { auth } from "@/lib/auth";
-import { checkSubscription } from "@/lib/api-helpers";
+import { requireAuth } from "@/lib/api-helpers";
 import { checkEntitlement } from "@/lib/entitlements";
 import { connectDB } from "@/lib/db";
 import StoreModel from "@/models/Store";
@@ -23,13 +22,10 @@ export async function POST(req: Request) {
   const rl = await withRateLimit(req, "strict", "orders-import");
   if (rl) return rl;
 
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = session.user as { id?: string; teamId?: string };
-  if (!user.teamId) return NextResponse.json({ error: "No team" }, { status: 400 });
-
-  const block = await checkSubscription(user.teamId);
-  if (block) return block;
+  // Requires write:data — a viewer (read-only) gets 403, like POST /api/orders.
+  const authed = await requireAuth(req, { permission: "write:data" });
+  if (authed instanceof NextResponse) return authed;
+  const { session } = authed;
 
   try {
     const formData = await req.formData();
@@ -46,7 +42,7 @@ export async function POST(req: Request) {
     });
     if (parseErrors.length > 0) {
       logger.warn("CSV import: parse errors detected", {
-        teamId: user.teamId,
+        teamId: session.teamId,
         count: parseErrors.length,
         first: parseErrors[0]?.message,
       });
@@ -58,27 +54,27 @@ export async function POST(req: Request) {
     await connectDB();
 
     // Plan limit: monthly orders (counted conservatively by row count)
-    const orderEnt = await checkEntitlement(user.teamId, "orders.import", { count: data.length });
+    const orderEnt = await checkEntitlement(session.teamId, "orders.import", { count: data.length });
     if ("response" in orderEnt) return orderEnt.response;
 
     // Team currency is a derivation source for rows without a currency
     // column (user display > team > store — see src/lib/money-currency.ts).
-    const team = await TeamModel.findById(user.teamId).select("currency").lean();
+    const team = await TeamModel.findById(session.teamId).select("currency").lean();
     // The CSV store has no currency of its own: give it the currency the
     // user was working in, so it never silently becomes USD (and never
     // votes USD in the derivation's store step).
     const storeCurrency = resolveOrderCurrency({
-      user: (session.user as { displayCurrency?: string | null }).displayCurrency,
+      user: session.displayCurrency,
       team: team?.currency,
     });
 
     // Find or create the CSV store
-    let store = await StoreModel.findOne({ teamId: user.teamId, platform: "csv_manual", name: storeName });
+    let store = await StoreModel.findOne({ teamId: session.teamId, platform: "csv_manual", name: storeName });
     if (!store) {
-      const storeEnt = await checkEntitlement(user.teamId, "stores.connect");
+      const storeEnt = await checkEntitlement(session.teamId, "stores.connect");
       if ("response" in storeEnt) return storeEnt.response;
       store = await StoreModel.create({
-        teamId: user.teamId,
+        teamId: session.teamId,
         name: storeName,
         platform: "csv_manual",
         ...(storeCurrency ? { currency: storeCurrency } : {}),
@@ -126,19 +122,19 @@ export async function POST(req: Request) {
         // never stored as USD.
         const currency = resolveOrderCurrency({
           sent: row.currency,
-          user: (session.user as { displayCurrency?: string | null }).displayCurrency,
+          user: session.displayCurrency,
           team: team?.currency,
           store: store.currency,
         });
         if (!currency) { skipped++; continue; }
 
-        const teamOid = new mongoose.Types.ObjectId(user.teamId);
+        const teamOid = new mongoose.Types.ObjectId(session.teamId);
         await OrderModel.findOneAndUpdate(
           { teamId: teamOid, storeId: store._id, externalId },
           {
             $set: {
               storeId: store._id,
-              teamId: new mongoose.Types.ObjectId(user.teamId),
+              teamId: new mongoose.Types.ObjectId(session.teamId),
               externalId,
               orderNumber: row.order_number ?? externalId,
               orderDate,
@@ -170,8 +166,8 @@ export async function POST(req: Request) {
     await StoreModel.findByIdAndUpdate(store._id, { $inc: { ordersCount: imported }, syncStatus: "idle", lastSyncAt: new Date() });
 
     await logAudit({
-      teamId: new mongoose.Types.ObjectId(user.teamId),
-      userId: new mongoose.Types.ObjectId(user.id!),
+      teamId: new mongoose.Types.ObjectId(session.teamId),
+      userId: new mongoose.Types.ObjectId(session.userId),
       action: "order.imported",
       description: `Imported ${imported} orders via CSV into store "${storeName}"`,
       metadata: { imported, skipped },
@@ -179,7 +175,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ imported, errors: skipped });
   } catch (err) {
-    logger.error("CSV import failed", toLogError(err), { teamId: user.teamId });
+    logger.error("CSV import failed", toLogError(err), { teamId: session.teamId });
     return NextResponse.json({ error: "Import failed" }, { status: 500 });
   }
 }

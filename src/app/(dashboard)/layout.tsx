@@ -7,7 +7,7 @@ import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
 import { CurrencyConverter } from "@/components/currency/CurrencyConverter";
 import { RoleProvider } from "@/components/dashboard/RoleContext";
-import type { UserRole, UserPlan } from "@/components/dashboard/RoleContext";
+import type { UserRole, UserPlan, TeamRole } from "@/components/dashboard/RoleContext";
 import { ArchivedWall } from "@/components/billing/ArchivedWall";
 import { TrialBanner } from "@/components/billing/TrialBanner";
 import { OnboardingModal } from "@/components/dashboard/OnboardingModal";
@@ -33,10 +33,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
     email?: string | null;
     plan?: UserPlan;
     role?: UserRole;
+    teamRole?: string | null;
     teamId?: string | null;
   };
 
   const teamId: string = user.teamId ?? "";
+
+  // The caller's team membership role, resolved at sign-in into the JWT
+  // (src/lib/auth.ts) — this is what makes canWrite real for viewers.
+  // Anything unexpected falls back to null (permissive client default;
+  // the server still enforces write:data on every mutation).
+  const teamRole: TeamRole | null =
+    user.teamRole === "owner" || user.teamRole === "admin" ||
+    user.teamRole === "member" || user.teamRole === "viewer"
+      ? user.teamRole
+      : null;
 
   // ── Trial / archival / authoritative live plan check (reads DB every request) ──
   const trialInfo = teamId
@@ -55,7 +66,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // nothing to reveal. The dashboard tree is never rendered or streamed.
   if (isArchived) {
     return (
-      <RoleProvider role={role} plan={plan}>
+      <RoleProvider role={role} plan={plan} teamRole={teamRole}>
         <ArchivedWall
           trialEndedAt={trialInfo?.trialEndsAt}
           userName={user.name ?? undefined}
@@ -68,7 +79,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <RoleProvider role={role} plan={plan}>
+    <RoleProvider role={role} plan={plan} teamRole={teamRole}>
       <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
         {/* Desktop sidebar */}
         <div className="hidden lg:flex lg:flex-shrink-0">

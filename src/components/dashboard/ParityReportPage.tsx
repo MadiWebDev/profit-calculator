@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { StatsSkeleton } from "@/components/ui/skeleton";
 import { TableSkeleton } from "@/components/dashboard/DashboardSkeleton";
-import { formatCurrency } from "@/lib/utils";
+import { useCurrency } from "@/components/dashboard/CurrencyContext";
 
 export function MetricTip({ label, tooltip, guideId }: { label: string; tooltip: string; guideId: string }) {
   return (
@@ -61,15 +61,24 @@ interface Props {
 
 interface StoreOption { id: string; name: string }
 
-function fmt(value: unknown, format: ColumnDef["format"]): string {
-  const n = typeof value === "number" ? value : Number(value ?? 0);
-  if (format === "money") return formatCurrency(Number.isFinite(n) ? n : 0);
-  if (format === "percent") return `${Number.isFinite(n) ? n : 0}%`;
-  if (format === "number") return Number.isFinite(n) ? String(Math.round(n)) : "0";
-  return String(value ?? "—");
-}
-
 export function ParityReportPage(props: Props) {
+  // The API returns amounts in the report base currency. Render money
+  // with formatMoney(value, baseCurrency) — converting base → display
+  // currency — like every other page. The old fmt() called
+  // formatCurrency(n) with one arg, which defaults to USD, so a
+  // PKR-base team saw every figure as dollars (P-1). The
+  // formatCurrency default in src/lib/utils.ts is deliberately NOT
+  // changed (open PR #68 touches that file).
+  const { formatMoney, baseCurrency } = useCurrency();
+
+  function fmt(value: unknown, format: ColumnDef["format"]): string {
+    const n = typeof value === "number" ? value : Number(value ?? 0);
+    if (format === "money") return formatMoney(Number.isFinite(n) ? n : 0, baseCurrency);
+    if (format === "percent") return `${Number.isFinite(n) ? n : 0}%`;
+    if (format === "number") return Number.isFinite(n) ? String(Math.round(n)) : "0";
+    return String(value ?? "—");
+  }
+
   const [from, setFrom] = useState(() => new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10));
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [storeId, setStoreId] = useState("");

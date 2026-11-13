@@ -138,6 +138,7 @@ export async function GET(req: NextRequest) {
   // POST https://accounts.snapchat.com/login/oauth2/access_token
   // (HTTP Basic auth with client_id:client_secret)
   let accessToken: string;
+  let refreshToken: string | undefined;
   let tokenExpiresIn: number | undefined;
 
   try {
@@ -164,6 +165,7 @@ export async function GET(req: NextRequest) {
 
     const tokenData = (await tokenRes.json()) as {
       access_token?: string;
+      refresh_token?: string;
       expires_in?: number;
       error?: string;
       error_description?: string;
@@ -181,6 +183,11 @@ export async function GET(req: NextRequest) {
     }
 
     accessToken    = tokenData.access_token;
+    // F2d: Snapchat issues a long-lived refresh token alongside the
+    // 1-hour access token. It must be stored or sync dies 1h after
+    // connect. The refresh token does not rotate or expire (unless
+    // access is revoked), so it is stored as-is.
+    refreshToken   = tokenData.refresh_token;
     tokenExpiresIn = tokenData.expires_in; // seconds
   } catch (e) {
     logger.error("[Snapchat CB] Token exchange threw", toLogError(e), {});
@@ -272,6 +279,7 @@ export async function GET(req: NextRequest) {
           accountName:   acct.name,
           currency:      acct.currency ?? "USD",
           accessToken:   encrypt(accessToken),
+          ...(refreshToken ? { refreshToken: encrypt(refreshToken) } : {}),
           tokenExpiresAt,
           syncStatus:    "idle",
           isActive:      true,

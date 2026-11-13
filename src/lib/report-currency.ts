@@ -17,9 +17,10 @@
  */
 
 import { convertCurrency, convertOrderCosts, type OrderCosts } from "@/lib/profit-engine";
-import { getFxRates } from "@/lib/fx";
+import { getFxRates, type FxOverrideInput } from "@/lib/fx";
 import StoreModel from "@/models/Store";
 import TeamModel from "@/models/Team";
+import WorkspaceSettingsModel from "@/models/WorkspaceSettings";
 
 export interface OrderMoney {
   currency?: string | null;
@@ -101,18 +102,29 @@ export function convertAmount(
 }
 
 /**
- * The base currency for a report: the single store's currency when a
- * store is selected, otherwise the team's most common store currency
- * (same rule the dashboard uses), falling back to the team's own
- * configured currency (Team.currency) when no store has one — and to
- * USD only when the team has no valid currency either (its model
- * default). Callers must already be connected to the database (every
- * report caller is).
+ * The base currency for a report.
+ *
+ * Precedence:
+ * 1. A reporting currency the team EXPLICITLY set on the Currency
+ *    page (WorkspaceSettings.reportingCurrency with
+ *    reportingCurrencyExplicit) — it governs aggregation. Only an
+ *    explicit save counts: WorkspaceSettings docs created by other
+ *    settings pages carry a stamped default, not a choice, and must
+ *    never override the store currency (see the model).
+ * 2. The single store's currency when a store is selected, otherwise
+ *    the team's most common store currency (same rule the dashboard
+ *    uses), falling back to the team's own configured currency
+ *    (Team.currency) when no store has one — and to USD only when
+ *    the team has no valid currency either (its model default).
+ * Callers must already be connected to the database (every report
+ * caller is).
  */
 export async function getReportBaseCurrency(
   teamId: string | object,
   storeId?: string | object | null,
 ): Promise<string> {
+  const explicit = await getExplicitReportingCurrency(teamId);
+  if (explicit) return explicit;
   if (storeId) {
     const store = await StoreModel.findOne({ _id: storeId }).select("currency").lean();
     if (store?.currency) return String(store.currency).toUpperCase();
@@ -143,13 +155,72 @@ export async function getReportBaseCurrency(
   return best;
 }
 
-/** Fetch the rates table for a base currency, or null when unavailable. */
-export async function getReportRates(base: string): Promise<Record<string, number> | null> {
+/** Fetch the rates table for a base currency, or null when unavailable.
+ *  When `teamId` is given, the team's saved manual FX overrides are
+ *  applied on top of the fetched rates (overrides win). */
+export async function getReportRates(
+  base: string,
+  teamId?: string | object | null,
+): Promise<Record<string, number> | null> {
   try {
-    const fx = await getFxRates(base);
+    const overrides = teamId ? await getTeamFxOverrides(teamId) : undefined;
+    const fx = await getFxRates(base, overrides);
     return fx.rates;
   } catch {
     return null;
+  }
+}
+
+/**
+ * The team's explicitly chosen reporting currency, or null when the
+ * team never set one on the Currency page. Only
+ * `reportingCurrencyExplicit` counts — a WorkspaceSettings doc
+ * created by another settings page carries a stamped default, not a
+ * choice. Never throws: on any failure the caller falls through to
+ * the store-currency rule.
+ */
+export async function getExplicitReportingCurrency(
+  teamId: string | object,
+): Promise<string | null> {
+  try {
+    const doc = await WorkspaceSettingsModel.findOne({ teamId })
+      .select("reportingCurrency reportingCurrencyExplicit")
+      .lean();
+    if (!doc || (doc as { reportingCurrencyExplicit?: boolean }).reportingCurrencyExplicit !== true) {
+      return null;
+    }
+    const code = typeof (doc as { reportingCurrency?: unknown }).reportingCurrency === "string"
+      ? String((doc as { reportingCurrency: string }).reportingCurrency).toUpperCase().trim()
+      : "";
+    return /^[A-Z]{3}$/.test(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The team's saved manual FX overrides (effective-dated), or [] when
+ *  none are saved. Never throws — callers fall back to fetched rates. */
+export async function getTeamFxOverrides(
+  teamId: string | object,
+): Promise<FxOverrideInput[]> {
+  try {
+    const doc = await WorkspaceSettingsModel.findOne({ teamId })
+      .select("fxOverrides")
+      .lean();
+    const list = (doc as { fxOverrides?: unknown } | null)?.fxOverrides;
+    if (!Array.isArray(list)) return [];
+    return list
+      .map((o) => {
+        const r = o as { currency?: unknown; rate?: unknown; effectiveFrom?: unknown };
+        return {
+          currency: typeof r.currency === "string" ? r.currency : "",
+          rate: typeof r.rate === "number" ? r.rate : Number(r.rate),
+          effectiveFrom: r.effectiveFrom as Date | string,
+        };
+      })
+      .filter((o) => /^[A-Za-z]{3}$/.test(o.currency) && Number.isFinite(o.rate) && o.rate > 0);
+  } catch {
+    return [];
   }
 }
 

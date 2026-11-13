@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { StatsSkeleton } from "@/components/ui/skeleton";
 import { TableSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { useCurrency } from "@/components/dashboard/CurrencyContext";
+import { planBulkApplyPercent } from "@/lib/product-aggregates";
 
-interface Product { id: string; name: string; sku?: string; defaultCogs: number; totalRevenue: number; totalOrders: number; avgProfitMargin: number }
-interface Rule { productName: string; cogs: number; history?: { cogs: number; effectiveFrom: string }[] }
+interface Product { id: string; name: string; sku?: string; defaultCogs: number; currency?: string; totalRevenue: number; totalOrders: number; avgProfitMargin: number; avgPrice: number; avgPriceInProductCurrency?: number | null }
+interface Rule { productName: string; cogs: number; currency?: string; history?: { cogs: number; effectiveFrom: string }[] }
 
 export default function CogsHubPage() {
   const { formatMoney, baseCurrency } = useCurrency();
@@ -43,10 +44,39 @@ export default function CogsHubPage() {
   const rows = products.map((p) => {
     const rule = ruleFor(p);
     const cogs = rule ? rule.cogs : p.defaultCogs;
-    const avgPrice = p.totalOrders > 0 ? p.totalRevenue / p.totalOrders : 0;
+    // COGS is stored in the rule's (or the product's) own currency —
+    // never relabelled as base currency (slice B §8b).
+    const cogsCurrency = rule?.currency ?? p.currency ?? baseCurrency;
+    // avgPrice comes from the order-computed aggregates in
+    // GET /api/products (total revenue / total orders); fall back to
+    // the same division on the returned totals if it is ever missing.
+    const avgPrice = Number.isFinite(p.avgPrice)
+      ? p.avgPrice
+      : p.totalOrders > 0
+        ? p.totalRevenue / p.totalOrders
+        : 0;
+    // The price Apply-% writes from: the average price expressed in
+    // the PRODUCT's own currency, because defaultCogs is stored in
+    // product currency. The API sends avgPriceInProductCurrency; when
+    // it is absent (older response shape) fall back to the base avg
+    // price only when the product's currency IS the base — otherwise
+    // null, and the planner skips the product instead of writing a
+    // base-denominated number as foreign-currency COGS.
+    const productCurrency = p.currency ?? baseCurrency;
+    const applyAvgPrice =
+      typeof p.avgPriceInProductCurrency === "number"
+        ? p.avgPriceInProductCurrency
+        : productCurrency === baseCurrency
+          ? avgPrice
+          : null;
     return {
-      ...p, cogs, avgPrice,
-      margin: avgPrice > 0 ? Math.round(((avgPrice - cogs) / avgPrice) * 100 * 100) / 100 : 0,
+      ...p, cogs, cogsCurrency, avgPrice, applyAvgPrice,
+      // Margin compares like with like: the product-currency average
+      // price against the product-currency COGS. (When a COGS rule
+      // exists in a different currency than the product, the COGS
+      // side is in rule currency — that pre-existing mixed case is
+      // a Phase 2 display item.)
+      margin: typeof applyAvgPrice === "number" && applyAvgPrice > 0 ? Math.round(((applyAvgPrice - cogs) / applyAvgPrice) * 100 * 100) / 100 : 0,
       source: rule ? "COGS rule" : p.defaultCogs > 0 ? "Product default" : "Missing",
       lastChanged: rule?.history?.[rule.history.length - 1]?.effectiveFrom ?? null,
     };
@@ -65,12 +95,43 @@ export default function CogsHubPage() {
     if (!Number.isFinite(n)) return;
     setBusy(true); setNote(null);
     try {
-      // Apply by percent of average price to every shown product's default COGS.
-      for (const r of rows) {
-        const next = Math.max(0, Math.round((r.avgPrice * n) / 100 * 100) / 100);
-        await fetch(`/api/products/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ defaultCogs: next }) });
+      // Plan first: products with no average price yet (no orders) are
+      // SKIPPED, never written as defaultCogs: 0 — writing 0 would wipe
+      // a merchant-entered COGS (the old code did exactly that, because
+      // the stored aggregates were always 0). The plan also skips
+      // products whose average price could not be expressed in their
+      // own currency (FX rate unavailable) — writing the base-currency
+      // number as foreign-currency COGS would be wrong money. The
+      // price planned from is the product-currency average (see
+      // planBulkApplyPercent / avgPriceInCurrency).
+      const plan = planBulkApplyPercent(
+        rows.map((r) => ({ id: r.id, name: r.name, avgPrice: r.applyAvgPrice })),
+        n,
+      );
+      let failed = 0;
+      for (const u of plan.updates) {
+        const res = await fetch(`/api/products/${u.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ defaultCogs: u.defaultCogs }) });
+        // A 403/404/500 does not throw — check every response, or the
+        // note below would claim success for saves that never landed.
+        if (!res.ok) failed++;
       }
-      setNote(`Applied ${n}% of average price as COGS to ${rows.length} products. Old orders keep their stored COGS — this affects new orders and future reports, not history, unless you run a retroactive recalculation.`);
+      const applied = plan.updates.length - failed;
+      const parts: string[] = [];
+      if (applied > 0) {
+        parts.push(`Applied ${n}% of average price as COGS to ${applied} product${applied === 1 ? "" : "s"}. Old orders keep their stored COGS — this affects new orders and future reports, not history, unless you run a retroactive recalculation.`);
+      }
+      if (failed > 0) {
+        parts.push(`${failed} update${failed === 1 ? "" : "s"} failed — reload and check which rows changed.`);
+      }
+      if (plan.skipped.length > 0) {
+        parts.push(
+          `Skipped ${plan.skipped.length} product${plan.skipped.length === 1 ? "" : "s"} with no average price yet (${plan.skipped.map((s) => s.name).join(", ")}): no COGS was written for ${plan.skipped.length === 1 ? "it" : "them"}.`,
+        );
+      }
+      if (parts.length === 0) {
+        parts.push("Nothing to apply — no shown products have an average price yet.");
+      }
+      setNote(parts.join(" "));
       await load();
     } catch { setNote("Bulk apply failed for at least one product — reload and check which rows changed."); }
     finally { setBusy(false); }
@@ -121,7 +182,7 @@ export default function CogsHubPage() {
                 <tr key={r.id} className="border-b border-[var(--color-border)] last:border-0">
                   <td className="px-4 py-2.5">{r.name}</td>
                   <td className="px-4 py-2.5">{r.sku ?? "—"}</td>
-                  <td className="px-4 py-2.5">{formatMoney(r.cogs, baseCurrency)}</td>
+                  <td className="px-4 py-2.5">{formatMoney(r.cogs, r.cogsCurrency)}</td>
                   <td className="px-4 py-2.5">{formatMoney(r.avgPrice, baseCurrency)}</td>
                   <td className="px-4 py-2.5">{r.margin}%</td>
                   <td className="px-4 py-2.5">{r.source}</td>

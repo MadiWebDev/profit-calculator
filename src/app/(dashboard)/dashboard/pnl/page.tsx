@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
+import OtherFeeRuleModel from "@/models/OtherFeeRule";
 import { PnlClient } from "./PnlClient";
 import mongoose from "mongoose";
 import {
@@ -11,6 +12,10 @@ import {
   getReportBaseCurrency,
   getReportRates,
 } from "@/lib/report-currency";
+import { parseDateRange } from "@/lib/dates";
+import { getAllocatedMonthlyExpenses } from "@/lib/monthly-expenses-server";
+import { computeOtherFees } from "@/lib/other-fees";
+import type { ReportContext } from "@/lib/report-server";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +40,8 @@ async function getPnlData(teamId: string, from: Date, to: Date) {
         transactionFees: 0,
         shippingCosts: 0,
         totalAdSpend: 0,
+        monthlyExpenses: 0,
+        otherFees: 0,
         operatingExpenses: 0,
         operatingProfit: 0,
         operatingMargin: 0,
@@ -72,7 +79,7 @@ async function getPnlData(teamId: string, from: Date, to: Date) {
   // client uses for its baseCurrency, so the totals arrive in the
   // currency PnlClient converts FROM.
   const base = await getReportBaseCurrency(teamId);
-  const rates = await getReportRates(base);
+  const rates = await getReportRates(base, teamId);
   const n = (v: unknown): number =>
     typeof v === "number" && Number.isFinite(v) ? v : 0;
   const converted = convertOrdersToBase(
@@ -144,7 +151,35 @@ async function getPnlData(teamId: string, from: Date, to: Date) {
   const shippingCosts   = converted.reduce((s, o) => s + o.shippingCost, 0);
   const totalAdSpend    = adSpendByPlatform.reduce((s, a) => s + a.spend, 0);
 
-  const operatingExpenses = transactionFees + shippingCosts + totalAdSpend;
+  // Monthly/operating expenses: the same calendar-month allocation
+  // the Monthly Expenses page shows, in the same base currency.
+  const { allocated: monthlyExpenses } = await getAllocatedMonthlyExpenses({
+    session: { userId: "", teamId, plan: "", role: "", teamRole: null, email: "" },
+    from, to, format: "json", granularity: "daily",
+  } as ReportContext);
+
+  // Other-fee rules: matched per order (country / payment method /
+  // product tag + effective dates) against the base-converted order
+  // values; fixed fees are converted from the rule's currency.
+  const otherFeeRules = await OtherFeeRuleModel.find({ teamId: teamOid, isActive: true }).lean();
+  const otherFees = computeOtherFees(
+    otherFeeRules.map((r) => ({
+      kind: r.kind, value: r.value, currency: r.currency,
+      country: r.country, productTag: r.productTag, paymentMethod: r.paymentMethod,
+      effectiveFrom: r.effectiveFrom, effectiveTo: r.effectiveTo,
+    })),
+    orders.map((o, i) => ({
+      grossRevenue: converted[i].grossRevenue,
+      shippingCountry: typeof o.shippingCountry === "string" ? o.shippingCountry : undefined,
+      paymentMethod: typeof o.paymentMethod === "string" ? o.paymentMethod : undefined,
+      orderDate: o.orderDate,
+      status: o.status,
+      lineItems: ((o.lineItems ?? []) as { tags?: string[] }[]).map((li) => ({ tags: li.tags ?? null })),
+    })),
+    { baseCurrency: base, rates },
+  ).total;
+
+  const operatingExpenses = transactionFees + shippingCosts + totalAdSpend + monthlyExpenses + otherFees;
   const operatingProfit   = grossProfit - operatingExpenses;
   const operatingMargin   = totalRevenue > 0 ? (operatingProfit / totalRevenue) * 100 : 0;
 
@@ -176,7 +211,7 @@ async function getPnlData(teamId: string, from: Date, to: Date) {
     summary: {
       grossRevenue, discounts, refunds, chargebacks, shippingRevenue,
       netRevenue, totalRevenue, cogs, grossProfit, grossMargin,
-      transactionFees, shippingCosts, totalAdSpend, operatingExpenses,
+      transactionFees, shippingCosts, totalAdSpend, monthlyExpenses, otherFees, operatingExpenses,
       operatingProfit, operatingMargin, taxes, netProfit, netMargin,
       orderCount: orders.length,
     },
@@ -195,9 +230,11 @@ export default async function PnlPage({ searchParams }: Props) {
 
   const params = await searchParams;
   const now = new Date();
-  const from = new Date(params.from ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10));
-  const to   = new Date(params.to ?? now.toISOString().slice(0, 10));
-  to.setHours(23, 59, 59, 999);
+  // Garbage ?from=/?to= used to become an Invalid Date and 500 the page
+  // (CastError on the orderDate query). parseDateRange falls back to the
+  // default range for an unparseable end instead; a valid-but-reversed
+  // range still just returns empty results.
+  const { from, to } = parseDateRange(params.from, params.to, now);
 
   const data = await getPnlData(user.teamId, from, to);
 

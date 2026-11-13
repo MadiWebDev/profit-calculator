@@ -31,8 +31,14 @@ interface OrderRow {
   orderDate: string;
   status: string;
   grossRevenue: number;
+  discounts?: number;
   netRevenue: number;
   totalCogs: number;
+  shippingRevenue?: number;
+  shippingCost?: number;
+  transactionFees?: number;
+  taxes?: number;
+  chargebackAmount?: number;
   netProfit: number;
   profitMargin: number;
   adSpendAllocated: number;
@@ -84,10 +90,12 @@ interface OrderFormState {
   grossRevenue: string;
   discounts: string;
   totalCogs: string;
+  shippingRevenue: string;
   shippingCost: string;
   transactionFees: string;
   taxes: string;
   refundAmount: string;
+  chargebackAmount: string;
   adSpendAllocated: string;
 }
 
@@ -102,28 +110,36 @@ const EMPTY_FORM: OrderFormState = {
   grossRevenue: "",
   discounts: "0",
   totalCogs: "0",
+  shippingRevenue: "0",
   shippingCost: "0",
   transactionFees: "0",
   taxes: "0",
   refundAmount: "0",
+  chargebackAmount: "0",
   adSpendAllocated: "0",
 };
 
 function orderRowToForm(o: OrderRow): OrderFormState {
+  // Every money field is copied from the stored order — a hardcoded "0"
+  // here would silently zero the value on save (PATCH applies every
+  // field the form sends, then recomputes profit from the zeroed values).
+  const m = (v: number | undefined) => (v ?? 0).toFixed(2);
   return {
     orderNumber: o.orderNumber ?? o.externalId,
     orderDate: o.orderDate.slice(0, 10),
     status: (STATUS_OPTIONS.includes(o.status as OrderStatus) ? o.status : "fulfilled") as OrderStatus,
     customerEmail: o.customerEmail ?? "",
     currency: o.currency ?? "",
-    grossRevenue: o.grossRevenue.toFixed(2),
-    discounts: "0",
-    totalCogs: o.totalCogs.toFixed(2),
-    shippingCost: "0",
-    transactionFees: "0",
-    taxes: "0",
-    refundAmount: o.refundAmount.toFixed(2),
-    adSpendAllocated: o.adSpendAllocated.toFixed(2),
+    grossRevenue: m(o.grossRevenue),
+    discounts: m(o.discounts),
+    totalCogs: m(o.totalCogs),
+    shippingRevenue: m(o.shippingRevenue),
+    shippingCost: m(o.shippingCost),
+    transactionFees: m(o.transactionFees),
+    taxes: m(o.taxes),
+    refundAmount: m(o.refundAmount),
+    chargebackAmount: m(o.chargebackAmount),
+    adSpendAllocated: m(o.adSpendAllocated),
   };
 }
 
@@ -170,25 +186,30 @@ function OrderFormModal({
     await onSubmit(form);
   };
 
-  // Estimated net profit preview (client-side, mirrors calcOrderProfit)
+  // Estimated net profit preview (client-side, mirrors calcOrderProfit).
+  // Discounts / shipping revenue / taxes are memos already inside gross
+  // revenue — they never enter the formula, so they are not subtracted
+  // here either. Only refunds and chargebacks reduce net revenue.
   const grossRev   = n(form.grossRevenue);
-  const discounts  = n(form.discounts);
   const cogs       = n(form.totalCogs);
   const shipping   = n(form.shippingCost);
   const fees       = n(form.transactionFees);
   const refund     = n(form.refundAmount);
+  const chargeback = n(form.chargebackAmount);
   const adSpend    = n(form.adSpendAllocated);
-  const netRevPreview = grossRev - discounts - refund;
+  const netRevPreview = grossRev - refund - chargeback;
   const netProfitPreview = netRevPreview - cogs - shipping - fees - adSpend;
 
   const MONETARY_FIELDS: { key: keyof OrderFormState; label: string }[] = [
     { key: "grossRevenue",    label: "Gross Revenue *" },
     { key: "discounts",       label: "Discounts" },
     { key: "totalCogs",       label: "Total COGS" },
+    { key: "shippingRevenue", label: "Shipping Revenue" },
     { key: "shippingCost",    label: "Shipping Cost" },
     { key: "transactionFees", label: "Transaction Fees" },
     { key: "taxes",           label: "Taxes" },
     { key: "refundAmount",    label: "Refund Amount" },
+    { key: "chargebackAmount",label: "Chargeback Amount" },
     { key: "adSpendAllocated",label: "Ad Spend Allocated" },
   ];
 
@@ -763,10 +784,12 @@ export function OrdersClient({ data }: { data: OrdersData }) {
           grossRevenue:    n(form.grossRevenue),
           discounts:       n(form.discounts),
           totalCogs:       n(form.totalCogs),
+          shippingRevenue: n(form.shippingRevenue),
           shippingCost:    n(form.shippingCost),
           transactionFees: n(form.transactionFees),
           taxes:           n(form.taxes),
           refundAmount:    n(form.refundAmount),
+          chargebackAmount:n(form.chargebackAmount),
           adSpendAllocated:n(form.adSpendAllocated),
         }),
       });
@@ -776,7 +799,18 @@ export function OrdersClient({ data }: { data: OrdersData }) {
         return;
       }
       const { order: newOrder } = await res.json();
-      setOrders((prev) => [newOrder, ...prev]);
+      // The create response carries only the headline money fields, so
+      // merge the form's values in — otherwise a later edit of this row
+      // would read the missing fields as 0 and zero them on save.
+      setOrders((prev) => [{
+        ...newOrder,
+        discounts: n(form.discounts),
+        shippingRevenue: n(form.shippingRevenue),
+        shippingCost: n(form.shippingCost),
+        transactionFees: n(form.transactionFees),
+        taxes: n(form.taxes),
+        chargebackAmount: n(form.chargebackAmount),
+      }, ...prev]);
       setShowCreate(false);
       setFormError(null);
       startTransition(() => router.refresh());
@@ -803,10 +837,12 @@ export function OrdersClient({ data }: { data: OrdersData }) {
           grossRevenue:    n(form.grossRevenue),
           discounts:       n(form.discounts),
           totalCogs:       n(form.totalCogs),
+          shippingRevenue: n(form.shippingRevenue),
           shippingCost:    n(form.shippingCost),
           transactionFees: n(form.transactionFees),
           taxes:           n(form.taxes),
           refundAmount:    n(form.refundAmount),
+          chargebackAmount:n(form.chargebackAmount),
           adSpendAllocated:n(form.adSpendAllocated),
         }),
       });
@@ -829,12 +865,18 @@ export function OrdersClient({ data }: { data: OrdersData }) {
                   customerEmail:   updated.order.customerEmail,
                   currency:        updated.order.currency,
                   grossRevenue:    updated.order.grossRevenue,
+                  discounts:       updated.order.discounts,
                   netRevenue:      updated.order.netRevenue,
                   totalCogs:       updated.order.totalCogs,
+                  shippingRevenue: updated.order.shippingRevenue,
+                  shippingCost:    updated.order.shippingCost,
+                  transactionFees: updated.order.transactionFees,
+                  taxes:           updated.order.taxes,
                   netProfit:       updated.order.netProfit,
                   profitMargin:    updated.order.profitMargin,
                   adSpendAllocated:updated.order.adSpendAllocated,
                   refundAmount:    updated.order.refundAmount,
+                  chargebackAmount:updated.order.chargebackAmount,
                 }
               : o
           )

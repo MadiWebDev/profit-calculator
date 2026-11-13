@@ -19,11 +19,15 @@ import { parseQuery, toObjectId } from "@/lib/validation";
 import { withRateLimit } from "@/lib/rate-limit";
 import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
+import OtherFeeRuleModel from "@/models/OtherFeeRule";
+import { computeOtherFees } from "@/lib/other-fees";
 import {
   calcDashboardMetrics,
   comparePeriods,
+  type DashboardMetrics,
   type DashboardOrderInput,
 } from "@/lib/profit-extended";
+import { getSyncedAdSpend } from "@/lib/ad-spend";
 import {
   convertAmount,
   convertOrdersToBase,
@@ -114,7 +118,7 @@ export async function GET(req: Request) {
   // summing (metrics, daily series, per-product table); the previous
   // code summed mixed-currency orders 1:1.
   const base = await getReportBaseCurrency(session.teamId, storeId);
-  const rates = await getReportRates(base);
+  const rates = await getReportRates(base, session.teamId);
   const convertDocs = (docs: typeof orders) => {
     const core = convertOrdersToBase(
       docs.map((o) => {
@@ -156,9 +160,47 @@ export async function GET(req: Request) {
   const convOrders = convertDocs(orders);
   const convPrevOrders = convertDocs(prevOrders);
 
-  const metrics = calcDashboardMetrics(convOrders.map((o) => toInput(o as unknown as Record<string, unknown>)));
-  const previous = calcDashboardMetrics(convPrevOrders.map((o) => toInput(o as unknown as Record<string, unknown>)));
-  const deltas = comparePeriods(metrics, previous);
+  // Other-fee rules: each matching order's fee is added to that
+  // order's otherCosts BEFORE metrics are computed, so netProfit,
+  // netMargin, totalCosts and LTV all reflect it — for the current
+  // and the previous period alike, and the daily series inherits it
+  // through the same per-order inputs. Formula per order:
+  // percent → grossRevenue × value/100; fixed_per_order → value
+  // converted from the rule's currency into the report base.
+  const otherFeeRules = await OtherFeeRuleModel.find({ teamId: toObjectId(session.teamId), isActive: true }).lean();
+  const otherFeeRuleInputs = otherFeeRules.map((r) => ({
+    kind: r.kind, value: r.value, currency: r.currency,
+    country: r.country, productTag: r.productTag, paymentMethod: r.paymentMethod,
+    effectiveFrom: r.effectiveFrom, effectiveTo: r.effectiveTo,
+  }));
+  const applyOtherFees = (docs: typeof convOrders): number => {
+    const { total, perOrder } = computeOtherFees(
+      otherFeeRuleInputs,
+      docs.map((o) => {
+        const r = o as unknown as Record<string, unknown>;
+        return {
+          grossRevenue: typeof r.grossRevenue === "number" ? r.grossRevenue : 0,
+          shippingCountry: typeof r.shippingCountry === "string" ? r.shippingCountry : undefined,
+          paymentMethod: typeof r.paymentMethod === "string" ? r.paymentMethod : undefined,
+          orderDate: r.orderDate as Date,
+          status: typeof r.status === "string" ? r.status : undefined,
+          lineItems: ((r.lineItems as { tags?: string[] }[] | undefined) ?? []).map((li) => ({ tags: li.tags ?? null })),
+        };
+      }),
+      { baseCurrency: base, rates },
+    );
+    docs.forEach((d, i) => {
+      const rec = d as unknown as Record<string, unknown>;
+      rec.otherCosts = (typeof rec.otherCosts === "number" ? rec.otherCosts : 0) + perOrder[i];
+    });
+    return total;
+  };
+  const otherFees = applyOtherFees(convOrders);
+  const prevOtherFees = applyOtherFees(convPrevOrders);
+
+  let metrics = calcDashboardMetrics(convOrders.map((o) => toInput(o as unknown as Record<string, unknown>)));
+  let previous = calcDashboardMetrics(convPrevOrders.map((o) => toInput(o as unknown as Record<string, unknown>)));
+  let deltas = comparePeriods(metrics, previous);
 
   // Daily series
   const byDay = new Map<string, DashboardOrderInput[]>();
@@ -168,9 +210,49 @@ export async function GET(req: Request) {
     list.push(toInput(o as unknown as Record<string, unknown>));
     byDay.set(d, list);
   }
-  const daily = [...byDay.entries()]
+  let daily = [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([date, list]) => ({ date, ...calcDashboardMetrics(list) }));
+
+  // F5: fold synced ad spend (AdSpendDaily) into the metrics. The
+  // per-order calc only sees adSpendAllocated, which Shopify sync
+  // always writes as 0, so synced spend never reduced profit here.
+  // totalAdSpend = synced + allocated (disjoint sources, no
+  // double-counting); net profit drops by the synced amount and
+  // ROAS/MER/break-even/CAC are recomputed on the combined spend.
+  // The previous period gets its own period's synced spend so deltas
+  // compare like with like. FX failure fails open (unconverted),
+  // matching this route's existing order-conversion convention.
+  // LTV is netProfit / customer count; the count is recovered from
+  // the pre-adjustment figures (ltv = netProfit / n) so it stays
+  // consistent with the adjusted profit.
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const withSyncedSpend = (m: DashboardMetrics, syncedTotal: number): DashboardMetrics => {
+    const adSpend = r2(m.adSpend + syncedTotal);
+    const netProfit = r2(m.netProfit - syncedTotal);
+    const nonAdCosts = m.totalCosts - m.adSpend;
+    return {
+      ...m,
+      adSpend,
+      netProfit,
+      netMargin: m.revenue > 0 ? r2((netProfit / m.revenue) * 100) : 0,
+      roas: adSpend > 0 ? r2(m.revenue / adSpend) : 0,
+      mer: adSpend > 0 ? r2(m.revenue / adSpend) : 0,
+      breakEvenRoas: adSpend > 0 ? r2((adSpend + nonAdCosts) / adSpend) : 0,
+      cac: m.newCustomers > 0 ? r2(adSpend / m.newCustomers) : 0,
+      ltv: m.netProfit !== 0 ? r2((netProfit * m.ltv) / m.netProfit) : 0,
+      totalCosts: r2(m.revenue - netProfit),
+    };
+  };
+  const syncedSpendOpts = { rates, ...(storeId ? { storeId } : {}) };
+  const synced = await getSyncedAdSpend(session.teamId, fromDate, toDate, base, syncedSpendOpts);
+  const prevSynced = await getSyncedAdSpend(session.teamId, prevFrom, prevTo, base, syncedSpendOpts);
+  metrics = withSyncedSpend(metrics, synced.total);
+  previous = withSyncedSpend(previous, prevSynced.total);
+  deltas = comparePeriods(metrics, previous);
+  // Daily figures get that day's synced spend (days with spend but no
+  // orders stay absent from the series — the series is order-driven).
+  daily = daily.map((d) => ({ ...d, ...withSyncedSpend(d, synced.byDay[d.date] ?? 0) }));
 
   // Per-product winners/losers (gross profit before allocated costs)
   const productMap = new Map<string, { productId: string; name: string; revenue: number; cogs: number; units: number; orders: number }>();
@@ -218,6 +300,8 @@ export async function GET(req: Request) {
     products,
     winners: products.slice(0, 10),
     losers: [...products].reverse().slice(0, 10),
+    otherFees,
+    previousOtherFees: prevOtherFees,
     generatedAt: new Date().toISOString(),
   });
 }

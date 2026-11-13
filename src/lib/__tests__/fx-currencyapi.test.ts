@@ -15,6 +15,7 @@ import {
   clearFxCache,
   parseCurrencyApiRates,
   rebaseRates,
+  applyFxOverrides,
 } from "@/lib/fx";
 import { convertCurrency } from "@/lib/profit-engine";
 
@@ -195,5 +196,60 @@ describe("live mode (CURRENCY_API_LIVE=1)", () => {
       vi.useRealTimers();
       delete process.env.CURRENCY_API_LIVE;
     }
+  });
+});
+
+describe("manual FX overrides", () => {
+  const USD_RATES = { USD: 1, EUR: 0.92, PKR: 278.5 };
+
+  it("an override wins over the fetched rate for its currency", () => {
+    const out = applyFxOverrides(USD_RATES, [
+      { currency: "PKR", rate: 999, effectiveFrom: "2026-01-01" },
+    ]);
+    expect(out.PKR).toBe(999);
+    expect(out.EUR).toBe(0.92);
+    expect(out.USD).toBe(1);
+  });
+
+  it("a future-dated override does not apply yet", () => {
+    const out = applyFxOverrides(
+      USD_RATES,
+      [{ currency: "PKR", rate: 999, effectiveFrom: "2027-01-01" }],
+      new Date("2026-11-13"),
+    );
+    expect(out.PKR).toBe(278.5);
+  });
+
+  it("the latest effective override wins, and USD/invalid overrides are ignored", () => {
+    const out = applyFxOverrides(USD_RATES, [
+      { currency: "PKR", rate: 300, effectiveFrom: "2026-01-01" },
+      { currency: "PKR", rate: 310, effectiveFrom: "2026-06-01" },
+      { currency: "USD", rate: 5, effectiveFrom: "2026-01-01" },
+      { currency: "XX", rate: 5, effectiveFrom: "2026-01-01" },
+      { currency: "EUR", rate: 0, effectiveFrom: "2026-01-01" },
+    ]);
+    expect(out.PKR).toBe(310);
+    expect(out.USD).toBe(1);
+    expect(out.EUR).toBe(0.92);
+  });
+
+  it("getFxRates applies overrides before re-basing, and never caches them", async () => {
+    process.env.CURRENCY_API_KEY = "test-key";
+    mockFetch(() => okJson(CURRENCY_API_PAYLOAD));
+    const withOverride = await getFxRates("USD", [
+      { currency: "PKR", rate: 999, effectiveFrom: "2026-01-01" },
+    ]);
+    expect(withOverride.rates.PKR).toBe(999);
+    expect(withOverride.rates.EUR).toBe(0.92);
+    // Same base, no overrides: the fetched rate again, not the override.
+    const plain = await getFxRates("USD");
+    expect(plain.rates.PKR).toBe(278.5);
+    // Re-based: 1 PKR-base unit is 1/999 USD under the override.
+    const rebased = await getFxRates("PKR", [
+      { currency: "PKR", rate: 999, effectiveFrom: "2026-01-01" },
+    ]);
+    expect(rebased.base).toBe("PKR");
+    expect(rebased.rates.PKR).toBe(1);
+    expect(rebased.rates.USD).toBeCloseTo(1 / 999, 10);
   });
 });

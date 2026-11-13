@@ -178,15 +178,21 @@ export async function jobGoalAlerts(): Promise<CronJobResult> {
         .select("currency netProfit netRevenue")
         .lean();
       const goalBase = await getReportBaseCurrency(goal.teamId, goal.storeId);
-      const goalRates = await getReportRates(goalBase);
+      const goalRates = await getReportRates(goalBase, goal.teamId);
       let currentProfit = 0;
       let currentRevenue = 0;
       for (const o of goalOrders) {
         currentProfit += convertAmount(o.netProfit ?? 0, o.currency, goalBase, goalRates);
         currentRevenue += convertAmount(o.netRevenue ?? 0, o.currency, goalBase, goalRates);
       }
+      // progressPercent must compare like with like: the stored
+      // current is in the report base, the target in the goal's own
+      // currency — convert current into the goal currency first
+      // (no-op when the two are the same currency).
+      const goalCurrency = (goal.currency ?? "").toUpperCase().trim() || goalBase;
+      const currentProfitInGoal = convertAmount(currentProfit, goalBase, goalCurrency, goalRates);
       const progressPercent = goal.targetProfit > 0
-        ? Math.min(100, Math.round((currentProfit / goal.targetProfit) * 100))
+        ? Math.min(100, Math.round((currentProfitInGoal / goal.targetProfit) * 100))
         : 0;
 
       await ProfitGoalModel.updateOne(

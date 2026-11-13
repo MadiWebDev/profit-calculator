@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import OrderModel from "@/models/Order";
 import { OrdersClient } from "./OrdersClient";
 import { getTeamBaseCurrency } from "@/lib/reporting";
+import { escapeRegExp, parsePageParam } from "@/lib/search";
 
 async function getOrders(teamId: string, page: number, search: string) {
   await connectDB();
@@ -12,10 +13,13 @@ async function getOrders(teamId: string, page: number, search: string) {
 
   const query: Record<string, unknown> = { teamId };
   if (search) {
+    // The term is a literal string, never a regex pattern: an unescaped
+    // "[" (or "(", "\", …) throws MongoServerError and 500s the page.
+    const escaped = escapeRegExp(search);
     query.$or = [
-      { orderNumber: { $regex: search, $options: "i" } },
-      { customerEmail: { $regex: search, $options: "i" } },
-      { externalId: { $regex: search, $options: "i" } },
+      { orderNumber: { $regex: escaped, $options: "i" } },
+      { customerEmail: { $regex: escaped, $options: "i" } },
+      { externalId: { $regex: escaped, $options: "i" } },
     ];
   }
 
@@ -41,8 +45,14 @@ async function getOrders(teamId: string, page: number, search: string) {
       status: o.status,
       currency: o.currency ?? baseCurrency,
       grossRevenue: o.grossRevenue ?? 0,
+      discounts: o.discounts ?? 0,
       netRevenue: o.netRevenue ?? 0,
       totalCogs: o.totalCogs ?? 0,
+      shippingRevenue: o.shippingRevenue ?? 0,
+      shippingCost: o.shippingCost ?? 0,
+      transactionFees: o.transactionFees ?? 0,
+      taxes: o.taxes ?? 0,
+      chargebackAmount: o.chargebackAmount ?? 0,
       netProfit: o.netProfit ?? 0,
       profitMargin: o.profitMargin ?? 0,
       adSpendAllocated: o.adSpendAllocated ?? 0,
@@ -67,7 +77,9 @@ export default async function OrdersPage({ searchParams }: Props) {
   if (!teamId) redirect("/onboarding");
 
   const params = await searchParams;
-  const page = parseInt(params.page ?? "1", 10);
+  // Invalid / out-of-range page values fall back to 1 instead of
+  // reaching Mongo as skip(-50) (500) or rendering "Page NaN".
+  const page = parsePageParam(params.page);
   const search = params.search ?? "";
   const data = await getOrders(teamId, page, search);
 

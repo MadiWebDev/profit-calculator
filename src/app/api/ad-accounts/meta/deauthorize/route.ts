@@ -89,22 +89,38 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 4. Revoke tokens for this Meta user ───────────────────────────────────
+  // F11: this used to query a `metaUserId` field the schema did not
+  // have, so the query could never match — yet the route still
+  // returned { success: true } to Meta. The field now exists on the
+  // schema, and when nothing matches we say so instead of confirming
+  // a revocation that never happened.
   try {
     await connectDB();
 
-    await AdAccountModel.updateMany(
+    const revoked = await AdAccountModel.updateMany(
       { platform: "meta", metaUserId },
       {
         $set: {
           accessToken:  null,
           refreshToken: null,
           isActive:     false,
-          syncStatus:   "deauthorized",
+          syncStatus:   "disconnected",
         },
       }
     );
 
-    logger.info("[Meta Deauth] Meta accounts deauthorized", { metaUserId });
+    if ((revoked.modifiedCount ?? 0) === 0 && (revoked.matchedCount ?? 0) === 0) {
+      logger.warn("[Meta Deauth] No Meta accounts for user", { metaUserId });
+      return NextResponse.json(
+        { error: "no_matching_accounts", code: "NO_MATCHING_ACCOUNTS" },
+        { status: 404 }
+      );
+    }
+
+    logger.info("[Meta Deauth] Meta accounts deauthorized", {
+      metaUserId,
+      revokedCount: revoked.modifiedCount ?? 0,
+    });
 
     try {
       await logAudit({
@@ -114,14 +130,20 @@ export async function POST(req: NextRequest) {
         description: `Meta deauthorize callback received for user ${metaUserId}`,
         resourceType: "AdAccount",
         resourceId:   metaUserId,
-        metadata:     { platform: "meta", metaUserId },
+        metadata:     { platform: "meta", metaUserId, revokedCount: revoked.modifiedCount ?? 0 },
       });
     } catch {
       // Non-fatal
     }
+
+    return NextResponse.json({ success: true, revokedCount: revoked.modifiedCount ?? 0 });
   } catch (err) {
     logger.error("[Meta Deauth] DB error", err);
+    // Do NOT return success: Meta must know the revocation did not
+    // happen so it can retry.
+    return NextResponse.json(
+      { error: "deauthorize_failed", code: "DEAUTHORIZE_FAILED" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ success: true });
 }

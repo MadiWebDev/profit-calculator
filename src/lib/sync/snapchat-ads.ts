@@ -6,8 +6,21 @@
  * scheduled cron job.
  *
  * Pulls campaign-level daily stats for the last 30 days from
- * /v1/adaccounts/{ad_account_id}/stats with granularity=DAY and upserts
- * into AdSpendDaily. Idempotent: upserts by (adAccountId, date, campaignId).
+ * /v1/adaccounts/{ad_account_id}/stats with granularity=DAY and
+ * breakdown=campaign, and upserts into AdSpendDaily. Idempotent:
+ * upserts by (adAccountId, date, campaignId).
+ *
+ * Snapchat quirks handled here (FINAL-REPORT F2/F17):
+ * - The ad-account stats endpoint accepts ONLY `spend` without a
+ *   breakdown (any other field → E1008). With breakdown=campaign the
+ *   campaign-level fields are accepted, so the request asks for
+ *   spend, impressions, swipes and the purchase-conversion fields
+ *   with breakdown=campaign.
+ * - Money arrives in micro-currency (millionths of the account
+ *   currency): spend and conversion_purchases_value are divided by
+ *   1e6 before storage — storing them raw inflated spend ~1,000,000×.
+ * - Conversions/revenue come from conversion_purchases /
+ *   conversion_purchases_value (Snap Pixel purchases), not hardcoded 0.
  *
  * When AD_MOCK_MODE=true, deterministic fixture rows are upserted instead.
  *
@@ -18,7 +31,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import AdAccountModel from "@/models/AdAccount";
 import AdSpendDailyModel from "@/models/AdSpendDaily";
-import { safeDecrypt } from "@/lib/encryption";
+import { getValidSnapchatToken } from "@/lib/snapchat-token";
 import { logger, toLogError } from "@/lib/logger";
 import { isAdMockMode, mockSpendRows } from "@/lib/ads/mock";
 
@@ -44,7 +57,10 @@ interface SnapchatCampaignStats {
     spend?: number;
     impressions?: number;
     swipes?: number;
-    quartile_1_views?: number;
+    /** Attributed PURCHASE events (Snap Pixel). */
+    conversion_purchases?: number;
+    /** Purchase value, in micro-currency like spend. */
+    conversion_purchases_value?: number;
   };
 }
 
@@ -106,6 +122,17 @@ const toNum = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/**
+ * Snapchat reports money in micro-currency: millionths of the ad
+ * account's currency (1 USD = 1,000,000 micro). Convert to whole
+ * currency units before storage — storing the raw value inflates
+ * spend ~1,000,000× (FINAL-REPORT F2b). Applies to `spend` and to
+ * `conversion_purchases_value`.
+ */
+export function snapchatMicroToCurrency(micro: number): number {
+  return toNum(micro) / 1e6;
+}
+
 export async function syncSnapchatAdSpend(
   adAccountId: string,
   teamId: string,
@@ -158,8 +185,11 @@ export async function syncSnapchatAdSpend(
       return result;
     }
 
-    const accessToken = safeDecrypt(adAccount.accessToken);
-    if (!accessToken) throw new Error("Ad account is disconnected (no access token)");
+    // F2d: the access token lives 1h. Refresh it (via the stored
+    // refresh token) before it expires. Accounts connected before
+    // refresh tokens were stored have none — their sync fails with
+    // NO_REFRESH_TOKEN and a clear reconnect message.
+    const accessToken = await getValidSnapchatToken(adAccount);
 
     const endDate = new Date();
     const startDate = new Date(
@@ -168,11 +198,17 @@ export async function syncSnapchatAdSpend(
     // Snapchat expects ISO-8601 datetimes, e.g. 2026-09-16T00:00:00Z
     const fmt = (d: Date) => d.toISOString().slice(0, 19) + "Z";
 
+    // F2a: the ad-account stats endpoint accepts ONLY `spend` with no
+    // breakdown — requesting impressions/swipes/views was rejected
+    // with E1008 on every sync. With breakdown=campaign the
+    // campaign-level fields are accepted, so request the full
+    // delivery + purchase-conversion field set in one call.
     const params = new URLSearchParams({
       granularity: "DAY",
       start_time: fmt(startDate),
       end_time: fmt(endDate),
-      fields: "spend,impressions,swipes,quartile_1_views",
+      breakdown: "campaign",
+      fields: "spend,impressions,swipes,conversion_purchases,conversion_purchases_value",
     });
     let url: string | null =
       `${API_BASE}/adaccounts/${encodeURIComponent(adAccount.accountId)}/stats?${params.toString()}`;
@@ -219,13 +255,15 @@ export async function syncSnapchatAdSpend(
             date: new Date(dateStr),
             campaignId,
             campaignName: campaign.name ?? "",
-            spend: toNum(stats.spend),
+            // F2b: spend is micro-currency — divide by 1e6. Same for
+            // the purchase value (F17): conversions/revenue are the
+            // Snap Pixel purchase fields, no longer hardcoded 0.
+            spend: snapchatMicroToCurrency(toNum(stats.spend)),
             impressions: Math.round(toNum(stats.impressions)),
             // Snapchat reports swipes (up-swipes) as the click equivalent
             clicks: Math.round(toNum(stats.swipes)),
-            // Basic stats carry no conversion counts
-            conversions: 0,
-            revenue: 0,
+            conversions: Math.round(toNum(stats.conversion_purchases)),
+            revenue: snapchatMicroToCurrency(toNum(stats.conversion_purchases_value)),
           });
           result.synced++;
         }

@@ -88,7 +88,7 @@ export async function loadReportOrders(ctx: ReportContext): Promise<ReportOrderI
   await connectDB();
   const docs = await OrderModel.find(orderFilter(ctx)).lean();
   const base = ctx.currency ?? (await getReportBaseCurrency(ctx.session.teamId, ctx.storeId));
-  const rates = await getReportRates(base);
+  const rates = await getReportRates(base, ctx.session.teamId);
   const converted = convertOrdersToBase(
     docs.map((o) => ({
       currency: o.currency,

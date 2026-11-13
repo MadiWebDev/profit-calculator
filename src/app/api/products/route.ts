@@ -7,6 +7,12 @@ import ProductModel from "@/models/Product";
 import { logAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
 import { deriveMoneyCurrency } from "@/lib/money-currency-server";
+import { getComputedProductAggregates } from "@/lib/product-aggregates-server";
+import {
+  avgPriceInCurrency,
+  emptyProductAggregate,
+  lookupProductAggregate,
+} from "@/lib/product-aggregates";
 
 const CreateProductSchema = z
   .object({
@@ -28,25 +34,50 @@ export async function GET(req: Request) {
 
   await connectDB();
   const products = await ProductModel.find({ teamId: toObjectId(session.teamId), isActive: true })
-    .sort({ totalProfit: -1 })
     .limit(200)
     .lean();
 
-  return NextResponse.json({
-    products: products.map((p) => ({
+  // The stored Product aggregates (totalRevenue/totalOrders/…) are
+  // never written anywhere, so they are always 0 — compute them from
+  // the team's orders at read time instead (see
+  // src/lib/product-aggregates.ts). The stored fields stay in the
+  // model as a fallback but are no longer read for display.
+  const { aggregates, baseCurrency, rates } = await getComputedProductAggregates(session.teamId);
+
+  const withAggregates = products.map((p) => {
+    const agg =
+      lookupProductAggregate(aggregates, {
+        externalId: p.externalId,
+        sku: p.sku,
+        name: p.name,
+      }) ?? emptyProductAggregate(p._id.toString(), p.name);
+    return {
       id: p._id.toString(),
       name: p.name,
       sku: p.sku,
       defaultCogs: p.defaultCogs,
       currency: p.currency,
       imageUrl: p.imageUrl,
-      totalRevenue: p.totalRevenue,
-      totalCogs: p.totalCogs,
-      totalProfit: p.totalProfit,
-      totalOrders: p.totalOrders,
-      avgProfitMargin: p.avgProfitMargin,
-    })),
+      totalRevenue: agg.totalRevenue,
+      totalCogs: agg.totalCogs,
+      totalProfit: agg.totalProfit,
+      totalOrders: agg.totalOrders,
+      avgProfitMargin: agg.avgProfitMargin,
+      avgPrice: agg.avgPrice,
+      // The average price expressed in THIS product's own currency, for
+      // COGS writes (defaultCogs is stored in product currency). Null
+      // when the price cannot be converted (FX unavailable) and the
+      // product currency differs from base — callers must skip the
+      // write then, never store the base-denominated number as COGS.
+      avgPriceInProductCurrency: avgPriceInCurrency(agg.avgPrice, baseCurrency, p.currency, rates),
+    };
   });
+
+  // Sort by COMPUTED profit (the old DB sort on the stored, always-0
+  // totalProfit was meaningless).
+  withAggregates.sort((a, b) => b.totalProfit - a.totalProfit);
+
+  return NextResponse.json({ products: withAggregates });
 }
 
 // ── POST /api/products ────────────────────────────────────────────────────────
