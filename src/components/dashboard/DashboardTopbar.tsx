@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
-import Link from "next/link";
-import { Calculator } from "lucide-react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
@@ -20,6 +19,15 @@ interface DashboardTopbarProps {
 
 export function DashboardTopbar({ userName, userEmail, plan, role }: DashboardTopbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Close the mobile drawer after navigating — otherwise it stays open
+  // over the newly loaded page.
+  /* eslint-disable react-hooks/set-state-in-effect -- close drawer on route change */
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <>
