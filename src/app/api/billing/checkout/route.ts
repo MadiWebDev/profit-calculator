@@ -63,11 +63,23 @@ export async function POST(req: Request) {
       successUrl,
     });
 
-    // Paddle returns the hosted checkout URL inside data.checkout.url
-    const checkoutUrl: string =
-      result?.data?.checkout?.url ??
-      result?.data?.url ??
-      successUrl;
+    // Paddle returns the hosted checkout URL inside data.checkout.url.
+    // A missing URL is a hard failure (502) — NEVER fall back to the
+    // success URL: that would silently land a paying user on Settings
+    // without paying, and the client would redirect them there as if
+    // checkout had opened.
+    const checkoutUrl: unknown =
+      result?.data?.checkout?.url ?? result?.data?.url;
+    if (typeof checkoutUrl !== "string" || !checkoutUrl || checkoutUrl === successUrl) {
+      logger.error("[checkout] Paddle returned no checkout URL", {
+        plan,
+        interval,
+      });
+      return NextResponse.json(
+        { error: "Paddle did not return a checkout URL. Please try again." },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ url: checkoutUrl });
   } catch (err) {

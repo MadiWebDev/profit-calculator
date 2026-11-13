@@ -81,10 +81,10 @@ export function PricingModal({
   const tiers = useMemo(() => getTiers(), []);
 
   const {
-    paddleReady,
     pricesLoaded,
     openingTier,
     checkoutError,
+    checkoutStatus,
     clearCheckoutError,
     openCheckout,
     getDisplayPrice,
@@ -184,6 +184,16 @@ export function PricingModal({
           </div>
         )}
 
+        {/* ── Hosted-checkout fallback in flight — the overlay was unavailable */}
+        {checkoutStatus && (
+          <div
+            role="status"
+            className="mx-6 mt-4 flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 px-4 py-3 text-sm text-blue-700 dark:text-blue-300"
+          >
+            {checkoutStatus}
+          </div>
+        )}
+
         {/* ── Plan cards ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 p-4 sm:p-6">
           {tiers.map((tier) => {
@@ -250,7 +260,10 @@ export function PricingModal({
                 <Button
                   className="w-full mb-5 gap-1.5"
                   variant={isHighlighted ? "default" : "outline"}
-                  disabled={anyOpening || !paddleReady}
+                  // NOT gated on paddleReady: when Paddle.js never loads, the
+                  // click falls back to the hosted checkout instead of
+                  // dead-ending. Only one checkout may open at a time.
+                  disabled={anyOpening}
                   onClick={() => handleSubscribe(tier.id)}
                   aria-label={`Subscribe to ${tier.name}`}
                 >
