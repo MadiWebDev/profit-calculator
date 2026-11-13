@@ -196,19 +196,32 @@ function DateRangePicker({ from, to, onApply }: {
 
   return (
     <div className="relative">
-      <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setOpen(!open)}>
-        <Calendar className="h-3.5 w-3.5" />
-        {active?.label ?? `${from} → ${to}`}
-        <ChevronDown className="h-3 w-3 opacity-60" />
+      <Button
+        variant="outline" size="sm"
+        className="gap-1.5 h-9 sm:h-8 text-xs max-w-[60vw] sm:max-w-none"
+        onClick={() => setOpen(!open)}
+        aria-haspopup="dialog" aria-expanded={open}
+      >
+        <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+        <span className="truncate">{active?.label ?? `${from} → ${to}`}</span>
+        <ChevronDown className="h-3 w-3 opacity-60 flex-shrink-0" />
       </Button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-50 w-72 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-3 space-y-3">
+          <div className="fixed inset-0 z-40 bg-black/20 sm:bg-transparent" onClick={() => setOpen(false)} />
+          {/* Mobile: bottom sheet. ≥sm: anchored popover. */}
+          <div
+            role="dialog"
+            className={cn(
+              "z-50 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-3 space-y-3",
+              "fixed inset-x-3 bottom-3 max-h-[85vh] overflow-y-auto",
+              "sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-10 sm:w-72 sm:max-h-none sm:overflow-visible"
+            )}
+          >
             <div className="grid grid-cols-2 gap-1.5">
               {presets.map((p) => (
                 <button key={p.label} onClick={() => apply(p.from, p.to, p.label)}
-                  className={cn("text-xs px-3 py-1.5 rounded-lg text-left transition-colors",
+                  className={cn("text-xs px-3 py-2 sm:py-1.5 rounded-lg text-left transition-colors",
                     from === p.from && to === p.to
                       ? "bg-[var(--color-primary)] text-white"
                       : "bg-[var(--color-muted)] hover:bg-[var(--color-primary)]/10 text-[var(--color-foreground)]"
@@ -219,14 +232,14 @@ function DateRangePicker({ from, to, onApply }: {
             </div>
             <div className="border-t border-[var(--color-border)] pt-2 space-y-2">
               <p className="text-xs font-medium text-[var(--color-muted-foreground)]">Custom range</p>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-col min-[380px]:flex-row min-[380px]:items-center gap-1.5">
                 <input type="date" value={lFrom} onChange={(e) => setLFrom(e.target.value)}
-                  className="flex-1 h-7 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-xs" />
-                <span className="text-xs text-[var(--color-muted-foreground)]">–</span>
+                  className="flex-1 min-w-0 h-9 sm:h-7 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-base sm:text-xs" />
+                <span className="hidden min-[380px]:inline text-xs text-[var(--color-muted-foreground)]">–</span>
                 <input type="date" value={lTo} onChange={(e) => setLTo(e.target.value)}
-                  className="flex-1 h-7 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-xs" />
+                  className="flex-1 min-w-0 h-9 sm:h-7 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-base sm:text-xs" />
               </div>
-              <Button size="sm" className="w-full h-7 text-xs" onClick={() => apply(lFrom, lTo, `${lFrom} → ${lTo}`)}
+              <Button size="sm" className="w-full h-9 sm:h-7 text-xs" onClick={() => apply(lFrom, lTo, `${lFrom} → ${lTo}`)}
                 disabled={!lFrom || !lTo || lFrom > lTo}>
                 Apply
               </Button>
@@ -263,15 +276,15 @@ function OnboardingChecklist({ hasOrders, storesConnected, hasGoals, hasCogs, ha
   return (
     <Card className="border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <CardTitle className="text-sm font-semibold">Getting Started</CardTitle>
-            <span className="text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded-full font-medium">
+            <span className="text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded-full font-medium flex-shrink-0">
               {done}/{items.length}
             </span>
           </div>
           <button onClick={() => { setDismissed(true); localStorage.setItem("overview_checklist_dismissed", "1"); }}
-            className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">
+            className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] px-2 py-1 -mr-2 flex-shrink-0">
             Dismiss
           </button>
         </div>
@@ -281,15 +294,15 @@ function OnboardingChecklist({ hasOrders, storesConnected, hasGoals, hasCogs, ha
         </div>
       </CardHeader>
       <CardContent className="pt-1">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-3 gap-2">
           {items.map(({ id, label, desc, href, done: d }) => (
             <Link key={id} href={d ? "#" : href} onClick={d ? (e) => e.preventDefault() : undefined}
-              className={cn("flex items-start gap-2 p-2.5 rounded-lg border text-xs transition-all",
+              className={cn("flex items-start gap-2 p-2.5 rounded-lg border text-xs transition-all min-w-0",
                 d ? "border-green-200 bg-green-50/50 dark:bg-green-950/30 dark:border-green-900 cursor-default"
                   : "border-[var(--color-border)] hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)]/5")}>
               {d ? <CheckSquare className="h-3.5 w-3.5 text-green-500 flex-shrink-0 mt-0.5" />
                  : <Square className="h-3.5 w-3.5 text-[var(--color-muted-foreground)] flex-shrink-0 mt-0.5" />}
-              <div>
+              <div className="min-w-0">
                 <p className={cn("font-medium leading-tight", d ? "line-through text-[var(--color-muted-foreground)]" : "text-[var(--color-foreground)]")}>{label}</p>
                 <p className="text-[var(--color-muted-foreground)] mt-0.5 leading-snug">{desc}</p>
               </div>
@@ -312,14 +325,14 @@ function WaterfallRow({
   const { formatMoney } = useCurrency();
   const pct = total > 0 ? Math.min(100, (Math.abs(value) / total) * 100) : 0;
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2.5 sm:gap-3">
       <span className={cn("flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg", color)}>
         <Icon className="h-3.5 w-3.5" />
       </span>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5">
-          <span className="text-xs text-[var(--color-muted-foreground)]">{label}</span>
-          <span className={cn("text-xs font-semibold tabular-nums", !isPositive && value > 0 ? "text-red-500" : "text-[var(--color-foreground)]")}>
+        <div className="flex items-center justify-between gap-2 mb-0.5">
+          <span className="text-xs text-[var(--color-muted-foreground)] truncate">{label}</span>
+          <span className={cn("text-xs font-semibold tabular-nums flex-shrink-0", !isPositive && value > 0 ? "text-red-500" : "text-[var(--color-foreground)]")}>
             {!isPositive && value > 0 ? "−" : ""}{formatMoney(Math.abs(value), baseCurrency)}
           </span>
         </div>
@@ -338,9 +351,9 @@ function MiniCard({ label, value, change, danger, warning }: {
   label: string; value: string; change?: number; danger?: boolean; warning?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 flex flex-col gap-2">
-      <p className="text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wide">{label}</p>
-      <p className={cn("text-xl font-bold tracking-tight",
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 sm:p-4 flex flex-col gap-1.5 sm:gap-2 min-w-0">
+      <p className="text-[11px] sm:text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wide truncate">{label}</p>
+      <p className={cn("text-base sm:text-xl font-bold tracking-tight truncate",
         danger ? "text-red-500" : warning ? "text-yellow-600 dark:text-yellow-400" : "text-[var(--color-foreground)]")}>
         {value}
       </p>
@@ -398,7 +411,7 @@ function ChartTooltip({ active, payload, label, baseCurrency }: {
   const { formatDate } = useDisplayTimezone();
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-3 text-xs space-y-1 min-w-[160px]">
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-3 text-xs space-y-1 min-w-[140px] sm:min-w-[160px] max-w-[calc(100vw-2rem)]">
       <p className="font-semibold text-[var(--color-foreground)] border-b border-[var(--color-border)] pb-1 mb-1">
         {label ? formatDate(label) : ""}
       </p>
@@ -501,22 +514,22 @@ export function OverviewClient({ data }: { data: OverviewData }) {
   // ── Empty State ────────────────────────────────────────────────────────────
   if (!storesConnected && !hasOrders) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 w-full min-w-0">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Overview</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-foreground)]">Overview</h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">
             Welcome — connect a store or import orders to get started.
           </p>
         </div>
         <OnboardingChecklist hasOrders={false} storesConnected={false} hasGoals={false} hasCogs={false} hasAds={false} hasCouriers={false} />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
           {[
             { step: "1", title: "Connect a Store",   desc: "Pull orders automatically from your Shopify store.", href: "/onboarding",       cta: "Connect now",   primary: true  },
             { step: "2", title: "Import via CSV",     desc: "Upload any order export file and start seeing profit data.",    href: "/dashboard/orders", cta: "Import CSV",    primary: false },
             { step: "3", title: "Set Profit Goals",   desc: "Define monthly targets and track progress against them.",       href: "/dashboard/goals",  cta: "Set goals",     primary: false },
           ].map(({ step, title, desc, href, cta, primary }) => (
             <Link key={step} href={href}
-              className={cn("group relative rounded-xl border p-5 transition-all hover:shadow-md",
+              className={cn("group relative rounded-xl border p-4 sm:p-5 transition-all hover:shadow-md",
                 primary ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5"
                         : "border-[var(--color-border)] hover:border-[var(--color-primary)]/40")}>
               <span className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold mb-3",
@@ -537,11 +550,11 @@ export function OverviewClient({ data }: { data: OverviewData }) {
 
   // ── Full Dashboard ─────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full min-w-0">
 
       {/* Sync toast */}
       {syncNotice && (
-        <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
+        <div role="status" className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-3 sm:px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
           <RefreshCw className="h-4 w-4 flex-shrink-0" />{syncNotice}
         </div>
       )}
@@ -553,10 +566,10 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       />
 
       {/* ── Header ── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Overview</h1>
-          <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-foreground)]">Overview</h1>
+          <p className="text-sm text-[var(--color-muted-foreground)] mt-0.5 truncate">
             {dateLabel}
             {isPending && <span className="ml-1.5 animate-pulse opacity-60">· Updating…</span>}
           </p>
@@ -564,21 +577,24 @@ export function OverviewClient({ data }: { data: OverviewData }) {
         <div className="flex flex-wrap items-center gap-2">
           <DateRangePicker from={dateFrom} to={dateTo} onApply={handleDateChange} />
           {hasOrders && (
-            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
+            <Button variant="outline" size="sm" className="gap-1.5 h-9 sm:h-8 text-xs" aria-label="Export CSV"
               onClick={() => exportKpiCsv(current, cb, dateLabel, totalOrdersInPeriod)}>
-              <Download className="h-3.5 w-3.5" /> Export
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden min-[420px]:inline">Export</span>
             </Button>
           )}
           {storesConnected && (
-            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={syncAll} loading={syncActive} loadingText="Syncing…">
+            <Button variant="outline" size="sm" className="gap-1.5 h-9 sm:h-8" aria-label="Sync stores"
+              onClick={syncAll} loading={syncActive} loadingText="Syncing…">
               <RefreshCw className="h-3.5 w-3.5" />
-              Sync
+              <span className="hidden min-[420px]:inline">Sync</span>
             </Button>
           )}
           {canManageBilling && plan !== "pro" && (
             <Link href="/pricing">
-              <Button size="sm" variant="outline" className="gap-1.5 h-8 text-[var(--color-primary)] border-[var(--color-primary)]/40">
-                <Zap className="h-3.5 w-3.5" /> Upgrade
+              <Button size="sm" variant="outline" className="gap-1.5 h-9 sm:h-8 text-[var(--color-primary)] border-[var(--color-primary)]/40" aria-label="Upgrade plan">
+                <Zap className="h-3.5 w-3.5" />
+                <span className="hidden min-[420px]:inline">Upgrade</span>
               </Button>
             </Link>
           )}
@@ -587,9 +603,9 @@ export function OverviewClient({ data }: { data: OverviewData }) {
 
       {/* ── No data in range nudge ── */}
       {hasOrders && totalOrdersInPeriod === 0 && !isPending && (
-        <div className="flex items-start gap-3 rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/50 px-4 py-3 text-sm">
+        <div className="flex items-start gap-3 rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/50 px-3 sm:px-4 py-3 text-sm">
           <span className="text-yellow-500 mt-0.5 flex-shrink-0">⚠️</span>
-          <div>
+          <div className="min-w-0">
             <p className="font-semibold text-yellow-800 dark:text-yellow-300">No orders found in this date range</p>
             <p className="text-yellow-700 dark:text-yellow-400 mt-0.5">
               Your orders exist but fall outside <strong>{dateLabel}</strong>.
@@ -607,7 +623,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       )}
 
       {/* ── Primary KPI row (4 hero cards) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="Net Profit"
           value={formatMoney(current.netProfit, baseCurrency)}
@@ -640,7 +656,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       </div>
 
       {/* ── Secondary KPI row (8 mini cards) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
         <MiniCard label="Gross Margin"    value={formatPercent(current.grossMargin)}          change={undefined} />
         <MiniCard label="Avg Order Value" value={formatMoney(current.avgOrderValue, baseCurrency)} change={changes.aov} />
         <MiniCard label="Avg Net Profit"  value={formatMoney(current.avgNetProfit, baseCurrency)} />
@@ -658,15 +674,15 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       {goalProgress && (
         <Card>
           <CardContent className="pt-4 pb-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-[var(--color-primary)]" />
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between mb-2">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <Target className="h-4 w-4 text-[var(--color-primary)] flex-shrink-0" />
                 <span className="text-sm font-semibold text-[var(--color-foreground)]">{goalProgress.label}</span>
                 <Badge variant={goalProgress.pct >= 100 ? "success" : "outline"} className="text-xs">
                   {goalProgress.pct >= 100 ? "✓ Achieved" : `${goalProgress.pct.toFixed(0)}%`}
                 </Badge>
               </div>
-              <div className="text-right text-xs text-[var(--color-muted-foreground)]">
+              <div className="sm:text-right text-xs text-[var(--color-muted-foreground)]">
                 <span className="font-semibold text-[var(--color-foreground)]">{formatMoney(goalProgress.current, baseCurrency)}</span>
                 {" / "}{formatMoney(goalProgress.target, baseCurrency)}
               </div>
@@ -690,79 +706,81 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       {/* ── Main chart ── */}
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Performance — {dateLabel}</CardTitle>
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm sm:text-base truncate min-w-0">Performance — {dateLabel}</CardTitle>
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button onClick={() => setActiveChart("area")}
-                className={cn("text-xs px-2.5 py-1 rounded-lg transition-colors",
+                className={cn("text-xs px-2.5 py-1.5 sm:py-1 rounded-lg transition-colors",
                   activeChart === "area" ? "bg-[var(--color-primary)] text-white" : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]")}>
                 Area
               </button>
               <button onClick={() => setActiveChart("bars")}
-                className={cn("text-xs px-2.5 py-1 rounded-lg transition-colors",
+                className={cn("text-xs px-2.5 py-1.5 sm:py-1 rounded-lg transition-colors",
                   activeChart === "bars" ? "bg-[var(--color-primary)] text-white" : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]")}>
                 Bars
               </button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          {isPending ? (
-            <div className="h-[280px] flex items-center justify-center gap-2 text-sm text-[var(--color-muted-foreground)]">
-              <RefreshCw className="h-4 w-4 animate-spin" /> Updating…
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              {activeChart === "area" ? (
-                <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gRev"  x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor="#3b82f6" stopOpacity={0.18} />
-                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gProf" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor="#22c55e" stopOpacity={0.22} />
-                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gAds"  x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor="#8b5cf6" stopOpacity={0.15} />
-                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} tickLine={false} axisLine={false} width={48} />
-                  <Tooltip content={<ChartTooltip baseCurrency={baseCurrency} />} />
-                  <Legend formatter={(v) => <span style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{v === "revenue" ? "Revenue" : v === "profit" ? "Net Profit" : "Ad Spend"}</span>} />
-                  <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fill="url(#gRev)"  dot={false} />
-                  <Area type="monotone" dataKey="profit"  stroke="#22c55e" strokeWidth={2} fill="url(#gProf)" dot={false} />
-                  <Area type="monotone" dataKey="adSpend" stroke="#8b5cf6" strokeWidth={1.5} strokeDasharray="4 2" fill="url(#gAds)" dot={false} />
-                </AreaChart>
-              ) : (
-                <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis yAxisId="left"  tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} tickLine={false} axisLine={false} width={48} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} width={32} />
-                  <Tooltip content={<ChartTooltip baseCurrency={baseCurrency} />} />
-                  <Legend formatter={(v) => <span style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{v === "revenue" ? "Revenue" : v === "profit" ? "Net Profit" : "Orders"}</span>} />
-                  <Bar yAxisId="left"  dataKey="revenue" fill="#3b82f6" fillOpacity={0.8} radius={[3,3,0,0]} maxBarSize={24} />
-                  <Bar yAxisId="left"  dataKey="profit"  fill="#22c55e" fillOpacity={0.8} radius={[3,3,0,0]} maxBarSize={24} />
-                  <Line yAxisId="right" type="monotone" dataKey="orders" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                </ComposedChart>
-              )}
-            </ResponsiveContainer>
-          )}
+        <CardContent className="px-2 sm:px-6">
+          <div className="h-[220px] sm:h-[260px] lg:h-[300px] w-full">
+            {isPending ? (
+              <div className="h-full flex items-center justify-center gap-2 text-sm text-[var(--color-muted-foreground)]">
+                <RefreshCw className="h-4 w-4 animate-spin" /> Updating…
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                {activeChart === "area" ? (
+                  <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gRev"  x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor="#3b82f6" stopOpacity={0.18} />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gProf" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor="#22c55e" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gAds"  x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor="#8b5cf6" stopOpacity={0.15} />
+                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={28} />
+                    <YAxis tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} tickLine={false} axisLine={false} width={40} />
+                    <Tooltip content={<ChartTooltip baseCurrency={baseCurrency} />} />
+                    <Legend formatter={(v) => <span style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{v === "revenue" ? "Revenue" : v === "profit" ? "Net Profit" : "Ad Spend"}</span>} />
+                    <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fill="url(#gRev)"  dot={false} />
+                    <Area type="monotone" dataKey="profit"  stroke="#22c55e" strokeWidth={2} fill="url(#gProf)" dot={false} />
+                    <Area type="monotone" dataKey="adSpend" stroke="#8b5cf6" strokeWidth={1.5} strokeDasharray="4 2" fill="url(#gAds)" dot={false} />
+                  </AreaChart>
+                ) : (
+                  <ComposedChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={28} />
+                    <YAxis yAxisId="left"  tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} tickLine={false} axisLine={false} width={40} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} tickLine={false} axisLine={false} width={28} />
+                    <Tooltip content={<ChartTooltip baseCurrency={baseCurrency} />} />
+                    <Legend formatter={(v) => <span style={{ fontSize: 11, color: "var(--color-muted-foreground)" }}>{v === "revenue" ? "Revenue" : v === "profit" ? "Net Profit" : "Orders"}</span>} />
+                    <Bar yAxisId="left"  dataKey="revenue" fill="#3b82f6" fillOpacity={0.8} radius={[3,3,0,0]} maxBarSize={24} />
+                    <Bar yAxisId="left"  dataKey="profit"  fill="#22c55e" fillOpacity={0.8} radius={[3,3,0,0]} maxBarSize={24} />
+                    <Line yAxisId="right" type="monotone" dataKey="orders" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                  </ComposedChart>
+                )}
+              </ResponsiveContainer>
+            )}
+          </div>
         </CardContent>
       </Card>
 
       {/* ── Middle row: Cost breakdown + Pie + Status ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
 
         {/* Waterfall / cost breakdown */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 min-w-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
               <ReceiptText className="h-4 w-4 text-[var(--color-primary)]" />
               Revenue Breakdown
             </CardTitle>
@@ -773,7 +791,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
             <WaterfallRow label="Refunds"            value={cb.refunds}          total={cb.grossRevenue} icon={RotateCcw}    color="bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400"         baseCurrency={baseCurrency} isPositive={false} />
             <WaterfallRow label="Chargebacks"        value={cb.chargebacks}      total={cb.grossRevenue} icon={ShieldAlert}  color="bg-red-100 dark:bg-red-950 text-red-500 dark:text-red-400"           baseCurrency={baseCurrency} isPositive={false} />
             <div className="border-t border-[var(--color-border)] pt-2 pb-1">
-              <div className="flex items-center justify-between text-xs font-semibold text-[var(--color-foreground)]">
+              <div className="flex items-center justify-between gap-2 text-xs font-semibold text-[var(--color-foreground)]">
                 <span>Net Revenue</span>
                 <span className="tabular-nums">{formatMoney(cb.netRevenue, baseCurrency)}</span>
               </div>
@@ -783,7 +801,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
             <WaterfallRow label="Transaction Fees"   value={cb.transactionFees}  total={cb.grossRevenue} icon={CreditCard} color="bg-pink-100 dark:bg-pink-950 text-pink-600 dark:text-pink-400"    baseCurrency={baseCurrency} isPositive={false} />
             <WaterfallRow label="Ad Spend"           value={cb.adSpend}          total={cb.grossRevenue} icon={Megaphone} color="bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400" baseCurrency={baseCurrency} isPositive={false} />
             <div className="border-t border-[var(--color-border)] pt-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-bold text-[var(--color-foreground)]">Net Profit</span>
                 <span className={cn("text-sm font-bold tabular-nums", cb.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500")}>
                   {formatMoney(cb.netProfit, baseCurrency)}
@@ -797,10 +815,10 @@ export function OverviewClient({ data }: { data: OverviewData }) {
           </CardContent>
         </Card>
 
-        {/* Cost mix pie + status */}
-        <div className="space-y-4">
+        {/* Cost mix pie + status — side by side on tablets, stacked on desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4 content-start min-w-0">
           {/* Cost pie */}
-          <Card>
+          <Card className="min-w-0">
             <CardHeader className="pb-1">
               <CardTitle className="text-sm flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-[var(--color-primary)]" />
@@ -826,7 +844,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                   </ResponsiveContainer>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1">
                     {pieData.map((d) => (
-                      <div key={d.name} className="flex items-center gap-1.5 text-xs">
+                      <div key={d.name} className="flex items-center gap-1.5 text-xs min-w-0">
                         <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: d.color }} />
                         <span className="text-[var(--color-muted-foreground)] truncate">{d.name}</span>
                       </div>
@@ -840,7 +858,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
           </Card>
 
           {/* Order status split */}
-          <Card>
+          <Card className="min-w-0">
             <CardHeader className="pb-1">
               <CardTitle className="text-sm">Order Status</CardTitle>
             </CardHeader>
@@ -849,7 +867,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                 const info = statusMap[s];
                 if (!info?.count) return null;
                 return (
-                  <div key={s} className={cn("flex items-center justify-between rounded-lg border px-3 py-2 text-xs", STATUS_BG[s])}>
+                  <div key={s} className={cn("flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-lg border px-3 py-2 text-xs", STATUS_BG[s])}>
                     <span className={cn("font-medium capitalize", STATUS_COLOR[s])}>{s}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-[var(--color-muted-foreground)]">{info.count} orders</span>
@@ -869,15 +887,15 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       </div>
 
       {/* ── Bottom row: Recent orders + AI Insights + Stores ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
 
         {/* Recent orders */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 min-w-0">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Recent Orders</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm sm:text-base">Recent Orders</CardTitle>
               <Link href="/dashboard/orders">
-                <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-[var(--color-primary)]">
+                <Button variant="ghost" size="sm" className="text-xs h-8 sm:h-7 gap-1 text-[var(--color-primary)]">
                   View all <ArrowUpRight className="h-3 w-3" />
                 </Button>
               </Link>
@@ -887,61 +905,105 @@ export function OverviewClient({ data }: { data: OverviewData }) {
             {recentOrders.length === 0 ? (
               <p className="text-sm text-center text-[var(--color-muted-foreground)] py-8">No orders in this period.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-[var(--color-border)]">
-                      {["Order", "Date", "Revenue", "Net Profit", "Margin", "Status"].map((h) => (
-                        <th key={h} className="pb-2 text-left font-semibold text-[var(--color-muted-foreground)] pr-4 whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--color-border)]">
-                    {recentOrders.map((o) => (
-                      <tr key={o.id} className="hover:bg-[var(--color-muted)]/50 transition-colors">
-                        <td className="py-2.5 pr-4 font-medium text-[var(--color-foreground)]">
-                          #{o.orderNumber}
+              <>
+                {/* Mobile: stacked order cards */}
+                <ul className="md:hidden space-y-2">
+                  {recentOrders.map((o) => (
+                    <li key={o.id} className="rounded-lg border border-[var(--color-border)] p-3 text-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-[var(--color-foreground)]">#{o.orderNumber}</p>
                           {o.customerEmail && (
-                            <p className="text-[var(--color-muted-foreground)] font-normal truncate max-w-[120px]">{o.customerEmail}</p>
+                            <p className="text-[var(--color-muted-foreground)] truncate">{o.customerEmail}</p>
                           )}
-                        </td>
-                        <td className="py-2.5 pr-4 text-[var(--color-muted-foreground)] whitespace-nowrap">{formatDateFull(o.orderDate)}</td>
-                        <td className="py-2.5 pr-4 tabular-nums">{formatMoney(o.grossRevenue, o.currency ?? baseCurrency)}</td>
-                        <td className={cn("py-2.5 pr-4 font-semibold tabular-nums", o.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500")}>
-                          {formatMoney(o.netProfit, o.currency ?? baseCurrency)}
-                        </td>
-                        <td className={cn("py-2.5 pr-4 tabular-nums",
-                          o.profitMargin >= 20 ? "text-green-600 dark:text-green-400"
-                          : o.profitMargin >= 10 ? "text-yellow-600 dark:text-yellow-400"
-                          : "text-red-500")}>
-                          {formatPercent(o.profitMargin, 1)}
-                        </td>
-                        <td className="py-2.5">
-                          <span className={cn("px-2 py-0.5 rounded-full capitalize font-medium border", STATUS_BG[o.status] ?? "", STATUS_COLOR[o.status] ?? "")}>
-                            {o.status}
-                          </span>
-                        </td>
+                        </div>
+                        <span className={cn("px-2 py-0.5 rounded-full capitalize font-medium border flex-shrink-0", STATUS_BG[o.status] ?? "", STATUS_COLOR[o.status] ?? "")}>
+                          {o.status}
+                        </span>
+                      </div>
+                      <p className="text-[var(--color-muted-foreground)] mt-1">{formatDateFull(o.orderDate)}</p>
+                      <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-[var(--color-border)]">
+                        <div className="min-w-0">
+                          <p className="text-[var(--color-muted-foreground)]">Revenue</p>
+                          <p className="font-medium tabular-nums truncate">{formatMoney(o.grossRevenue, o.currency ?? baseCurrency)}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[var(--color-muted-foreground)]">Profit</p>
+                          <p className={cn("font-semibold tabular-nums truncate", o.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500")}>
+                            {formatMoney(o.netProfit, o.currency ?? baseCurrency)}
+                          </p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[var(--color-muted-foreground)]">Margin</p>
+                          <p className={cn("font-medium tabular-nums",
+                            o.profitMargin >= 20 ? "text-green-600 dark:text-green-400"
+                            : o.profitMargin >= 10 ? "text-yellow-600 dark:text-yellow-400"
+                            : "text-red-500")}>
+                            {formatPercent(o.profitMargin, 1)}
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Tablet / desktop: table */}
+                <div className="hidden md:block overflow-x-auto -mx-2 px-2">
+                  <table className="w-full min-w-[520px] text-xs">
+                    <thead>
+                      <tr className="border-b border-[var(--color-border)]">
+                        {["Order", "Date", "Revenue", "Net Profit", "Margin", "Status"].map((h) => (
+                          <th key={h} className="pb-2 text-left font-semibold text-[var(--color-muted-foreground)] pr-4 whitespace-nowrap">{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-border)]">
+                      {recentOrders.map((o) => (
+                        <tr key={o.id} className="hover:bg-[var(--color-muted)]/50 transition-colors">
+                          <td className="py-2.5 pr-4 font-medium text-[var(--color-foreground)]">
+                            #{o.orderNumber}
+                            {o.customerEmail && (
+                              <p className="text-[var(--color-muted-foreground)] font-normal truncate max-w-[120px]">{o.customerEmail}</p>
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-4 text-[var(--color-muted-foreground)] whitespace-nowrap">{formatDateFull(o.orderDate)}</td>
+                          <td className="py-2.5 pr-4 tabular-nums whitespace-nowrap">{formatMoney(o.grossRevenue, o.currency ?? baseCurrency)}</td>
+                          <td className={cn("py-2.5 pr-4 font-semibold tabular-nums whitespace-nowrap", o.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500")}>
+                            {formatMoney(o.netProfit, o.currency ?? baseCurrency)}
+                          </td>
+                          <td className={cn("py-2.5 pr-4 tabular-nums",
+                            o.profitMargin >= 20 ? "text-green-600 dark:text-green-400"
+                            : o.profitMargin >= 10 ? "text-yellow-600 dark:text-yellow-400"
+                            : "text-red-500")}>
+                            {formatPercent(o.profitMargin, 1)}
+                          </td>
+                          <td className="py-2.5">
+                            <span className={cn("px-2 py-0.5 rounded-full capitalize font-medium border", STATUS_BG[o.status] ?? "", STATUS_COLOR[o.status] ?? "")}>
+                              {o.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
 
-        {/* AI Insights + Stores stacked */}
-        <div className="space-y-4">
+        {/* AI Insights + Stores — side by side on tablets, stacked on desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4 content-start min-w-0">
 
           {/* AI Insights */}
-          <Card className="flex flex-col">
+          <Card className="flex flex-col min-w-0">
             <CardHeader className="pb-2 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-[var(--color-primary)]" /> AI Insights
                 </CardTitle>
                 {(plan === "growth" || plan === "pro") && (
-                  <Button variant="ghost" size="sm" onClick={loadInsights} disabled={insightsLoading} className="h-6 w-6 p-0" aria-label="Refresh AI insights">
+                  <Button variant="ghost" size="sm" onClick={loadInsights} disabled={insightsLoading} className="h-8 w-8 sm:h-6 sm:w-6 p-0" aria-label="Refresh AI insights">
                     {insightsLoading ? <Spinner size="sm" label="" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   </Button>
                 )}
@@ -954,7 +1016,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                   <p className="text-xs text-[var(--color-muted-foreground)]">Unlock AI analysis of your profit trends.</p>
                   {canManageBilling && (
                     <Link href="/pricing">
-                      <Button size="sm" variant="outline" className="gap-1 text-xs h-7">
+                      <Button size="sm" variant="outline" className="gap-1 text-xs h-8 sm:h-7">
                         <Zap className="h-3 w-3" /> Upgrade
                       </Button>
                     </Link>
@@ -977,7 +1039,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                         {ins.type === "positive" ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0 mt-0.5" />
                           : ins.type === "warning" ? <AlertCircle className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0 mt-0.5" />
                           : <Sparkles className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />}
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-semibold text-[var(--color-foreground)]">{ins.title}</p>
                           <p className="text-[var(--color-muted-foreground)] mt-0.5 leading-snug">{ins.body}</p>
                         </div>
@@ -991,14 +1053,14 @@ export function OverviewClient({ data }: { data: OverviewData }) {
 
           {/* Connected stores */}
           {storesConnected && (
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Store className="h-4 w-4 text-[var(--color-primary)]" /> Stores
                   </CardTitle>
                   <Link href="/onboarding">
-                    <Button variant="ghost" size="sm" className="text-xs h-6 gap-1 text-[var(--color-primary)]">
+                    <Button variant="ghost" size="sm" className="text-xs h-8 sm:h-6 gap-1 text-[var(--color-primary)]">
                       Add <ArrowUpRight className="h-3 w-3" />
                     </Button>
                   </Link>
@@ -1011,7 +1073,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
                       <span className="text-base leading-none flex-shrink-0">{PLATFORM_ICON[s.platform] ?? "🏪"}</span>
                       <div className="min-w-0">
                         <p className="font-medium text-[var(--color-foreground)] truncate">{s.name}</p>
-                        <p className="text-[var(--color-muted-foreground)]">
+                        <p className="text-[var(--color-muted-foreground)] truncate">
                           {s.ordersCount.toLocaleString()} orders
                           {s.lastSyncAt && <> · {formatDateFull(s.lastSyncAt)}</>}
                         </p>
@@ -1032,7 +1094,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
       {/* ── Quick actions ── */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)] mb-3">Quick Actions</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
           {[
             { label: "P&L Statement", icon: ReceiptText, href: "/dashboard/pnl", desc: "Full income statement" },
             { label: "Ad Spend",      icon: Megaphone,   href: "/dashboard/ad-spend", desc: "ROAS & efficiency" },
@@ -1040,7 +1102,7 @@ export function OverviewClient({ data }: { data: OverviewData }) {
             { label: "Goals",         icon: Target,      href: "/dashboard/goals", desc: "Track targets" },
           ].map(({ label, icon: Icon, href, desc }) => (
             <Link key={href} href={href}
-              className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] p-3 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)]/5 transition-all">
+              className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] p-3 hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)]/5 transition-all min-w-0">
               <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--color-muted)] text-[var(--color-muted-foreground)] group-hover:bg-[var(--color-primary)]/15 group-hover:text-[var(--color-primary)] transition-colors">
                 <Icon className="h-4 w-4" />
               </span>

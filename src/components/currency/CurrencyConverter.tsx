@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeftRight } from "lucide-react";
 import { CURRENCIES, useCurrency } from "@/components/dashboard/CurrencyContext";
 import { formatCurrency, cn } from "@/lib/utils";
@@ -154,6 +154,53 @@ export function CurrencyConverter({
 function ConverterPopover({ form }: { form: ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Fixed-position coordinates computed from the trigger's on-screen
+  // position. Using `position: fixed` (rather than `absolute`) keeps the
+  // panel from being clipped by an ancestor with overflow-hidden — the
+  // dashboard layout wraps the topbar in `overflow-hidden` containers —
+  // and lets us clamp it so it always stays fully on screen.
+  //
+  // This matters on mobile because the converter is the LEFTMOST control
+  // in the right-aligned topbar group: an `absolute right-0` panel would
+  // anchor its right edge to the button (not the screen), and a 320px-wide
+  // panel would overflow the LEFT edge of the viewport. Fixed coords let
+  // us clamp the panel inside the viewport instead.
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
+
+  const updatePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    const POPOVER_WIDTH = 320;
+    const VIEWPORT_MARGIN = 12;
+    const GAP = 8;
+
+    // Never wider than the viewport (minus margins on both sides).
+    const width = Math.min(POPOVER_WIDTH, viewportWidth - VIEWPORT_MARGIN * 2);
+
+    // Right-align to the trigger by default (matches the desktop look),
+    // then clamp so the panel can't leave the screen on either side.
+    let left = rect.right - width;
+    left = Math.max(VIEWPORT_MARGIN, left);
+    left = Math.min(left, viewportWidth - width - VIEWPORT_MARGIN);
+
+    const top = rect.bottom + GAP;
+    // Leave a margin at the bottom of the screen; the panel scrolls
+    // internally if the form is taller than the available space.
+    const maxHeight = Math.max(160, viewportHeight - top - VIEWPORT_MARGIN);
+
+    setCoords({ top, left, width, maxHeight });
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -164,7 +211,7 @@ function ConverterPopover({ form }: { form: ReactNode }) {
     }
     if (open) document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open ]);
+  }, [open]);
 
   // Close on Escape
   useEffect(() => {
@@ -175,9 +222,23 @@ function ConverterPopover({ form }: { form: ReactNode }) {
     return () => document.removeEventListener("keydown", handleKey);
   }, [open]);
 
+  // Position the panel before paint and keep it correct across resize,
+  // scroll and orientation changes while it's open.
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, updatePosition]);
+
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
@@ -194,11 +255,20 @@ function ConverterPopover({ form }: { form: ReactNode }) {
         <ArrowLeftRight className="h-3.5 w-3.5 text-[var(--color-primary)]" aria-hidden />
         <span className="hidden sm:inline">Convert</span>
       </button>
-      {open && (
+      {open && coords && (
         <div
           role="dialog"
           aria-label="Currency converter"
-          className="absolute right-0 top-full z-50 mt-2 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-4"
+          style={{
+            top: coords.top,
+            left: coords.left,
+            width: coords.width,
+            maxHeight: coords.maxHeight,
+          }}
+          className={cn(
+            "fixed z-50 rounded-xl border border-[var(--color-border)]",
+            "bg-[var(--color-card)] shadow-xl p-4 overflow-y-auto overscroll-contain",
+          )}
         >
           <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)] mb-3">
             Currency converter
