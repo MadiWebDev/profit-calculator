@@ -131,6 +131,17 @@ describe("getEffectivePlan", () => {
     expect(eff.source).toBe("trial");
   });
 
+  it("no subscription + active trial → reports the trial window for display", async () => {
+    const team = await makeTeam({ trialEndsAt: new Date(Date.now() + 3 * 86400000) });
+    const eff = await getEffectivePlan(team._id.toString());
+    // Display code labels the trial honestly: the plan is Free, only
+    // the limits are growth-level — so it needs the window, not just
+    // the plan name.
+    expect(eff.trialEndsAt).toBeDefined();
+    expect(new Date(eff.trialEndsAt as string).getTime()).toBeGreaterThan(Date.now());
+    expect(eff.daysLeft).toBe(3);
+  });
+
   it("no subscription + expired trial → free", async () => {
     const team = await makeTeam({ trialEndsAt: new Date(Date.now() - 86400000) });
     const eff = await getEffectivePlan(team._id.toString());

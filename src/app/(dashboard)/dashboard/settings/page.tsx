@@ -28,6 +28,11 @@ async function getSettingsData(teamId: string, userId: string) {
           currency:         team.currency,
           timezone:         team.timezone,
           paddleCustomerId: team.paddleCustomerId,
+          // The 7-day trial lives on the team, not on a Subscription —
+          // an account that never paid has no Subscription row, so
+          // Billing must read the trial from here (same source the
+          // dashboard layout's getAccountStatus uses).
+          trialEndsAt:      (team as { trialEndsAt?: Date }).trialEndsAt?.toISOString(),
         }
       : null,
     subscription: sub

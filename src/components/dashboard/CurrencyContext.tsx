@@ -261,6 +261,13 @@ export interface CurrencyContextValue {
   /** True once a rates table has loaded (refreshed every 60s while open). */
   ratesAvailable: boolean;
   /**
+   * True while the first rates load is still outstanding. The converter
+   * shows "Loading rates…" instead of "Rates unavailable" in this state,
+   * so a signed-in user never sees an error for a fetch that simply
+   * hasn't run yet (see the FX effect below).
+   */
+  ratesLoading: boolean;
+  /**
    * Convert between any two currencies at the live rate — the
    * converter widget's engine. Fail-open like convert(): unknown
    * currencies or missing rates return the amount unchanged.
@@ -289,6 +296,7 @@ export const CurrencyContext = createContext<CurrencyContextValue>({
   baseCurrency: FALLBACK.code,
   ratesAsOf: null,
   ratesAvailable: false,
+  ratesLoading: true,
   convertTo: (amount) => amount,
   convert: (amount) => amount,
   formatMoney: (amount, fromCurrency) => formatCurrency(amount, fromCurrency),
@@ -595,9 +603,42 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   // so display conversion tracks live rates without a page reload.
   // Missing rates = no conversion. The provider's fetchedAt timestamp
   // is kept alongside the rates for the "Rates as of" stamp.
+  //
+  // Auth-aware (this provider lives in the root layout, so it does NOT
+  // remount on the client-side login navigation): a mount-only fetch
+  // runs while the user is still signed out, /api/fx/rates requires
+  // auth so it 401s, rates stay null — and the effect never re-runs
+  // after sign-in, so the converter shows "Rates unavailable" on first
+  // load until the 60s tick happens to fire. The fetch is therefore
+  // keyed on `status`: it runs the moment the session becomes
+  // authenticated, never while signed out, and a failed first load
+  // retries a few times at 5s instead of waiting a full minute.
   const [fxRates, setFxRates] = useState<Record<string, number> | null>(null);
+  const [ratesLoading, setRatesLoading] = useState(true);
+  const fxRetryRef = useRef(0);
   useEffect(() => {
+    if (status === "unauthenticated") {
+      // Definitely signed out: /api/fx/rates would 401. Stop claiming
+      // "loading" so the converter shows the honest "unavailable" state.
+      /* eslint-disable react-hooks/set-state-in-effect -- auth-state reset: rates are not loading when there is no session to fetch them with. */
+      setRatesLoading(false);
+      /* eslint-enable react-hooks/set-state-in-effect */
+      return;
+    }
+    if (status !== "authenticated") return; // still loading — keep waiting
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    fxRetryRef.current = 0;
+    const scheduleRetry = () => {
+      if (cancelled || fxRetryRef.current >= 3) {
+        if (!cancelled) setRatesLoading(false);
+        return;
+      }
+      fxRetryRef.current += 1;
+      retryTimer = setTimeout(() => {
+        if (!cancelled) load();
+      }, 5_000);
+    };
     const load = () => {
       fetch("/api/fx/rates?base=USD")
         .then((r) => (r.ok ? r.json() : null))
@@ -607,10 +648,17 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           if (parsed) {
             setFxRates(parsed.rates);
             setRatesAsOf(parsed.fetchedAt);
+            fxRetryRef.current = 0;
+            setRatesLoading(false);
+          } else {
+            // No usable payload — retry briefly, then give up honestly.
+            scheduleRetry();
           }
         })
         .catch(() => {
-          // Rates unavailable — amounts render unconverted (documented fallback)
+          // Rates unavailable — retry briefly, then amounts render
+          // unconverted (documented fallback).
+          if (!cancelled) scheduleRetry();
         });
     };
     load();
@@ -618,8 +666,9 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
       clearInterval(timer);
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, []);
+  }, [status]);
 
   const convert = useCallback(
     (amount: number, fromCurrency: string): number => {
@@ -672,6 +721,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         baseCurrency,
         ratesAsOf,
         ratesAvailable: fxRates !== null,
+        ratesLoading,
         convertTo,
         convert,
         formatMoney,

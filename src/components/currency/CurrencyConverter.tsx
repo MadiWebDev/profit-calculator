@@ -29,7 +29,7 @@ export function CurrencyConverter({
 }: {
   variant?: "popover" | "inline";
 }) {
-  const { currency: displayCurrency, convertTo, ratesAsOf, ratesAvailable } = useCurrency();
+  const { currency: displayCurrency, convertTo, ratesAsOf, ratesAvailable, ratesLoading } = useCurrency();
   const [amount, setAmount] = useState("100");
   const [from, setFrom] = useState("USD");
   const [toOverride, setToOverride] = useState<string | null>(null);
@@ -123,13 +123,19 @@ export function CurrencyConverter({
       >
         {!hasAmount
           ? "Enter an amount to convert"
-          : !ratesAvailable
-            ? "Rates unavailable — try again shortly"
-            : `${formatCurrency(parsed, from)} = ${formatCurrency(converted as number, to)}`}
+          : ratesLoading && !ratesAvailable
+            ? "Loading rates…"
+            : !ratesAvailable
+              ? "Rates unavailable — try again shortly"
+              : `${formatCurrency(parsed, from)} = ${formatCurrency(converted as number, to)}`}
       </p>
 
       <p className="text-xs text-[var(--color-muted-foreground)]">
-        {formatRatesAsOf(ratesAsOf)}
+        {ratesAsOf
+          ? formatRatesAsOf(ratesAsOf)
+          : ratesLoading
+            ? "Loading rates…"
+            : "Rates unavailable"}
       </p>
       <p className="text-[11px] leading-relaxed text-[var(--color-muted-foreground)]">
         {FX_FREE_PLAN_NOTE}
