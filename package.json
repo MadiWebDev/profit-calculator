@@ -17,7 +17,7 @@
     "rotate:keys:dry": "tsx scripts/rotate-encryption-keys.ts --dry-run"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.9.1",
+    "@hookform/resolvers": "^7.0.3",
     "@paddle/paddle-js": "1.4.0",
     "@paddle/paddle-node-sdk": "3.11.0",
     "@playwright/test": "^1.64.1",
