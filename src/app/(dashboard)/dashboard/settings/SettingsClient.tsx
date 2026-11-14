@@ -217,7 +217,6 @@ export function SettingsClient({
   const currentPlan = data.subscription?.plan || data.team?.plan || userPlan || "free";
 
   const {
-    paddleReady,
     pricesLoaded,
     openingTier,
     checkoutError,
@@ -974,7 +973,7 @@ export function SettingsClient({
                             size="sm"
                             className="w-full gap-1.5"
                             variant={isHighlighted ? "default" : "outline"}
-                            disabled={anyOpening || !paddleReady}
+                            disabled={anyOpening}
                             loading={isOpening}
                             loadingText="Opening…"
                             onClick={() => handleSubscribe(tier.id)}

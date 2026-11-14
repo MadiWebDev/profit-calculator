@@ -81,7 +81,6 @@ export function PricingModal({
   const tiers = useMemo(() => getTiers(), []);
 
   const {
-    paddleReady,
     pricesLoaded,
     openingTier,
     checkoutError,
@@ -250,7 +249,7 @@ export function PricingModal({
                 <Button
                   className="w-full mb-5 gap-1.5"
                   variant={isHighlighted ? "default" : "outline"}
-                  disabled={anyOpening || !paddleReady}
+                  disabled={anyOpening}
                   onClick={() => handleSubscribe(tier.id)}
                   aria-label={`Subscribe to ${tier.name}`}
                 >
