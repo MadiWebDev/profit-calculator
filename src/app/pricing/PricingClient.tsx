@@ -27,6 +27,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   Check,
   CheckCircle,
@@ -56,6 +57,7 @@ import {
   onPaddleCheckoutCompleted,
   warmPaddle,
 } from "@/lib/paddle-init";
+import { usePaddleReady } from "@/hooks/usePaddleReady";
 import { logger } from "@/lib/logger";
 
 // ── Env validation ────────────────────────────────────────────────────────────
@@ -198,7 +200,9 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
   const [serverPricesFailed, setServerPricesFailed] = useState(false);
   const [interval,      setInterval]      = useState<PricingInterval>("month");
   const [openingTier,   setOpeningTier]   = useState<string | null>(null);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  // Readiness of the shared init — Subscribe shows a loading state until
+  // "ready" (see usePaddleReady); the page itself renders instantly.
+  const { loading: paddleLoading } = usePaddleReady();
 
   // Price IDs in tier order — the session-cache key input (stable per render).
   const priceIds = useMemo(() => allPriceIds(tiers), [tiers]);
@@ -317,22 +321,29 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
       // to, so a paying visitor would get no access. Send them to create a
       // free account first instead of taking payment.
       if (!teamId) {
-        setCheckoutError("Please create a free account first, so we can activate your plan right after payment.");
+        toast.warning(
+          "Please create a free account first, so we can activate your plan right after payment.",
+          {
+            action: {
+              label: "Create free account",
+              onClick: () => router.push("/auth/register"),
+            },
+          }
+        );
         return;
       }
 
       const priceId = tier.priceId[interval];
       setOpeningTier(tier.id);
-      setCheckoutError(null);
 
       try {
         // Wait for the shared init if it is still in flight (started at app
         // level, so usually already done) — a click in the first second
         // opens the overlay as soon as init lands instead of erroring.
-        // Only a real failure / timeout shows an honest error.
+        // Only a real failure / timeout shows an honest error toast.
         const paddle = await awaitPaddle();
         if (!paddle) {
-          setCheckoutError("Checkout couldn't load. Please check your connection and try again.");
+          toast.error("Checkout couldn't load. Please check your connection and try again.");
           return;
         }
 
@@ -357,7 +368,7 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Could not open checkout. Please try again.";
-        setCheckoutError(msg);
+        toast.error(msg);
       } finally {
         // openingTier is cleared on checkout.completed (via eventCallback) or
         // immediately here if open() threw. For the non-error path Paddle
@@ -476,31 +487,6 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
       <section className="pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
 
-          {/* Global checkout error */}
-          {checkoutError && (
-            <div
-              role="alert"
-              className="sm:col-span-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-600"
-            >
-              {checkoutError}
-              {!teamId && (
-                <Link
-                  href="/auth/register"
-                  className="ml-2 shrink-0 font-semibold underline"
-                >
-                  Create free account
-                </Link>
-              )}
-              <button
-                className="ml-auto shrink-0"
-                onClick={() => setCheckoutError(null)}
-                aria-label="Dismiss"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
-
           {tiers.map((tier) => {
             const isHighlighted = !!tier.highlighted;
             const isOpening     = openingTier === tier.id;
@@ -559,13 +545,15 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
                   {billingLabel}
                 </p>
 
-                {/* Subscribe button */}
+                {/* Subscribe button — waits for Paddle init: loading state
+                    until "ready", then activates. The page itself renders
+                    instantly; only the button is gated on init. */}
                 <Button
                   className="w-full mb-5 gap-1.5"
                   variant={isHighlighted ? "default" : "outline"}
-                  disabled={anyOpening}
-                  loading={isOpening}
-                  loadingText="Opening…"
+                  disabled={anyOpening || paddleLoading}
+                  loading={isOpening || paddleLoading}
+                  loadingText={isOpening ? "Opening…" : "Loading checkout…"}
                   onClick={() => handleSubscribe(tier)}
                   aria-label={`Subscribe to ${tier.name}`}
                 >
