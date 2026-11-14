@@ -39,10 +39,18 @@
  *     re-downloading; a page reload retries. warmPaddle() therefore
  *     resets its own promise on failure so callers can retry the
  *     (fast-failing) init instead of hanging on a stale rejection.
+ *   - The SDK is STATICALLY imported (not `await import(...)`):
+ *     the dynamic import emitted a separate chunk
+ *     (14rw8umumggpw.js) that the live Vercel deployment did NOT
+ *     serve (HTTP 404), so every init rejected instantly before the
+ *     CDN was ever touched and every Subscribe click failed. A
+ *     static import bundles the SDK into the page chunks that are
+ *     actually deployed, so there is no separate file to go missing.
  *
  * Client-only: warmPaddle()/awaitPaddle() resolve null on the server.
  */
 
+import { initializePaddle } from "@paddle/paddle-js";
 import type { Paddle, PaddleEventData } from "@paddle/paddle-js";
 import { logger } from "@/lib/logger";
 
@@ -198,7 +206,6 @@ export function warmPaddle(paddleCustomerId?: string): Promise<Paddle | null> {
     setPaddleStatus("loading");
     paddlePromise = (async () => {
       try {
-        const { initializePaddle } = await import("@paddle/paddle-js");
         const paddle = await initializePaddle({
           environment: paddleEnv,
           token: clientToken,

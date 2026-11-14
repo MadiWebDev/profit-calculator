@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   PADDLE_INIT_TIMEOUT_MS,
   awaitPaddle,
@@ -97,5 +98,18 @@ describe("getPaddleStatus / subscribePaddleStatus", () => {
       if (prevEnv === undefined) delete process.env.NEXT_PUBLIC_PADDLE_ENV;
       else process.env.NEXT_PUBLIC_PADDLE_ENV = prevEnv;
     }
+  });
+});
+
+describe("SDK import is static (regression: live dynamic chunk 404)", () => {
+  it("statically imports initializePaddle — no dynamic import of the SDK", () => {
+    // 2026-11-15: the dynamic `await import("@paddle/paddle-js")` emitted
+    // a separate chunk (14rw8umumggpw.js) that the live Vercel deployment
+    // did not serve (HTTP 404), so every init rejected instantly and
+    // every Subscribe click failed. A static import bundles the SDK into
+    // the page chunks that are actually deployed.
+    const src = readFileSync(new URL("../paddle-init.ts", import.meta.url), "utf8");
+    expect(src).toContain('from "@paddle/paddle-js"');
+    expect(src).not.toContain('import("@paddle/paddle-js")');
   });
 });
