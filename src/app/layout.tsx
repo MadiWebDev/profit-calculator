@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { CookieConsent } from "@/components/CookieConsent";
 import { ConsentScripts } from "@/components/ConsentScripts";
 import { PwaRegister } from "@/components/PwaRegister";
+import { PaddleWarmer } from "@/components/PaddleWarmer";
 import { SITE_NAME, SITE_DESCRIPTION, BASE_URL } from "@/lib/seo";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"], display: "swap" });
@@ -47,6 +48,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Paddle checkout — warm the CDN connection + script early so the
+            overlay is ready by the time the user reaches Subscribe. The
+            script URL must match @paddle/paddle-js's PaddleBillingCDNUrl
+            exactly, or the browser fetches it twice. */}
+        <link rel="preconnect" href="https://cdn.paddle.com" />
+        <link
+          rel="preload"
+          as="script"
+          href="https://cdn.paddle.com/paddle/v2/paddle.js"
+        />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#22c55e" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -76,6 +87,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Footer />
           <CookieConsent />
           <PwaRegister />
+          {/* Warm Paddle.js on first app mount — the singleton in
+              @/lib/paddle-init downloads the script once and shares the
+              instance across navigations. */}
+          <PaddleWarmer />
         </Providers>
       </body>
     </html>

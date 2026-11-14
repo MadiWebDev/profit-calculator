@@ -23,7 +23,6 @@
  */
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import type { Paddle, PaddleEventData } from "@paddle/paddle-js";
 import type { SerializedTier, PricingInterval } from "@/lib/tiers";
 import {
   allPriceIds,
@@ -35,6 +34,11 @@ import {
   readSessionPrices,
   writeSessionPrices,
 } from "@/lib/paddle-prices-client";
+import {
+  awaitPaddle,
+  onPaddleCheckoutCompleted,
+  warmPaddle,
+} from "@/lib/paddle-init";
 import { logger } from "@/lib/logger";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -70,12 +74,11 @@ export function usePaddlePricing(
    */
   initialPrices?: PriceMap
 ) {
-  const paddleRef     = useRef<Paddle | null>(null);
-  // Store the latest onComplete so the init-time eventCallback can call it
-  // without needing to re-initialise Paddle on every openCheckout call.
+  // Store the latest onComplete so the shared checkout.completed listener
+  // can call it without needing to re-initialise Paddle on every
+  // openCheckout call.
   const onCompleteRef = useRef<(() => void) | undefined>(undefined);
 
-  const [paddleReady,  setPaddleReady]  = useState(false);
   // With server prices, the first paint already shows them — no skeleton.
   const [prices,       setPrices]       = useState<PriceMap>(initialPrices ?? {});
   const [pricesLoaded, setPricesLoaded] = useState(
@@ -90,63 +93,17 @@ export function usePaddlePricing(
   // Price IDs in tier order — the session-cache key input (stable per render).
   const priceIds = useMemo(() => allPriceIds(tiers), [tiers]);
 
-  // ── 1. Initialise Paddle.js ───────────────────────────────────────────────
+  // ── 1. Paddle.js — shared singleton (@/lib/paddle-init) ─────────────────
+  // The download + initialise starts at app level (PaddleWarmer in the
+  // root layout), so it is usually done before the user gets here. This
+  // effect only attaches the Retain customer id and registers the
+  // post-checkout callback; checkout.completed sync is done once by the
+  // singleton before this listener runs.
   useEffect(() => {
-    const clientToken = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
-    const paddleEnv   = process.env.NEXT_PUBLIC_PADDLE_ENV as "production" | "sandbox" | undefined;
-
-    if (!clientToken || !paddleEnv) {
-      logger.error("[usePaddlePricing] NEXT_PUBLIC_PADDLE_CLIENT_TOKEN or NEXT_PUBLIC_PADDLE_ENV is not set.");
-      return;
-    }
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { initializePaddle } = await import("@paddle/paddle-js");
-        const paddle = await initializePaddle({
-          environment: paddleEnv,
-          token:       clientToken,
-          // Paddle Retain: attach customer ID when signed in
-          ...(paddleCustomerId ? { pwCustomer: { id: paddleCustomerId } } : {}),
-          eventCallback(event: PaddleEventData) {
-            if (event.name === "checkout.completed") {
-              const eventData = event.data as Record<string, unknown> | undefined;
-              const txId = (eventData?.transaction_id ?? eventData?.id) as string | undefined;
-
-              if (txId) {
-                // Instant sync with backend to eliminate webhook race condition
-                fetch("/api/billing/sync", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ transactionId: txId }),
-                })
-                  .then(() => {
-                    onCompleteRef.current?.();
-                  })
-                  .catch(() => {
-                    onCompleteRef.current?.();
-                  });
-              } else {
-                onCompleteRef.current?.();
-              }
-            }
-          },
-        });
-        if (!cancelled && paddle) {
-          paddleRef.current = paddle;
-          setPaddleReady(true);
-        }
-      } catch (err) {
-        logger.error("[usePaddlePricing] Paddle init error", err);
-        if (!cancelled) setPaddleReady(true); // unblock UI
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    warmPaddle(paddleCustomerId);
+    return onPaddleCheckoutCompleted(() => {
+      onCompleteRef.current?.();
+    });
   }, [paddleCustomerId]);
 
   // ── 2. Fast path: session cache, then the server-side cached preview ────
@@ -189,15 +146,19 @@ export function usePaddlePricing(
   }, [countryCode, pricesLoaded, priceIds]);
 
   // ── 3. Fallback: prices via Paddle.js PricePreview ────────────────────────
-  // Only runs when the fast path missed (no server prices) and Paddle.js
-  // is ready. Behaviour unchanged — one call for all 12 price IDs.
+  // Only runs when the fast path missed (no server prices). Waits for the
+  // shared init instead of requiring a page-local Paddle instance.
+  // Behaviour unchanged — one call for all 12 price IDs.
   useEffect(() => {
-    if (!serverPricesFailed || pricesLoaded || !paddleReady || !paddleRef.current) return;
+    if (!serverPricesFailed || pricesLoaded) return;
 
     let cancelled = false;
 
     (async () => {
       try {
+        const paddle = await awaitPaddle();
+        if (cancelled || !paddle) return;
+
         const items = tiers.flatMap((t) => [
           { priceId: t.priceId.month,      quantity: 1 },
           { priceId: t.priceId.quarter,    quantity: 1 },
@@ -205,7 +166,7 @@ export function usePaddlePricing(
           { priceId: t.priceId.year,       quantity: 1 },
         ]);
 
-        const response = await paddleRef.current!.PricePreview({
+        const response = await paddle.PricePreview({
           items,
           ...(countryCode ? { address: { countryCode } } : {}),
         });
@@ -234,7 +195,7 @@ export function usePaddlePricing(
     return () => {
       cancelled = true;
     };
-  }, [serverPricesFailed, pricesLoaded, paddleReady, tiers, countryCode, priceIds]);
+  }, [serverPricesFailed, pricesLoaded, tiers, countryCode, priceIds]);
 
   // ── 4. Open checkout ──────────────────────────────────────────────────────
   const openCheckout = useCallback(
@@ -243,11 +204,6 @@ export function usePaddlePricing(
       interval: PricingInterval,
       opts: OpenCheckoutOptions = {}
     ) => {
-      if (!paddleRef.current) {
-        setCheckoutError("Paddle is still loading. Please try again in a moment.");
-        return;
-      }
-
       const priceId    = tier.priceId[interval];
       const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? "";
       // Paddle requires an absolute success URL; a relative path is resolved
@@ -260,10 +216,21 @@ export function usePaddlePricing(
       setCheckoutError(null);
 
       try {
-        // Store the onComplete so the init-time eventCallback can fire it.
+        // Wait for the shared init if it is still in flight (started at app
+        // level, so usually already done) — a click in the first second
+        // opens the overlay as soon as init lands instead of erroring.
+        // Only a real failure / timeout shows an honest error.
+        const paddle = await awaitPaddle();
+        if (!paddle) {
+          setCheckoutError("Paddle couldn't load. Please check your connection and try again.");
+          return;
+        }
+
+        // Store the onComplete so the shared checkout.completed listener
+        // can fire it.
         onCompleteRef.current = opts.onComplete;
 
-        paddleRef.current.Checkout.open({
+        paddle.Checkout.open({
           items: [{ priceId, quantity: 1 }],
           settings: {
             displayMode: "overlay",
@@ -307,7 +274,6 @@ export function usePaddlePricing(
   }
 
   return {
-    paddleReady,
     pricesLoaded,
     openingTier,
     checkoutError,

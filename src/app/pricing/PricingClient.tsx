@@ -24,7 +24,7 @@
  * so you never run against the wrong Paddle account silently.
  */
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -39,7 +39,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { Paddle, PaddleEventData } from "@paddle/paddle-js";
+import type { Paddle } from "@paddle/paddle-js";
 import type { SerializedTier, PricingInterval } from "@/lib/tiers";
 import {
   allPriceIds,
@@ -51,6 +51,11 @@ import {
   readSessionPrices,
   writeSessionPrices,
 } from "@/lib/paddle-prices-client";
+import {
+  awaitPaddle,
+  onPaddleCheckoutCompleted,
+  warmPaddle,
+} from "@/lib/paddle-init";
 import { logger } from "@/lib/logger";
 
 // ── Env validation ────────────────────────────────────────────────────────────
@@ -183,8 +188,6 @@ interface PricingClientProps {
 export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCustomerId, initialPrices }: PricingClientProps) {
   const router = useRouter();
 
-  const paddleRef  = useRef<Paddle | null>(null);
-  const [paddleReady,   setPaddleReady]   = useState(false);
   // With server prices, the first paint already shows them — no skeleton.
   const [prices,        setPrices]        = useState<PriceMap>(initialPrices ?? {});
   const [pricesLoaded,  setPricesLoaded]  = useState(
@@ -200,48 +203,18 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
   // Price IDs in tier order — the session-cache key input (stable per render).
   const priceIds = useMemo(() => allPriceIds(tiers), [tiers]);
 
-  // ── Initialise Paddle.js ─────────────────────────────────────────────────
+  // ── Paddle.js — shared singleton (@/lib/paddle-init) ────────────────────
+  // The download + initialise starts at app level (PaddleWarmer in the
+  // root layout), so it is usually done before the user gets here. This
+  // effect only attaches the Retain customer id and registers the
+  // post-checkout redirect; checkout.completed sync is done once by the
+  // singleton before this listener runs.
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { initializePaddle } = await import("@paddle/paddle-js");
-        const paddle = await initializePaddle({
-          environment: PADDLE_ENV as "production" | "sandbox",
-          token:       CLIENT_TOKEN as string,
-          ...(paddleCustomerId ? { pwCustomer: { id: paddleCustomerId } } : {}),
-          eventCallback(event: PaddleEventData) {
-            // Redirect to /welcome when checkout completes successfully
-            if (event.name === "checkout.completed") {
-              const eventData = event.data as Record<string, unknown> | undefined;
-              const txId = (eventData?.transaction_id ?? eventData?.id) as string | undefined;
-              if (txId) {
-                fetch("/api/billing/sync", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ transactionId: txId }),
-                }).finally(() => {
-                  router.push("/welcome");
-                });
-              } else {
-                router.push("/welcome");
-              }
-            }
-          },
-        });
-        if (!cancelled && paddle) {
-          paddleRef.current = paddle;
-          setPaddleReady(true);
-        }
-      } catch (err) {
-        logger.error("[Paddle] init error", err);
-        if (!cancelled) setPaddleReady(true); // unblock UI; Subscribe will show an error
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [router, paddleCustomerId]); // paddleCustomerId is a stable server prop; re-init if it ever changed
+    warmPaddle(paddleCustomerId);
+    return onPaddleCheckoutCompleted(() => {
+      router.push("/welcome");
+    });
+  }, [router, paddleCustomerId]); // paddleCustomerId is a stable server prop
 
   // ── Fast path: session cache, then the server-side cached preview ────────
   // Runs on mount, before Paddle.js has even downloaded. When it hits,
@@ -281,15 +254,19 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
   }, [countryCode, pricesLoaded, priceIds]);
 
   // ── Fallback: localised prices via Paddle.js PricePreview ────────────────
-  // Only runs when the fast path missed (no server prices) and Paddle.js
-  // is ready. Behaviour unchanged — one call for all 12 price IDs.
+  // Only runs when the fast path missed (no server prices). Waits for the
+  // shared init instead of requiring a page-local Paddle instance.
+  // Behaviour unchanged — one call for all 12 price IDs.
   useEffect(() => {
-    if (!serverPricesFailed || pricesLoaded || !paddleReady || !paddleRef.current) return;
+    if (!serverPricesFailed || pricesLoaded) return;
 
     let cancelled = false;
 
     (async () => {
       try {
+        const paddle = await awaitPaddle();
+        if (cancelled || !paddle) return;
+
         // Build one PricePreview call covering all 12 price IDs (3 tiers × 4 intervals)
         const items = tiers.flatMap((t) => [
           { priceId: t.priceId.month,      quantity: 1 },
@@ -305,7 +282,7 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
           ...(countryCode ? { address: { countryCode } } : {}),
         };
 
-        const response = await paddleRef.current!.PricePreview(previewParams);
+        const response = await paddle.PricePreview(previewParams);
 
         if (cancelled) return;
 
@@ -330,16 +307,11 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
     })();
 
     return () => { cancelled = true; };
-  }, [serverPricesFailed, pricesLoaded, paddleReady, tiers, countryCode, priceIds]);
+  }, [serverPricesFailed, pricesLoaded, tiers, countryCode, priceIds]);
 
   // ── Checkout ─────────────────────────────────────────────────────────────
   const handleSubscribe = useCallback(
     async (tier: SerializedTier) => {
-      if (!paddleRef.current) {
-        setCheckoutError("Paddle is still loading. Please try again in a moment.");
-        return;
-      }
-
       // Anonymous checkout cannot be provisioned: without a signed-in team
       // there is no customData.teamId for webhooks to attach the subscription
       // to, so a paying visitor would get no access. Send them to create a
@@ -354,10 +326,20 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
       setCheckoutError(null);
 
       try {
+        // Wait for the shared init if it is still in flight (started at app
+        // level, so usually already done) — a click in the first second
+        // opens the overlay as soon as init lands instead of erroring.
+        // Only a real failure / timeout shows an honest error.
+        const paddle = await awaitPaddle();
+        if (!paddle) {
+          setCheckoutError("Paddle couldn't load. Please check your connection and try again.");
+          return;
+        }
+
         const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? "";
         const successUrl = `${siteUrl}/welcome`;
 
-        paddleRef.current.Checkout.open({
+        paddle.Checkout.open({
           items: [{ priceId, quantity: 1 }],
           settings: {
             displayMode: "overlay",
@@ -581,7 +563,7 @@ export function PricingClient({ tiers, countryCode, userEmail, teamId, paddleCus
                 <Button
                   className="w-full mb-5 gap-1.5"
                   variant={isHighlighted ? "default" : "outline"}
-                  disabled={anyOpening || !paddleReady}
+                  disabled={anyOpening}
                   loading={isOpening}
                   loadingText="Opening…"
                   onClick={() => handleSubscribe(tier)}
