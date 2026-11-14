@@ -22,7 +22,7 @@
  */
 
 import { useState, useMemo } from "react";
-import { Check, X, Zap, Loader2, Shield, ArrowRight } from "lucide-react";
+import { Check, Zap, Loader2, Shield, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,8 +83,7 @@ export function PricingModal({
   const {
     pricesLoaded,
     openingTier,
-    checkoutError,
-    clearCheckoutError,
+    paddleLoading,
     openCheckout,
     getDisplayPrice,
     getBillingLabel,
@@ -170,19 +169,6 @@ export function PricingModal({
           </div>
         </div>
 
-        {/* ── Checkout error banner ─────────────────────────────────────────── */}
-        {checkoutError && (
-          <div
-            role="alert"
-            className="mx-6 mt-4 flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 px-4 py-3 text-sm text-red-600"
-          >
-            {checkoutError}
-            <button className="ml-auto shrink-0" onClick={clearCheckoutError} aria-label="Dismiss">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
-
         {/* ── Plan cards ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 p-4 sm:p-6">
           {tiers.map((tier) => {
@@ -245,11 +231,12 @@ export function PricingModal({
                   {billingLabel}
                 </p>
 
-                {/* Subscribe button */}
+                {/* Subscribe button — waits for Paddle init: loading state
+                    until "ready", then activates. */}
                 <Button
                   className="w-full mb-5 gap-1.5"
                   variant={isHighlighted ? "default" : "outline"}
-                  disabled={anyOpening}
+                  disabled={anyOpening || paddleLoading}
                   onClick={() => handleSubscribe(tier.id)}
                   aria-label={`Subscribe to ${tier.name}`}
                 >
@@ -257,6 +244,11 @@ export function PricingModal({
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                       Opening…
+                    </>
+                  ) : paddleLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      Loading checkout…
                     </>
                   ) : (
                     <>

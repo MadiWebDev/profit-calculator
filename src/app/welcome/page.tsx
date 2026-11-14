@@ -12,6 +12,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle, ArrowRight, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { WelcomeToast } from "./WelcomeToast";
 
 export const metadata: Metadata = {
   title: "Welcome — GetProfitCalc",
@@ -23,6 +24,8 @@ export const metadata: Metadata = {
 export default function WelcomePage() {
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 py-16 bg-[var(--color-background)]">
+      {/* Success toast — fires on mount, after the post-checkout redirect lands. */}
+      <WelcomeToast />
       <div className="w-full max-w-md rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl p-8 sm:p-10 flex flex-col items-center text-center gap-6">
 
         {/* Success icon */}

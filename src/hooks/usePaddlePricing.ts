@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { toast } from "sonner";
 import type { SerializedTier, PricingInterval } from "@/lib/tiers";
 import {
   allPriceIds,
@@ -39,6 +40,7 @@ import {
   onPaddleCheckoutCompleted,
   warmPaddle,
 } from "@/lib/paddle-init";
+import { usePaddleReady } from "@/hooks/usePaddleReady";
 import { logger } from "@/lib/logger";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -88,7 +90,9 @@ export function usePaddlePricing(
   // and missed — only then is the slow client-side PricePreview allowed.
   const [serverPricesFailed, setServerPricesFailed] = useState(false);
   const [openingTier,  setOpeningTier]  = useState<string | null>(null);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  // Readiness of the shared init — Subscribe buttons show a loading state
+  // until "ready" (see usePaddleReady); no second init promise.
+  const { ready: paddleReady, loading: paddleLoading } = usePaddleReady();
 
   // Price IDs in tier order — the session-cache key input (stable per render).
   const priceIds = useMemo(() => allPriceIds(tiers), [tiers]);
@@ -213,16 +217,15 @@ export function usePaddlePricing(
         : `${siteUrl}/dashboard/settings?upgraded=1`;
 
       setOpeningTier(tier.id);
-      setCheckoutError(null);
 
       try {
         // Wait for the shared init if it is still in flight (started at app
         // level, so usually already done) — a click in the first second
         // opens the overlay as soon as init lands instead of erroring.
-        // Only a real failure / timeout shows an honest error.
+        // Only a real failure / timeout shows an honest error toast.
         const paddle = await awaitPaddle();
         if (!paddle) {
-          setCheckoutError("Checkout couldn't load. Please check your connection and try again.");
+          toast.error("Checkout couldn't load. Please check your connection and try again.");
           return;
         }
 
@@ -242,7 +245,7 @@ export function usePaddlePricing(
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Could not open checkout. Please try again.";
-        setCheckoutError(msg);
+        toast.error(msg);
       } finally {
         setOpeningTier(null);
       }
@@ -276,8 +279,8 @@ export function usePaddlePricing(
   return {
     pricesLoaded,
     openingTier,
-    checkoutError,
-    clearCheckoutError: () => setCheckoutError(null),
+    paddleReady,
+    paddleLoading,
     openCheckout,
     getDisplayPrice,
     getBillingLabel,

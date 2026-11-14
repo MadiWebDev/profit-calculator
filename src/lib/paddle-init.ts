@@ -20,6 +20,11 @@
  *     notifies registered listeners (each page keeps its own
  *     post-completion action — /welcome redirect, router.refresh() —
  *     via onPaddleCheckoutCompleted).
+ *   - Readiness is observable: getPaddleStatus() /
+ *     subscribePaddleStatus() expose "loading" | "ready" | "failed" so
+ *     Subscribe buttons can show a loading state until init is ready
+ *     (see usePaddleReady). No second init promise exists — the status
+ *     tracks the one shared promise below.
  *
  * SDK facts (verified against @paddle/paddle-js in node_modules):
  *   - loadFromCDN caches the script-load promise per version, and a
@@ -72,6 +77,47 @@ type CheckoutCompletedListener = (
 let paddlePromise: Promise<Paddle | null> | null = null;
 let paddleInstance: Paddle | null = null;
 const completedListeners = new Set<CheckoutCompletedListener>();
+
+// ── Readiness status ────────────────────────────────────────────────────────
+// Tracks the ONE shared init promise so Subscribe buttons can show a
+// loading state until Paddle is ready, then activate. "loading" until the
+// first attempt settles; "failed" when an attempt fails (a later
+// warmPaddle() retry moves it back to "loading" first).
+
+export type PaddleInitStatus = "loading" | "ready" | "failed";
+
+let paddleStatus: PaddleInitStatus = "loading";
+const statusListeners = new Set<(status: PaddleInitStatus) => void>();
+
+function setPaddleStatus(next: PaddleInitStatus): void {
+  if (next === paddleStatus) return;
+  paddleStatus = next;
+  statusListeners.forEach((cb) => {
+    try {
+      cb(next);
+    } catch (err) {
+      logger.error("[paddle-init] status listener error", err);
+    }
+  });
+}
+
+/** Current readiness of the shared init ("loading" before any attempt settles). */
+export function getPaddleStatus(): PaddleInitStatus {
+  return paddleStatus;
+}
+
+/**
+ * Subscribe to readiness changes. Returns an unsubscribe function.
+ * Compatible with React's useSyncExternalStore.
+ */
+export function subscribePaddleStatus(
+  cb: (status: PaddleInitStatus) => void
+): () => void {
+  statusListeners.add(cb);
+  return () => {
+    statusListeners.delete(cb);
+  };
+}
 
 /**
  * Register a callback for checkout.completed. The singleton runs the
@@ -141,10 +187,15 @@ export function warmPaddle(paddleCustomerId?: string): Promise<Paddle | null> {
     logger.error(
       "[paddle-init] NEXT_PUBLIC_PADDLE_CLIENT_TOKEN or NEXT_PUBLIC_PADDLE_ENV is not set."
     );
+    // Init can never succeed in this page session — buttons must not
+    // spin forever waiting for it.
+    setPaddleStatus("failed");
     return Promise.resolve(null);
   }
 
   if (!paddlePromise) {
+    // A fresh attempt (first load, or a retry after a failure).
+    setPaddleStatus("loading");
     paddlePromise = (async () => {
       try {
         const { initializePaddle } = await import("@paddle/paddle-js");
@@ -157,11 +208,13 @@ export function warmPaddle(paddleCustomerId?: string): Promise<Paddle | null> {
           eventCallback: handlePaddleEvent,
         });
         paddleInstance = paddle ?? null;
+        setPaddleStatus(paddleInstance ? "ready" : "failed");
         return paddleInstance;
       } catch (err) {
         logger.error("[paddle-init] Paddle init error", err);
         // Let a later call retry instead of hanging on a stale rejection.
         paddlePromise = null;
+        setPaddleStatus("failed");
         return null;
       }
     })();

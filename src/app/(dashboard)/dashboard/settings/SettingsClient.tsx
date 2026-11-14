@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   CreditCard, Store, Zap, AlertTriangle, CheckCircle2,
   RefreshCw, Plus, User, Bell, Key, ExternalLink, Lock,
-  Globe, Clock, Shield, ArrowRight, Check, X, Trash2,
+  Globe, Clock, Shield, ArrowRight, Check, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -203,6 +204,16 @@ export function SettingsClient({
       url.searchParams.delete("error");
       window.history.replaceState({}, "", url.toString());
     }
+    // Post-checkout landing: Paddle's successUrl is
+    // /dashboard/settings?upgraded=1. The success toast fires here, on
+    // the landing page — a toast fired before navigation would vanish.
+    // The param is stripped so a refresh doesn't re-toast.
+    if (searchParams.get("upgraded")) {
+      toast.success("Payment successful — your subscription is now active.");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("upgraded");
+      window.history.replaceState({}, "", url.toString());
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -219,8 +230,7 @@ export function SettingsClient({
   const {
     pricesLoaded,
     openingTier,
-    checkoutError,
-    clearCheckoutError,
+    paddleLoading,
     openCheckout,
     getDisplayPrice,
     getBillingLabel,
@@ -868,19 +878,6 @@ export function SettingsClient({
                 <div className="flex flex-col gap-3">
                   <CardTitle className="text-base">Upgrade Your Plan</CardTitle>
 
-                  {/* Checkout error */}
-                  {checkoutError && (
-                    <div
-                      role="alert"
-                      className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-600"
-                    >
-                      {checkoutError}
-                      <button className="ml-auto shrink-0" onClick={clearCheckoutError} aria-label="Dismiss">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-
                   {/* 4-option interval selector — matches PricingClient exactly */}
                   <div
                     role="group"
@@ -995,9 +992,9 @@ export function SettingsClient({
                             size="sm"
                             className="w-full gap-1.5"
                             variant={isHighlighted ? "default" : "outline"}
-                            disabled={anyOpening}
-                            loading={isOpening}
-                            loadingText="Opening…"
+                            disabled={anyOpening || paddleLoading}
+                            loading={isOpening || paddleLoading}
+                            loadingText={isOpening ? "Opening…" : "Loading checkout…"}
                             onClick={() => handleSubscribe(tier.id)}
                             aria-label={`Subscribe to ${tier.name}`}
                           >
