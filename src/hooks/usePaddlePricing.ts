@@ -222,7 +222,7 @@ export function usePaddlePricing(
         // Only a real failure / timeout shows an honest error.
         const paddle = await awaitPaddle();
         if (!paddle) {
-          setCheckoutError("Paddle couldn't load. Please check your connection and try again.");
+          setCheckoutError("Checkout couldn't load. Please check your connection and try again.");
           return;
         }
 
