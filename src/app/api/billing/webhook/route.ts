@@ -109,11 +109,12 @@ export async function POST(req: Request) {
   }
 
   // 2. Verify signature with Paddle SDK — this is the authoritative check.
-  //    unmarshal is synchronous and throws if verification fails.
+  //    unmarshal is async in paddle-node-sdk v3 and throws if verification
+  //    fails. It never returns null: unknown event types become GenericEvent.
   let event: EventEntity | null;
   try {
     const paddle = getPaddleClient();
-    event = paddle.webhooks.unmarshal(rawBody, secret, signature);
+    event = await paddle.webhooks.unmarshal(rawBody, secret, signature);
   } catch {
     logger.warn("paddle webhook: signature verification failed");
     // Return 401 — not 2xx — so Paddle keeps retrying
@@ -121,7 +122,8 @@ export async function POST(req: Request) {
   }
 
   if (!event) {
-    // Unmarshal returns null for unrecognised event shapes
+    // Defensive only — v3 unmarshal never returns null (unknown event
+    // types become GenericEvent), but never trust an unverified event.
     logger.info("paddle webhook: unrecognised event shape — ignoring");
     return NextResponse.json({ received: true });
   }
