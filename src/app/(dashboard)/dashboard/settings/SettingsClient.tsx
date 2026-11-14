@@ -217,10 +217,10 @@ export function SettingsClient({
   const currentPlan = data.subscription?.plan || data.team?.plan || userPlan || "free";
 
   const {
+    paddleReady,
     pricesLoaded,
     openingTier,
     checkoutError,
-    checkoutStatus,
     clearCheckoutError,
     openCheckout,
     getDisplayPrice,
@@ -860,16 +860,6 @@ export function SettingsClient({
                     </div>
                   )}
 
-                  {/* Hosted-checkout fallback in flight — the overlay was unavailable */}
-                  {checkoutStatus && (
-                    <div
-                      role="status"
-                      className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950 px-4 py-3 text-sm text-blue-700 dark:text-blue-300"
-                    >
-                      {checkoutStatus}
-                    </div>
-                  )}
-
                   {/* 4-option interval selector — matches PricingClient exactly */}
                   <div
                     role="group"
@@ -984,12 +974,9 @@ export function SettingsClient({
                             size="sm"
                             className="w-full gap-1.5"
                             variant={isHighlighted ? "default" : "outline"}
-                            // NOT gated on paddleReady: when Paddle.js never
-                            // loads, the click falls back to the hosted
-                            // checkout instead of dead-ending.
-                            disabled={anyOpening}
+                            disabled={anyOpening || !paddleReady}
                             loading={isOpening}
-                            loadingText={checkoutStatus ?? "Opening…"}
+                            loadingText="Opening…"
                             onClick={() => handleSubscribe(tier.id)}
                             aria-label={`Subscribe to ${tier.name}`}
                           >
