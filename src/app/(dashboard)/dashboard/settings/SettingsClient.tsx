@@ -59,7 +59,7 @@ interface AdAccountRow {
 }
 
 interface SettingsData {
-  team: { name: string; plan: string; currency: string; timezone: string } | null;
+  team: { name: string; plan: string; currency: string; timezone: string; trialEndsAt?: string } | null;
   subscription: {
     plan: string; status: string; interval: string;
     currentPeriodEnd?: string; cancelAtPeriodEnd: boolean;
@@ -525,6 +525,16 @@ export function SettingsClient({
   const sub        = data.subscription;
   const isTrialing = sub?.status === "trialing";
 
+  // The 7-day trial lives on the team, not on a Subscription — an
+  // account that never paid has no Subscription row, so the Billing
+  // tab would show no trial state at all even while the dashboard
+  // banner counts the trial down. Same source (team.trialEndsAt) and
+  // same whole-day rule as getAccountStatus in src/lib/trial.ts.
+  const teamTrialDaysLeft = data.team?.trialEndsAt
+    ? Math.ceil((new Date(data.team.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const teamTrialLive = !sub && teamTrialDaysLeft > 0;
+
   const intervalLabel: Record<string, string> = {
     monthly:    "mo",
     quarterly:  "3 mo",
@@ -595,6 +605,11 @@ export function SettingsClient({
                     <Badge variant={currentPlan === "pro" ? "default" : "outline"} className="text-xs capitalize">
                       {currentPlan} plan
                     </Badge>
+                    {teamTrialLive && (
+                      <Badge variant="warning" className="text-xs">
+                        Free trial · {teamTrialDaysLeft} {teamTrialDaysLeft === 1 ? "day" : "days"} left
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
@@ -610,9 +625,9 @@ export function SettingsClient({
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">WhatsApp Number (optional)</Label>
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+923001234567" className="h-9" disabled={saveProfileAction.loading} />
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 0000000" className="h-9" disabled={saveProfileAction.loading} />
                   <p className="text-xs text-[var(--color-muted-foreground)]">
-                    E.164 format, e.g. +923001234567. Only used to receive admin WhatsApp announcements — leave blank to opt out.
+                    E.164 format, e.g. +92 300 0000000 (example only — not a real number). Only used to receive admin WhatsApp announcements — leave blank to opt out.
                   </p>
                 </div>
                 <Button
@@ -639,7 +654,7 @@ export function SettingsClient({
                 <>
                   <p className="text-sm text-[var(--color-muted-foreground)]">
                     All money figures across your dashboard show in this currency, converted at the live rate.
-                    This is your own choice — changing it never affects your teammates.
+                    This currency is locked to your account.
                   </p>
                   <div className="flex h-10 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 text-sm font-medium text-[var(--color-foreground)]">
                     {data.user.displayCurrency} — {ALL_CURRENCIES.find((c) => c.code === data.user.displayCurrency)?.name ?? data.user.displayCurrency}
@@ -656,8 +671,7 @@ export function SettingsClient({
                 <>
                   <p className="text-sm text-[var(--color-muted-foreground)]">
                     All money figures across your dashboard show in this currency, converted at the live rate.
-                    This is your own choice — changing it never affects your teammates. Once saved, it
-                    cannot be changed — this becomes your locked display currency.
+                    Once saved, it cannot be changed — this becomes your locked display currency.
                   </p>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Display currency</Label>
@@ -833,7 +847,15 @@ export function SettingsClient({
               ) : (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 text-sm text-yellow-700 dark:text-yellow-300">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                  You&apos;re on the Free plan with limited features.
+                  <div>
+                    <p>You&apos;re on the Free plan with limited features.</p>
+                    {teamTrialLive && (
+                      <p className="mt-1">
+                        Free trial ends {data.team?.trialEndsAt ? new Date(data.team.trialEndsAt).toLocaleDateString() : ""} —{" "}
+                        {teamTrialDaysLeft} {teamTrialDaysLeft === 1 ? "day" : "days"} left.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </CardContent>

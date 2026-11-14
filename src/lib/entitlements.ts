@@ -58,6 +58,14 @@ export interface EffectivePlan {
   plan: PlanId;
   source: "subscription" | "trial" | "grace" | "free";
   limits: PlanLimits;
+  /**
+   * Trial window (only when source === "trial"): the team's trial end
+   * date and whole days left. Display code uses these to label the
+   * trial honestly — the account's plan is Free, the trial only grants
+   * growth-level limits (see the trial branch below).
+   */
+  trialEndsAt?: string | null;
+  daysLeft?: number;
 }
 
 const PAST_DUE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -126,7 +134,20 @@ export async function getEffectivePlan(teamId: string): Promise<EffectivePlan> {
   if (trialEndsAt && trialEndsAt > now) {
     // Assumption: trial users get the full product (growth-level limits)
     // so they can evaluate every feature before paying.
-    return { plan: "growth", source: "trial", limits: getPlanLimits("growth") };
+    //
+    // The LIMITS are growth-level, but the account's PLAN is still Free —
+    // every other plan source (getAccountStatus, Settings) reports "free"
+    // for a trialing account. The trial end date and days left ride along
+    // so display code (UsageMeter, /api/usage) can label the trial
+    // honestly instead of calling it a "Growth plan".
+    const daysLeft = Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return {
+      plan: "growth",
+      source: "trial",
+      limits: getPlanLimits("growth"),
+      trialEndsAt: trialEndsAt.toISOString(),
+      daysLeft,
+    };
   }
 
   return free;

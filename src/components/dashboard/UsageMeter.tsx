@@ -19,6 +19,9 @@ interface Meter {
 interface UsageResponse {
   plan: string;
   planSource: string;
+  /** Trial window — only present when planSource === "trial". */
+  trialEndsAt?: string | null;
+  daysLeft?: number | null;
   meters: Meter[];
   upgradeUrl: string;
 }
@@ -53,11 +56,22 @@ export function UsageMeter() {
 
   const anyExhausted = visible.some((m) => m.exhausted);
 
+  // The plan label is the account's actual plan — NOT the entitlement
+  // level. During the 7-day trial getEffectivePlan returns growth-level
+  // LIMITS (deliberate: trial users evaluate the full product), but the
+  // account's plan is Free — the sidebar chip, the trial banner and
+  // Settings all say "Free". Calling it a "Growth plan" here was the
+  // contradiction users saw. During a trial, say so plainly instead.
+  const isTrial = data.planSource === "trial";
+  const planLabel = isTrial ? "Free plan" : `${data.plan} plan`;
+  const trialDaysLeft =
+    typeof data.daysLeft === "number" && data.daysLeft > 0 ? data.daysLeft : null;
+
   return (
     <div className="rounded-xl border border-[var(--color-border)] p-3 space-y-2.5">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-[var(--color-foreground)] capitalize">
-          {data.plan} plan
+          {planLabel}
         </p>
         {anyExhausted && (
           <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
@@ -65,7 +79,14 @@ export function UsageMeter() {
           </span>
         )}
       </div>
-
+      {isTrial && (
+        <p className="text-[11px] text-[var(--color-muted-foreground)]">
+          Free trial — Growth limits
+          {trialDaysLeft !== null
+            ? ` · ${trialDaysLeft} ${trialDaysLeft === 1 ? "day" : "days"} left`
+            : ""}
+        </p>
+      )}
       {visible.map((m) => (
         <div key={m.key}>
           <div className="flex items-center justify-between text-xs mb-1">

@@ -37,6 +37,11 @@ export async function GET(req: Request) {
   return NextResponse.json({
     plan: effective.plan,
     planSource: effective.source,
+    // Trial window (only when planSource === "trial"): lets the sidebar
+    // label the trial honestly — the plan is Free, the trial only grants
+    // growth-level limits.
+    trialEndsAt: effective.trialEndsAt ?? null,
+    daysLeft: effective.daysLeft ?? null,
     usage,
     meters,
     upgradeUrl: "/pricing",
