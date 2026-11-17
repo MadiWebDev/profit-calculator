@@ -121,16 +121,44 @@ describe("getFxRates with currencyapi.net", () => {
     expect(fx.rates.PKR).toBeCloseTo(278.5 / 0.92, 10);
   });
 
+  it("concurrent calls for DIFFERENT bases share a single provider fetch", async () => {
+    // The provider table is always USD-based and re-based in memory, so
+    // one fetch serves every base. Without a shared single-flight, the
+    // dashboard (team base) and /api/fx/rates (USD) racing after a
+    // refresh would each spend a request — 2 per 90-minute window,
+    // 960/month, over the free plan's 500.
+    process.env.CURRENCY_API_KEY = "test-key";
+    let calls = 0;
+    mockFetch(async () => {
+      calls += 1;
+      await new Promise((r) => setTimeout(r, 50));
+      return okJson(CURRENCY_API_PAYLOAD);
+    });
+    const [usd, eur, pkr] = await Promise.all([
+      getFxRates("USD"),
+      getFxRates("EUR"),
+      getFxRates("PKR"),
+    ]);
+    expect(calls).toBe(1);
+    expect(usd.rates.EUR).toBe(0.92);
+    expect(eur.rates.EUR).toBe(1);
+    expect(pkr.rates.PKR).toBe(1);
+  });
+
   it("falls back to er-api when currencyapi.net fails", async () => {
     process.env.CURRENCY_API_KEY = "test-key";
+    // The fallback fetches the USD table from er-api (one shared call
+    // for every base) and re-bases in memory — the mock payload is
+    // therefore USD-based, like the real endpoint's response.
     mockFetch((url) =>
       url.includes("currencyapi.net")
         ? httpError(500)
-        : okJson({ result: "success", base_code: "EUR", rates: { USD: 1.08, EUR: 1, PKR: 302 } }),
+        : okJson({ result: "success", base_code: "USD", rates: { USD: 1, EUR: 0.92, PKR: 278.5 } }),
     );
     const fx = await getFxRates("EUR");
     expect(fx.base).toBe("EUR");
-    expect(fx.rates.PKR).toBe(302);
+    expect(fx.rates.EUR).toBe(1);
+    expect(fx.rates.PKR).toBeCloseTo(278.5 / 0.92, 10);
   });
 
   it("serves stale cached rates when both providers fail", async () => {
