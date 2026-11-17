@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { ArrowLeftRight } from "lucide-react";
 import { CURRENCIES, useCurrency } from "@/components/dashboard/CurrencyContext";
 import { formatCurrency, cn } from "@/lib/utils";
-import { formatRatesAsOf, FX_FREE_PLAN_NOTE } from "@/lib/display-currency";
+import { formatRatesAsOf} from "@/lib/display-currency";
 
 /**
  * Compact live currency converter.
@@ -137,9 +137,7 @@ export function CurrencyConverter({
             ? "Loading rates…"
             : "Rates unavailable"}
       </p>
-      <p className="text-[11px] leading-relaxed text-[var(--color-muted-foreground)]">
-        {FX_FREE_PLAN_NOTE}
-      </p>
+     
     </div>
   );
 
