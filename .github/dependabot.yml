@@ -9,6 +9,10 @@ updates:
     labels: [dependencies]
     commit-message:
       prefix: "chore"
+    groups:
+      tiptap:
+        patterns:
+          - "@tiptap/*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
