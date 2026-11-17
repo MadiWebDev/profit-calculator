@@ -14,10 +14,13 @@
  *    It only changes how figures are shown, never the stored numbers.
  *
  * Honest limit: on the free currencyapi.net plan the provider data
- * refreshes hourly. The 60-second client refresh only re-fetches the
- * cached rate; true 60-second live rates need the paid StartUp plan.
- * The "Rates as of HH:MM" stamp (formatRatesAsOf) is what keeps the
- * widget honest — it must never pretend to be fresher than it is.
+ * refreshes hourly, and the app saves it once (a single shared
+ * snapshot in the database, refreshed every 90 minutes — 16 fetches
+ * a day, inside the plan's 500/month). The 60-second client refresh
+ * only re-fetches the cached rate; true 60-second live rates need the
+ * paid StartUp plan. The "Rates as of HH:MM" stamp (formatRatesAsOf)
+ * is what keeps the widget honest — it must never pretend to be
+ * fresher than it is.
  */
 
 /** A 3-letter ISO 4217 code, upper-cased and trimmed. */
@@ -137,8 +140,8 @@ export function parseFxRatesPayload(payload: unknown): FxRatesPayload | null {
 /**
  * The honest-limit note shown under the converter widget and the
  * display-currency switcher. The 60-second refresh re-fetches the
- * cached rate; the provider data itself only refreshes hourly on the
- * free plan.
+ * saved rate; the provider data itself only refreshes hourly on the
+ * free plan, and the app re-saves it every 90 minutes.
  */
 export const FX_FREE_PLAN_NOTE =
-  "On the free currencyapi.net plan, provider rates refresh hourly — the 60-second refresh re-fetches the cached rate. True 60-second live rates need the paid StartUp plan.";
+  "On the free currencyapi.net plan, provider rates refresh hourly and are saved once for everyone, refreshing every 90 minutes — the 60-second refresh re-fetches the saved rate. True 60-second live rates need the paid StartUp plan.";
