@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Upload, ShoppingBag,
   CheckCircle2, ArrowRight, ArrowLeft, Loader2,
@@ -51,10 +52,12 @@ const CSV_TEMPLATE_HEADERS = [
 function OnboardingInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { update: updateSession } = useSession();
 
   const [step,      setStep]      = useState<Step>("choose");
   const [,         setPlatform]  = useState<string>("");
   const [loading,   setLoading]   = useState(false);
+  const [skipping,  setSkipping]  = useState(false);
   const [error,     setError]     = useState<string | null>(null);
   const [connectedShop, setConnectedShop] = useState<string>("");
 
@@ -180,6 +183,47 @@ function OnboardingInner() {
     }
   };
 
+  /**
+   * "I'll do this later" — a real skip, not just a navigation.
+   *
+   * The old button only did router.push("/dashboard"): it changed no
+   * state, so the dashboard's blocking OnboardingModal (which shows
+   * whenever onboardingCompleted is false) came straight back — the
+   * user experienced it as being sent back to onboarding. This handler
+   * completes onboarding first (PATCH /api/user, flag only — currency
+   * and timezone stay unset, so the user can set them later in Settings
+   * instead of having detected values locked in for them), refreshes
+   * the session so the JWT carries onboardingCompleted: true (same
+   * updateSession pattern the modal uses — without it the modal would
+   * reappear on the next page from the stale token), and only then
+   * navigates. If the save fails we stay on this page with the error
+   * shown — navigating without the flag would just loop again.
+   */
+  const skipOnboarding = async () => {
+    if (skipping) return;
+    setSkipping(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ onboardingCompleted: true }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(typeof j?.error === "string" ? j.error : "Couldn't skip setup. Check your connection and try again.");
+        return;
+      }
+      await updateSession({ user: { onboardingCompleted: true } }).catch(() => {});
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Network error — please check your connection and try again.");
+    } finally {
+      setSkipping(false);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const stepTitle: Record<Step, string> = {
@@ -251,10 +295,11 @@ function OnboardingInner() {
 
               <div className="text-center pt-1">
                 <button
-                  onClick={() => router.push("/dashboard")}
-                  className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors underline-offset-4 hover:underline"
+                  onClick={() => void skipOnboarding()}
+                  disabled={skipping}
+                  className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  I&apos;ll do this later
+                  {skipping ? "Skipping…" : "I'll do this later"}
                 </button>
               </div>
             </div>
