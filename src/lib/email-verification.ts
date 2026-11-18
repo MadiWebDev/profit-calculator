@@ -101,6 +101,37 @@ export function interpretResendOutcome(input: {
 }
 
 /**
+ * Shape the verification-status answer for an email lookup.
+ * Deliberately coarse: an unknown email and an unverified account both
+ * answer `verified: false`, so the endpoint can't be used to enumerate
+ * accounts (register already reveals existence via its 409; this adds
+ * nothing). Only `verified: true` is informative — and it is exactly the
+ * bit the register page's modal needs to know.
+ */
+export function verificationStatusFor(user: { emailVerified?: Date | null } | null | undefined): {
+  verified: boolean;
+} {
+  return { verified: !!user?.emailVerified };
+}
+
+/**
+ * GET /api/auth/verification-status?email=… — what the register page's
+ * verification modal polls while it waits for the user to click the link
+ * in their inbox. Never throws; any failure reads as "not verified yet"
+ * so the next poll retries.
+ */
+export async function fetchVerificationStatus(email: string): Promise<{ verified: boolean }> {
+  try {
+    const res = await fetch(`/api/auth/verification-status?email=${encodeURIComponent(email)}`);
+    if (!res.ok) return { verified: false };
+    const body = (await res.json()) as { verified?: boolean };
+    return { verified: body.verified === true };
+  } catch {
+    return { verified: false };
+  }
+}
+
+/**
  * POST /api/auth/verify-email/resend and interpret the result — the single
  * honest path shared by the login panel and the verify page. Never claims
  * success when the server did not confirm a send; never throws.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -9,6 +9,11 @@ import { toast } from "sonner";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useAsyncAction } from "@/hooks/use-async-action";
+import {
+  isEmailNotVerifiedSignIn,
+  requestVerificationResend,
+  fetchVerificationStatus,
+} from "@/lib/email-verification";
 
 const perks = [
   "7-day free trial — no credit card",
@@ -22,6 +27,46 @@ export default function RegisterPage() {
   const [err, setErr] = useState<{ name?: string; email?: string; password?: string }>({});
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [justVerified, setJustVerified] = useState(false);
+  // Guards double-scheduling of the redirect (see the effect below).
+  const redirectingRef = useRef(false);
+
+  // While the verification modal is open, poll the verification status:
+  // the user is in their inbox (another tab / their mail app) clicking the
+  // link, and this tab has no other way to learn it happened. The poll
+  // keeps running while the tab is hidden — that is the point: when the
+  // user comes back, they are already on the sign-in page. Capped at 10
+  // minutes; after that the manual "Go to Sign In" link still works.
+  //
+  // NOTE: `justVerified` is deliberately NOT a dependency. The poll sets
+  // it when verification is detected, and if it were a dep the effect
+  // would re-run on that update — its cleanup would clear the redirect
+  // timer it just scheduled, and the modal would sit on "Email verified!"
+  // forever. The ref above is the guard instead.
+  useEffect(() => {
+    if (!showVerifyModal || !registeredEmail) return;
+
+    let cancelled = false;
+    let redirectTimer: ReturnType<typeof setTimeout> | undefined;
+    const check = async () => {
+      if (redirectingRef.current) return;
+      const { verified } = await fetchVerificationStatus(registeredEmail);
+      if (cancelled || !verified) return;
+      redirectingRef.current = true;
+      setJustVerified(true);
+      redirectTimer = setTimeout(() => router.push("/auth/login?verified=1"), 1500);
+    };
+    void check();
+    const poll = setInterval(check, 5000);
+    const stopAt = setTimeout(() => clearInterval(poll), 10 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      redirectingRef.current = false;
+      clearInterval(poll);
+      clearTimeout(stopAt);
+      if (redirectTimer) clearTimeout(redirectTimer);
+    };
+  }, [showVerifyModal, registeredEmail, router]);
 
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -53,14 +98,20 @@ export default function RegisterPage() {
       toast.loading("Signing you in…", { id: tid });
       const sr = await signIn("credentials", { email: email.toLowerCase(), password, redirect: false });
 
-      if (sr?.ok) {
-        toast.success("Welcome to GetProfitCalc!", { id: tid });
-        router.push("/onboarding");
-        router.refresh();
-      } else if (sr?.error?.includes("EMAIL_NOT_VERIFIED")) {
+      // NOTE: `sr.ok` is the HTTP status of the callback (200 even when the
+      // sign-in fails), so it must never be the success test — check the
+      // error first, exactly like the login page does. The old
+      // `if (sr?.ok)` branch fired on every failed sign-in, pushed to
+      // /onboarding, and the auth guard bounced to /auth/login — the
+      // modal branch below was unreachable even with the right check.
+      if (sr && isEmailNotVerifiedSignIn(sr)) {
         toast.dismiss(tid);
         setRegisteredEmail(email.toLowerCase());
         setShowVerifyModal(true);
+      } else if (sr && !sr.error) {
+        toast.success("Welcome to GetProfitCalc!", { id: tid });
+        router.push("/onboarding");
+        router.refresh();
       } else {
         toast.error("Account created — check your email to verify it, then sign in.", { id: tid });
         router.push("/auth/login?registered=1");
@@ -90,16 +141,13 @@ export default function RegisterPage() {
 
   const resendAction = useAsyncAction(async () => {
     if (!registeredEmail) return;
-    try {
-      await fetch("/api/auth/verify-email/resend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: registeredEmail }),
-      });
-      toast.success("Verification email resent — check your inbox.");
-    } catch {
-      toast.error("Could not resend the email. Try again.");
-    }
+    // Honest feedback: the outcome only claims "sent" when the server
+    // confirmed the email was accepted — a rate limit or send failure
+    // is surfaced as an error, never as a false success.
+    const outcome = await requestVerificationResend(registeredEmail);
+    if (outcome.kind === "sent") toast.success(outcome.message);
+    else if (outcome.kind === "queued") toast.info(outcome.message);
+    else toast.error(outcome.message);
   });
 
   const resendVerification = () => {
@@ -129,45 +177,70 @@ export default function RegisterPage() {
                 <X className="h-4 w-4" />
               </button>
 
-              {/* Icon */}
-              <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950 mb-5">
-                <Mail className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-              </div>
+              {justVerified ? (
+                <>
+                  {/* Icon */}
+                  <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-950 mb-5">
+                    <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+                  </div>
 
-              <h2 id="verify-modal-title" className="text-xl font-bold text-[var(--color-foreground)] mb-2">
-                Check your inbox
-              </h2>
-              <p className="text-sm text-[var(--color-muted-foreground)] mb-1">
-                We sent a verification link to
-              </p>
-              <p className="text-sm font-medium text-[var(--color-foreground)] mb-5 break-all">
-                {registeredEmail}
-              </p>
-              <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
-                Click the link in the email to verify your account, then sign in.
-              </p>
+                  <h2 id="verify-modal-title" className="text-xl font-bold text-[var(--color-foreground)] mb-2">
+                    Email verified!
+                  </h2>
+                  <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
+                    Taking you to sign in…
+                  </p>
 
-              {/* Primary CTA */}
-              <Link
-                href="/auth/login"
-                className="inline-flex w-full items-center justify-center h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                Go to Sign In
-              </Link>
+                  <Link
+                    href="/auth/login?verified=1"
+                    className="inline-flex w-full items-center justify-center h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Sign In Now
+                  </Link>
+                </>
+              ) : (
+                <>
+                  {/* Icon */}
+                  <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950 mb-5">
+                    <Mail className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  </div>
 
-              {/* Resend */}
-              <p className="mt-4 text-xs text-[var(--color-muted-foreground)]">
-                Didn&apos;t receive it?{" "}
-                <button
-                  type="button"
-                  onClick={resendVerification}
-                  disabled={resendAction.loading}
-                  aria-busy={resendAction.loading || undefined}
-                  className="text-[var(--color-primary)] font-medium hover:underline disabled:opacity-50"
-                >
-                  {resendAction.loading ? "Sending…" : "Resend email"}
-                </button>
-              </p>
+                  <h2 id="verify-modal-title" className="text-xl font-bold text-[var(--color-foreground)] mb-2">
+                    Check your inbox
+                  </h2>
+                  <p className="text-sm text-[var(--color-muted-foreground)] mb-1">
+                    We sent a verification link to
+                  </p>
+                  <p className="text-sm font-medium text-[var(--color-foreground)] mb-5 break-all">
+                    {registeredEmail}
+                  </p>
+                  <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
+                    Click the link in the email to verify your account, then sign in.
+                  </p>
+
+                  {/* Primary CTA */}
+                  <Link
+                    href="/auth/login"
+                    className="inline-flex w-full items-center justify-center h-10 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Go to Sign In
+                  </Link>
+
+                  {/* Resend */}
+                  <p className="mt-4 text-xs text-[var(--color-muted-foreground)]">
+                    Didn&apos;t receive it?{" "}
+                    <button
+                      type="button"
+                      onClick={resendVerification}
+                      disabled={resendAction.loading}
+                      aria-busy={resendAction.loading || undefined}
+                      className="text-[var(--color-primary)] font-medium hover:underline disabled:opacity-50"
+                    >
+                      {resendAction.loading ? "Sending…" : "Resend email"}
+                    </button>
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}
