@@ -81,6 +81,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <RoleProvider role={role} plan={plan} teamRole={teamRole}>
       <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
+        {/* Pre-paint sidebar width: applies the persisted wide-collapse
+            choice (localStorage "gpc-sidebar-wide-collapsed") to the
+            --sidebar-w variable BEFORE the sidebar paints, so a collapsed
+            user never sees a flash of the expanded width. The same key
+            lives in src/components/dashboard/DashboardSidebar.tsx — keep
+            the two in sync. Runs only on dashboard pages. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'try{if(localStorage.getItem("gpc-sidebar-wide-collapsed")==="1"){document.documentElement.style.setProperty("--sidebar-w","4.5rem")}}catch(e){}',
+          }}
+        />
         {/* Desktop sidebar */}
         <div className="hidden lg:flex lg:flex-shrink-0">
           <DashboardSidebar
@@ -88,6 +100,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             userEmail={user.email ?? ""}
             plan={plan}
             role={role}
+            collapsible
           />
         </div>
 
