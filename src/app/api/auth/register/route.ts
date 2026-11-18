@@ -5,7 +5,7 @@ import { randomBytes } from "crypto";
 import { connectDB } from "@/lib/db";
 import UserModel from "@/models/User";
 import TeamModel from "@/models/Team";
-import { sendWelcomeEmail, sendVerificationEmail } from "@/lib/email";
+import { sendVerificationEmail } from "@/lib/email";
 import { parseBody, fail } from "@/lib/validation";
 import { withRateLimit } from "@/lib/rate-limit";
 import { checkPasswordPolicy, isPasswordBreached, hashToken } from "@/lib/password";
@@ -76,8 +76,10 @@ export async function POST(req: Request) {
 
     await UserModel.findByIdAndUpdate(user._id, { teamId: team._id });
 
-    // Emails — non-blocking, failures logged
-    sendWelcomeEmail(user.email, user.name).catch((e) => logger.warn("welcome email failed", {}, toLogError(e)));
+    // Signup sends exactly ONE email — the verification email. (A welcome
+    // email used to go out here too; removed 2026-11-18 per the owner's
+    // decision. sendWelcomeEmail still exists in src/lib/email.ts if a
+    // post-verification welcome is ever wanted — it is not called here.)
     sendVerificationEmail(user.email, user.name, rawVerify).catch((e) =>
       logger.warn("verification email failed", {}, toLogError(e))
     );
