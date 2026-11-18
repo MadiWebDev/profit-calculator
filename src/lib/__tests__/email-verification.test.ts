@@ -6,6 +6,7 @@ import {
   shouldIssueVerificationToken,
   interpretResendOutcome,
   requestVerificationResend,
+  verificationStatusFor,
 } from "@/lib/email-verification";
 
 describe("parseAuthErrorCode", () => {
@@ -159,5 +160,18 @@ describe("requestVerificationResend", () => {
     stubFetch({ ok: false, status: 0, throws: true });
     const outcome = await requestVerificationResend("a@test.local");
     expect(outcome.kind).toBe("failed");
+  });
+});
+
+describe("verificationStatusFor", () => {
+  it("is true only for a user with emailVerified set", () => {
+    expect(verificationStatusFor({ emailVerified: new Date() })).toEqual({ verified: true });
+    expect(verificationStatusFor({ emailVerified: null })).toEqual({ verified: false });
+    expect(verificationStatusFor({})).toEqual({ verified: false });
+  });
+
+  it("answers false for an unknown email (no enumeration)", () => {
+    expect(verificationStatusFor(null)).toEqual({ verified: false });
+    expect(verificationStatusFor(undefined)).toEqual({ verified: false });
   });
 });

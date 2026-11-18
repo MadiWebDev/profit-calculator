@@ -36,6 +36,7 @@ function LoginInner() {
     }
   }, [status, session, router, explicitCallbackUrl, hasExplicitCallbackUrl]);
   const justRegistered = searchParams.get("registered") === "1";
+  const justVerified = searchParams.get("verified") === "1";
 
   const [showPass, setShowPass] = useState(false);
   const [err, setErr] = useState<{ email?: string; password?: string }>({});
@@ -46,6 +47,7 @@ function LoginInner() {
 
   useEffect(() => {
     if (justRegistered) toast.success("Account created — sign in to continue.");
+    if (justVerified) toast.success("Email verified — sign in to continue.");
   }, []); // eslint-disable-line
 
   const signInAction = useAsyncAction(async (email: string, password: string) => {
