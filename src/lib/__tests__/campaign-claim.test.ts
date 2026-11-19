@@ -41,10 +41,57 @@ describe("summarizeRecipients", () => {
         { status: "skipped" },
         { status: "skipped" },
       ])
-    ).toEqual({ targeted: 5, sent: 2, failed: 1, skipped: 2 });
+    ).toEqual({
+      targeted: 5,
+      sent: 2,
+      failed: 1,
+      skipped: 2,
+      delivered: 0,
+      opened: 0,
+      clicked: 0,
+      bounced: 0,
+      complained: 0,
+      read: 0,
+      suppressed: 0,
+    });
   });
 
   it("reports zero targeted for an empty array", () => {
-    expect(summarizeRecipients([])).toEqual({ targeted: 0, sent: 0, failed: 0, skipped: 0 });
+    expect(summarizeRecipients([])).toEqual({
+      targeted: 0,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      delivered: 0,
+      opened: 0,
+      clicked: 0,
+      bounced: 0,
+      complained: 0,
+      read: 0,
+      suppressed: 0,
+    });
+  });
+
+  it("counts webhook-derived statuses", () => {
+    expect(
+      summarizeRecipients([
+        { status: "delivered" },
+        { status: "opened" },
+        { status: "bounced" },
+        { status: "sent" },
+      ])
+    ).toEqual({
+      targeted: 4,
+      sent: 1,
+      failed: 0,
+      skipped: 0,
+      delivered: 1,
+      opened: 1,
+      clicked: 0,
+      bounced: 1,
+      complained: 0,
+      read: 0,
+      suppressed: 0,
+    });
   });
 });

@@ -20,7 +20,17 @@ import { cn } from "@/lib/utils";
 type Channel = "email" | "whatsapp";
 type TemplateType = "announcement" | "product_update" | "trial_ending" | "billing_notice" | "feature_launch";
 type AudienceType = "all" | "plan" | "team" | "users" | "limited";
-type RecipientStatus = "sent" | "failed" | "skipped";
+type RecipientStatus =
+  | "sent"
+  | "failed"
+  | "skipped"
+  | "delivered"
+  | "opened"
+  | "clicked"
+  | "bounced"
+  | "complained"
+  | "read"
+  | "suppressed";
 
 const TEMPLATE_TYPE_LABELS: Record<TemplateType, string> = {
   announcement: "Announcement",
@@ -41,6 +51,13 @@ const RECIPIENT_STATUS_STYLES: Record<RecipientStatus, string> = {
   sent: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
   failed: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   skipped: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  delivered: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  opened: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  clicked: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  bounced: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  complained: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  read: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
+  suppressed: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
 };
 
 interface CampaignRow {
@@ -57,7 +74,19 @@ interface CampaignRow {
   audienceUserIds: string[];
   audienceLimit: number | null;
   status: "draft" | "sending" | "sent" | "failed";
-  stats: { targeted: number; sent: number; failed: number; skipped: number };
+  stats: {
+    targeted: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+    delivered: number;
+    opened: number;
+    clicked: number;
+    bounced: number;
+    complained: number;
+    read: number;
+    suppressed: number;
+  };
   error: string | null;
   createdBy: { name: string; email: string } | null;
   sentAt: string | null;
@@ -70,6 +99,12 @@ interface RecipientRow {
   status: RecipientStatus;
   error: string | null;
   sentAt: string | null;
+  /** Webhook-reported milestones (Phase 2); null until the event lands. */
+  deliveredAt: string | null;
+  openedAt: string | null;
+  clickedAt: string | null;
+  readAt: string | null;
+  failedAt: string | null;
 }
 
 interface TeamRow {
@@ -157,6 +192,54 @@ function RecipientTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+const WEBHOOK_DERIVED_STATUSES: RecipientStatus[] = [
+  "delivered",
+  "opened",
+  "clicked",
+  "bounced",
+  "complained",
+  "read",
+  "suppressed",
+];
+
+/**
+ * Honest tracking note (Phase 2). "Sent" means only that the provider
+ * API accepted the message; delivery/open/click/read arrive from the
+ * Resend / Meta webhooks. When no recipient has a webhook-derived
+ * status yet, the UI says so plainly instead of showing a zero as if
+ * it were measured. Messages sent before the webhooks were registered
+ * never gain delivery data.
+ */
+function TrackingNote({
+  recipients,
+  channel,
+}: {
+  recipients: RecipientRow[];
+  channel: Channel;
+}) {
+  const hasTracking = recipients.some((r) =>
+    WEBHOOK_DERIVED_STATUSES.includes(r.status)
+  );
+  if (!hasTracking) {
+    return (
+      <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+        Tracking unavailable — no delivery events received yet for this
+        campaign. Delivery, open, click and read data arrive from the
+        Resend / Meta webhooks once they are configured; messages sent
+        before the webhooks were registered have no delivery data.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+      “Sent” means the provider accepted the message.{" "}
+      {channel === "email"
+        ? "Opens are estimated — Apple Mail Privacy Protection pre-loads images, so an open does not prove a human read it."
+        : "Read only appears when the recipient has WhatsApp read receipts on — no read status proves nothing."}
+    </p>
   );
 }
 
@@ -840,6 +923,7 @@ export function CampaignsClient() {
                     {c.status === "sent" && (
                       <span className="text-xs text-[var(--color-muted-foreground)]">
                         {c.stats.sent} sent · {c.stats.failed} failed · {c.stats.skipped} skipped
+                        {c.stats.delivered > 0 && <> · {c.stats.delivered} delivered</>}
                       </span>
                     )}
                     <Button variant="outline" size="sm" onClick={() => openDetail(c.id)}>
@@ -862,7 +946,10 @@ export function CampaignsClient() {
                           <Spinner size="sm" label="" /> Loading results…
                         </p>
                       ) : detail ? (
-                        <RecipientTable recipients={detail.recipients} statusFilter="all" />
+                        <>
+                          <RecipientTable recipients={detail.recipients} statusFilter="all" />
+                          <TrackingNote recipients={detail.recipients} channel={c.channel} />
+                        </>
                       ) : null}
                     </div>
                   )}
@@ -999,6 +1086,13 @@ export function CampaignsClient() {
             <select value={logStatus} onChange={(e) => setLogStatus(e.target.value as "all" | RecipientStatus)} className={cn(inputCls, "w-44")}>
               <option value="all">All recipient statuses</option>
               <option value="sent">Sent</option>
+              <option value="delivered">Delivered</option>
+              <option value="opened">Opened</option>
+              <option value="clicked">Clicked</option>
+              <option value="read">Read</option>
+              <option value="bounced">Bounced</option>
+              <option value="complained">Complained</option>
+              <option value="suppressed">Suppressed</option>
               <option value="failed">Failed</option>
               <option value="skipped">Skipped</option>
             </select>

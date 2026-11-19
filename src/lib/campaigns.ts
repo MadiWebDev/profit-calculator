@@ -252,6 +252,14 @@ export interface RecipientCounts {
   sent: number;
   failed: number;
   skipped: number;
+  /** Webhook-derived totals (Phase 2) — 0 until a webhook lands. */
+  delivered: number;
+  opened: number;
+  clicked: number;
+  bounced: number;
+  complained: number;
+  read: number;
+  suppressed: number;
 }
 
 /**
@@ -264,7 +272,19 @@ export interface RecipientCounts {
 export function summarizeRecipients(
   recipients: { status: CampaignRecipientStatus }[]
 ): RecipientCounts {
-  const counts: RecipientCounts = { targeted: recipients.length, sent: 0, failed: 0, skipped: 0 };
+  const counts: RecipientCounts = {
+    targeted: recipients.length,
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    delivered: 0,
+    opened: 0,
+    clicked: 0,
+    bounced: 0,
+    complained: 0,
+    read: 0,
+    suppressed: 0,
+  };
   for (const r of recipients) counts[r.status]++;
   return counts;
 }
