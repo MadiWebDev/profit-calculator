@@ -35,6 +35,8 @@ const EnvSchema = z
     // ── Recommended (warn, don't fail) ─────────────────────────────────────
     ENCRYPTION_KEY: z.string().min(32).optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
+    /** Svix signing secret for Resend delivery webhooks (Phase 2). Optional — the webhook route answers 503 without it. */
+    RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
         // ── AI insights (OpenRouter + Groq; OpenAI removed) ────────────────
     AI_PROVIDER: z.enum(["openrouter", "groq"]).optional(),
     OPENROUTER_API_KEY: z.string().min(1).optional(),
@@ -59,6 +61,13 @@ const EnvSchema = z
     // ── Meta Ads ───────────────────────────────────────────────────────────
     META_APP_ID: z.string().min(1).optional(),
     META_APP_SECRET: z.string().min(1).optional(),
+    /**
+     * Verify token for the Meta WhatsApp webhook handshake (Phase 2):
+     * the value entered in the Meta App dashboard when registering
+     * /api/webhooks/whatsapp. Optional — the handshake answers 403
+     * without it. The POST signature check reuses META_APP_SECRET.
+     */
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional(),
 
     // ── TikTok Ads ─────────────────────────────────────────────────────────
     TIKTOK_APP_ID: z.string().min(1).optional(),
@@ -97,6 +106,8 @@ const RECOMMENDED_VARS: Array<{ key: string; description: string }> = [
   { key: "ENCRYPTION_KEY", description: "AES-256 key — OAuth tokens stored unencrypted without it" },
   { key: "CRON_SECRET", description: "Cron endpoints (Vercel Cron) — cron routes return 500 without it" },
   { key: "RESEND_API_KEY", description: "Transactional email (invites, alerts, receipts)" },
+  { key: "RESEND_WEBHOOK_SECRET", description: "Resend delivery webhooks (Svix) — campaign tracking answers 503 without it" },
+  { key: "WHATSAPP_WEBHOOK_VERIFY_TOKEN", description: "Meta WhatsApp webhook handshake token — registration fails without it" },
   { key: "OPENROUTER_API_KEY / GROQ_API_KEY", description: "AI insights via OpenRouter or Groq (Growth/Pro feature)" },
   { key: "NEXT_PUBLIC_SITE_URL", description: "Public site URL — used in emails and checkout success URLs" },
   { key: "SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET", description: "Shopify store OAuth" },

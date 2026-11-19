@@ -175,3 +175,35 @@ export async function recordWebhookEvent(
     throw err;
   }
 }
+
+let indexesEnsured: Promise<void> | null = null;
+
+/**
+ * Make sure the dedup indexes exist BEFORE the first webhook insert
+ * (Phase 2). Mongoose builds indexes in the background, and an insert
+ * that lands before the unique index exists does not raise
+ * duplicate-key — worse, a duplicate that lands during the build then
+ * fails the build itself, so the unique index never appears at all
+ * (caught by the Phase 2 smoke: a redelivery was processed twice and
+ * the smoke DB had no unique index on providerEventId). Awaiting
+ * syncIndexes() once per server instance closes that race: the first
+ * webhook's insert happens only after the indexes exist. Later calls
+ * are a no-op (the cached promise). The `npm run db:indexes` script
+ * still exists for operators who want the indexes without waiting for
+ * the first webhook — this is the runtime backstop, not a replacement.
+ */
+export function ensureMessageEventIndexes(): Promise<void> {
+  if (!indexesEnsured) {
+    indexesEnsured = (async () => {
+      await MessageEventModel.syncIndexes();
+      await ProviderWebhookEventModel.syncIndexes();
+    })().catch((err) => {
+      // A failed sync must not wedge the server forever: clear the
+      // cache so the next webhook retries, then rethrow so the caller
+      // answers 500 (the provider retries the delivery).
+      indexesEnsured = null;
+      throw err;
+    });
+  }
+  return indexesEnsured;
+}
