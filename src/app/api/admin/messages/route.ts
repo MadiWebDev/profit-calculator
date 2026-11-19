@@ -7,7 +7,8 @@ import mongoose from "mongoose";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import SupportMessageModel from "@/models/SupportMessage";
-import { logAudit } from "@/lib/audit";
+import { logAdminAudit } from "@/lib/audit";
+import { withRateLimit } from "@/lib/rate-limit";
 import {
   parseMessagesQuery,
   buildMessagesFilter,
@@ -25,27 +26,15 @@ async function requireSuperAdmin() {
   return session;
 }
 
-/**
- * Audit entries need a real teamId + userId. The superAdmin's session
- * carries both when they belong to a team; when it doesn't (team-less
- * superAdmin), skip the audit entry instead of writing a broken one —
- * logAudit itself never throws, but the ObjectId cast before it would.
- */
-function auditIds(session: Awaited<ReturnType<typeof requireSuperAdmin>>) {
-  if (!session?.user) return null;
-  const user = session.user as { id?: string; teamId?: string };
-  if (!user.id || !user.teamId) return null;
-  if (!mongoose.isValidObjectId(user.id) || !mongoose.isValidObjectId(user.teamId)) return null;
-  return {
-    teamId: new mongoose.Types.ObjectId(user.teamId),
-    userId: new mongoose.Types.ObjectId(user.id),
-  };
-}
-
 // ── GET /api/admin/messages ───────────────────────────────────────────────────
 export async function GET(req: Request) {
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(req, "standard", `messages-list:${adminId}`);
+  if (rl) return rl;
 
   const query = parseMessagesQuery(new URL(req.url).searchParams);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -85,6 +74,11 @@ export async function PATCH(req: Request) {
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(req, "standard", `messages-status:${adminId}`);
+  if (rl) return rl;
+
   let body: unknown;
   try {
     body = await req.json();
@@ -116,17 +110,15 @@ export async function PATCH(req: Request) {
 
   if (!updated) return NextResponse.json({ error: "Message not found" }, { status: 404 });
 
-  const ids = auditIds(session);
-  if (ids) {
-    await logAudit({
-      ...ids,
-      action: "support.status_changed",
-      description: `Changed support message ${messageId} status to ${status}`,
-      resourceType: "SupportMessage",
-      resourceId: messageId,
-      metadata: { status },
-    });
-  }
+  await logAdminAudit({
+    req,
+    session,
+    action: "support.status_changed",
+    description: `Changed support message ${messageId} status to ${status}`,
+    resourceType: "SupportMessage",
+    resourceId: messageId,
+    metadata: { status },
+  });
 
   return NextResponse.json({ success: true, message: serializeMessage(updated) });
 }

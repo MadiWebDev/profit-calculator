@@ -8,6 +8,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import CampaignModel, { type ICampaignRecipient } from "@/models/Campaign";
 import { requireSuperAdmin } from "@/lib/admin-auth";
+import { withRateLimit } from "@/lib/rate-limit";
 
 export async function GET(
   _req: NextRequest,
@@ -15,6 +16,11 @@ export async function GET(
 ) {
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(_req, "standard", `campaign-detail:${adminId}`);
+  if (rl) return rl;
 
   const { id } = await context.params;
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -51,6 +57,7 @@ export async function GET(
       status: r.status,
       error: r.error ?? null,
       sentAt: r.sentAt?.toISOString() ?? null,
+      providerMessageId: r.providerMessageId ?? null,
     })),
     createdBy: campaign.createdBy
       ? {

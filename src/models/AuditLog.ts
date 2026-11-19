@@ -33,6 +33,8 @@ export type AuditAction =
   | "webhook.deleted"
   | "campaign.created"
   | "campaign.sent"
+  | "campaign.resent"
+  | "campaign.cancelled"
   | "support.replied"
   | "support.status_changed";
 

@@ -8,13 +8,14 @@
  * is visible instead of silently vanishing (same contract as
  * renderTemplate() in src/lib/whatsapp.ts, which this reuses).
  */
-import mongoose from "mongoose";
+import mongoose, { type QueryFilter, type UpdateQuery } from "mongoose";
 import { renderTemplate, type TemplateVars } from "@/lib/whatsapp";
 import type {
   CampaignAudienceType,
   CampaignChannel,
   CampaignRecipientStatus,
   CampaignTemplateType,
+  ICampaign,
 } from "@/models/Campaign";
 
 /** Hard cap on recipients per send — a send can never run unbounded. */
@@ -25,6 +26,35 @@ export const CAMPAIGN_AUDIENCE_LIMIT_DEFAULT = 25;
 
 /** Hard cap on a "limited" audience — same bound as the per-send cap. */
 export const CAMPAIGN_AUDIENCE_LIMIT_MAX = 500;
+
+/**
+ * Campaign statuses a send may start from: a fresh draft, or a failed
+ * campaign being re-sent. A re-send resumes — recipients already
+ * recorded as "sent" are carried over and never re-sent (see the send
+ * route) — it is not a re-blast. "sending" and "sent" can never start
+ * a send.
+ */
+export const SENDABLE_CAMPAIGN_STATUSES = ["draft", "failed"] as const;
+
+/**
+ * Atomic send claim (the duplicate-send fix). The send route claims
+ * the campaign with a single findOneAndUpdate(filter, update) — one
+ * atomic operation — so two concurrent send requests cannot both pass
+ * the draft check: only the first claim matches a document, the second
+ * sees nothing and answers 409. Never claim with a read-then-save.
+ */
+export function buildSendClaimFilter(
+  campaignId: string
+): QueryFilter<ICampaign> {
+  return {
+    _id: new mongoose.Types.ObjectId(campaignId),
+    status: { $in: [...SENDABLE_CAMPAIGN_STATUSES] },
+  };
+}
+
+export function buildSendClaimUpdate(): UpdateQuery<ICampaign> {
+  return { $set: { status: "sending" }, $unset: { error: "" } };
+}
 
 export const CAMPAIGN_TEMPLATE_TYPES: {
   value: CampaignTemplateType;
@@ -215,6 +245,28 @@ export function computeAudienceEstimate(matched: number, withContact: number): {
     willSend: Math.min(withContact, CAMPAIGN_AUDIENCE_CAP),
     capped: Math.max(0, withContact - CAMPAIGN_AUDIENCE_CAP),
   };
+}
+
+export interface RecipientCounts {
+  targeted: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+}
+
+/**
+ * Count outcomes from the recipient array itself — the single source of
+ * truth for a campaign's stats, so a re-send's carried-over recipients
+ * and a mid-send partial save always agree with the stored totals.
+ * targeted is the number of recipients the campaign has an outcome
+ * for, not the size of the audience query.
+ */
+export function summarizeRecipients(
+  recipients: { status: CampaignRecipientStatus }[]
+): RecipientCounts {
+  const counts: RecipientCounts = { targeted: recipients.length, sent: 0, failed: 0, skipped: 0 };
+  for (const r of recipients) counts[r.status]++;
+  return counts;
 }
 
 /**

@@ -1,27 +1,43 @@
 /**
- * POST /api/admin/campaigns/[id]/send — send a draft campaign.
+ * POST /api/admin/campaigns/[id]/send — send a draft (or failed) campaign.
  *
- * superAdmin-only. Draft → sending → sent. Only a draft can be sent, and
- * the status flips to "sending" before the first message goes out, so a
- * double-click or retried request can never re-blast the audience.
+ * superAdmin-only. Draft/failed → sending → sent. The claim is ATOMIC:
+ * a single findOneAndUpdate() with a status condition (see
+ * buildSendClaimFilter in src/lib/campaigns.ts), so two concurrent send
+ * requests cannot both blast the audience — only the first claim
+ * matches, the second answers 409.
+ *
+ * Re-send resumes: a failed campaign can be sent again, and recipients
+ * already recorded as "sent" are carried over and never re-sent. The
+ * rest are retried. A campaign stranded in "sending" (the request died
+ * mid-send) is recovered via POST /api/admin/campaigns/[id]/cancel,
+ * which flips it to "failed" so it can be re-sent from its saved
+ * partial progress.
+ *
+ * Progress is persisted after every batch, not only at the end — a
+ * timeout or crash mid-send leaves the campaign's recipients and stats
+ * as far as they got, instead of an empty "sending" with nothing to
+ * show for it. A mid-send infrastructure failure marks the campaign
+ * "failed" WITH its accumulated per-recipient outcomes saved.
  *
  * Guardrails:
- * - Provider credentials are preflighted BEFORE any message is sent; a
- *   missing RESEND_API_KEY / WHATSAPP_* var answers 503 and the campaign
- *   stays a draft.
+ * - Provider credentials are preflighted BEFORE the claim; a missing
+ *   RESEND_API_KEY / WHATSAPP_* var answers 503 and the campaign is
+ *   untouched (still a draft / still failed).
  * - Audience is capped at CAMPAIGN_AUDIENCE_CAP (500) recipients per
- *   send, oldest users first; the overflow is reported, never sent.
- *   "limited" audiences target the N oldest users (N picked by the
- *   admin, 1–500, default 25); "users" audiences target exactly the
- *   users stored at create time — a user deleted between create and
- *   send is recorded as a skipped recipient with an error, never
- *   silently dropped.
- * - WhatsApp recipients without a phone number, or with a number that is
- *   not valid E.164, are recorded as "skipped" with the reason — never
- *   treated as failures, never retried silently.
+ *   send, oldest users first; the overflow is persisted in
+ *   stats.overflow, never sent. "limited" audiences target the N
+ *   oldest users (N picked by the admin, 1–500, default 25); "users"
+ *   audiences target exactly the users stored at create time — a user
+ *   deleted between create and send is recorded as a skipped recipient
+ *   with an error, never silently dropped.
+ * - WhatsApp recipients without a phone number, or with a number that
+ *   is not valid E.164, are recorded as "skipped" with the reason —
+ *   never treated as failures, never retried silently.
  * - Every recipient outcome is stored on the campaign with the
  *   provider's exact error text on failure (including Meta's template
- *   errors), and a "campaign.sent" audit entry records the totals.
+ *   errors) and the provider message id on success (Resend id, Meta
+ *   wamid) so webhook events can correlate back to it (Phase 2).
  * - Sends run in small batches (5 at a time) to bound provider pressure.
  *
  * No scheduling in v1 — this sends immediately when the admin confirms.
@@ -31,19 +47,23 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import CampaignModel, { type ICampaignRecipient } from "@/models/Campaign";
 import UserModel from "@/models/User";
-import { requireSuperAdmin, resolveAdminTeamId } from "@/lib/admin-auth";
+import { requireSuperAdmin } from "@/lib/admin-auth";
 import { withRateLimit } from "@/lib/rate-limit";
 import { fail } from "@/lib/validation";
-import { logAudit } from "@/lib/audit";
+import { logAdminAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
 import {
   buildAudienceFilter,
+  buildSendClaimFilter,
+  buildSendClaimUpdate,
   CAMPAIGN_AUDIENCE_CAP,
   findMissingUserIds,
   orderUsersByStoredIds,
   renderCampaignEmailHtml,
   resolveAudienceLimit,
   resolveCampaignSubject,
+  SENDABLE_CAMPAIGN_STATUSES,
+  summarizeRecipients,
 } from "@/lib/campaigns";
 import {
   sendCampaignEmail,
@@ -58,11 +78,13 @@ export async function POST(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const rl = await withRateLimit(_req, "strict", "campaign-send");
-  if (rl) return rl;
-
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(_req, "strict", `campaign-send:${adminId}`);
+  if (rl) return rl;
 
   const { id } = await context.params;
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -70,14 +92,15 @@ export async function POST(
   }
 
   await connectDB();
-  const campaign = await CampaignModel.findById(id);
-  if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
-  if (campaign.status !== "draft") {
-    return fail(`Campaign is ${campaign.status} and cannot be sent`, 409, "CAMPAIGN_NOT_DRAFT");
+  const existing = await CampaignModel.findById(id);
+  if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  if (!(SENDABLE_CAMPAIGN_STATUSES as readonly string[]).includes(existing.status)) {
+    return fail(`Campaign is ${existing.status} and cannot be sent`, 409, "CAMPAIGN_NOT_DRAFT");
   }
+  const wasFailed = existing.status === "failed";
 
   // Preflight: never start a send we cannot finish for credential reasons.
-  if (campaign.channel === "email" && !process.env.RESEND_API_KEY) {
+  if (existing.channel === "email" && !process.env.RESEND_API_KEY) {
     return fail(
       "RESEND_API_KEY is not configured — set it in production and try again. No message was sent.",
       503,
@@ -85,7 +108,7 @@ export async function POST(
     );
   }
   if (
-    campaign.channel === "whatsapp" &&
+    existing.channel === "whatsapp" &&
     (!process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID)
   ) {
     return fail(
@@ -95,9 +118,33 @@ export async function POST(
     );
   }
 
-  // Flip to "sending" first: a second send request now sees a non-draft.
-  campaign.status = "sending";
-  await campaign.save();
+  // Atomic claim: only one concurrent send can win this. A loser sees
+  // no document and answers 409 — the campaign is already sending.
+  const campaign = await CampaignModel.findOneAndUpdate(
+    buildSendClaimFilter(id),
+    buildSendClaimUpdate(),
+    { new: true }
+  );
+  if (!campaign) {
+    return fail("Campaign is already sending and cannot be sent again", 409, "CAMPAIGN_NOT_DRAFT");
+  }
+
+  // Resume: recipients already recorded as "sent" in a previous
+  // attempt are carried over and never re-sent. Keyed by user id when
+  // known, falling back to the identifier (deleted users have no id
+  // in the fetched set, so their carried-over row survives on the
+  // identifier key).
+  const previouslySent = new Map<string, ICampaignRecipient>();
+  for (const r of campaign.recipients ?? []) {
+    if (r.status !== "sent") continue;
+    previouslySent.set(r.userId?.toString() ?? r.identifier, r);
+  }
+  const carriedOver = [...previouslySent.values()];
+
+  // Deleted users (users audience only) are already recorded as
+  // skipped before the first message goes out.
+  const recipients: ICampaignRecipient[] = [...carriedOver];
+  let overflow = 0;
 
   try {
     // Audience: same base filter as the create-time estimate (no phone
@@ -117,12 +164,11 @@ export async function POST(
       audienceType: campaign.audienceType,
       audiencePlan: campaign.audiencePlan,
       audienceTeamId: campaign.audienceTeamId?.toString(),
-      audienceUserIds: (campaign.audienceUserIds ?? []).map((id: mongoose.Types.ObjectId) => id.toString()),
+      audienceUserIds: (campaign.audienceUserIds ?? []).map((uid: mongoose.Types.ObjectId) => uid.toString()),
       channel: "email",
     });
 
     let users;
-    let overflow = 0;
     let missingRecipients: ICampaignRecipient[] = [];
     if (isLimited) {
       const limit = resolveAudienceLimit(campaign.audienceLimit);
@@ -140,41 +186,44 @@ export async function POST(
         .lean();
       overflow = totalMatched > CAMPAIGN_AUDIENCE_CAP ? totalMatched - CAMPAIGN_AUDIENCE_CAP : 0;
       if (isUsers) {
-        const storedIds = (campaign.audienceUserIds ?? []).map((id: mongoose.Types.ObjectId) =>
-          id.toString()
+        const storedIds = (campaign.audienceUserIds ?? []).map((uid: mongoose.Types.ObjectId) =>
+          uid.toString()
         );
         users = orderUsersByStoredIds(users, storedIds);
         missingRecipients = findMissingUserIds(
           storedIds,
           users.map((u) => u._id.toString())
-        ).map((id) => ({
-          userId: new mongoose.Types.ObjectId(id),
-          identifier: id,
+        ).map((uid) => ({
+          userId: new mongoose.Types.ObjectId(uid),
+          identifier: uid,
           status: "skipped" as const,
           error: "User no longer exists",
         }));
       }
     }
+    recipients.push(...missingRecipients);
 
     const subject =
       campaign.channel === "email"
         ? resolveCampaignSubject(campaign.templateType, campaign.subject)
         : undefined;
 
-    // Deleted users (users audience only) are already recorded as
-    // skipped before the first message goes out.
-    const recipients: ICampaignRecipient[] = [...missingRecipients];
-    const counts = {
-      targeted: users.length + missingRecipients.length,
-      sent: 0,
-      failed: 0,
-      skipped: missingRecipients.length,
+    const persistProgress = async () => {
+      const counts = summarizeRecipients(recipients);
+      await CampaignModel.updateOne(
+        { _id: campaign._id },
+        { $set: { recipients, stats: { ...counts, overflow } } }
+      );
+      return counts;
     };
 
     for (let i = 0; i < users.length; i += SEND_BATCH_SIZE) {
       const batch = users.slice(i, i + SEND_BATCH_SIZE);
       const outcomes = await Promise.all(
-        batch.map(async (user): Promise<ICampaignRecipient> => {
+        batch.map(async (user): Promise<ICampaignRecipient | null> => {
+          // Already sent in a previous attempt — carried over, never re-sent.
+          if (previouslySent.has(user._id.toString())) return null;
+
           const identifier =
             campaign.channel === "email" ? user.email : (user.phone ?? "").trim();
           const base: ICampaignRecipient = {
@@ -196,18 +245,28 @@ export async function POST(
               user.name ?? ""
             );
             if (result.ok) {
-              return { ...base, status: "sent", sentAt: new Date() };
+              return {
+                ...base,
+                status: "sent",
+                sentAt: new Date(),
+                ...(result.messageId ? { providerMessageId: result.messageId } : {}),
+              };
             }
             return { ...base, status: "failed", error: (result.error ?? "WhatsApp send failed").slice(0, 500) };
           }
 
           try {
-            await sendCampaignEmail(
+            const messageId = await sendCampaignEmail(
               user.email,
               subject ?? "",
               renderCampaignEmailHtml(campaign.body, user.name ?? "")
             );
-            return { ...base, status: "sent", sentAt: new Date() };
+            return {
+              ...base,
+              status: "sent",
+              sentAt: new Date(),
+              ...(messageId ? { providerMessageId: messageId } : {}),
+            };
           } catch (e) {
             return {
               ...base,
@@ -218,48 +277,60 @@ export async function POST(
         })
       );
       for (const outcome of outcomes) {
-        recipients.push(outcome);
-        counts[outcome.status === "sent" ? "sent" : outcome.status === "failed" ? "failed" : "skipped"]++;
+        if (outcome) recipients.push(outcome);
       }
+      // Persist after every batch: a timeout or crash mid-send leaves
+      // the progress made so far, not an empty "sending".
+      await persistProgress();
     }
 
-    campaign.recipients = recipients;
-    campaign.stats = counts;
-    campaign.status = "sent";
-    campaign.sentAt = new Date();
-    await campaign.save();
+    const counts = summarizeRecipients(recipients);
+    const stats = { ...counts, overflow };
+    await CampaignModel.updateOne(
+      { _id: campaign._id },
+      { $set: { recipients, stats, status: "sent", sentAt: new Date() } }
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const adminId = (session.user as any)?.id as string;
-    const teamId = await resolveAdminTeamId(session);
-    if (teamId) {
-      await logAudit({
-        teamId,
-        userId: adminId,
-        action: "campaign.sent",
-        description:
-          `Sent campaign "${campaign.name}" (${campaign.channel}): ` +
-          `${counts.sent} sent, ${counts.failed} failed, ${counts.skipped} skipped of ${counts.targeted} targeted` +
-          (overflow > 0 ? ` (${overflow} over the ${CAMPAIGN_AUDIENCE_CAP} cap, not sent)` : ""),
-        resourceType: "Campaign",
-        resourceId: campaign._id.toString(),
-        metadata: { ...counts, overflow, channel: campaign.channel, templateType: campaign.templateType },
-      });
-    }
+    await logAdminAudit({
+      req: _req,
+      session,
+      action: wasFailed ? "campaign.resent" : "campaign.sent",
+      description:
+        `${wasFailed ? "Re-sent" : "Sent"} campaign "${campaign.name}" (${campaign.channel}): ` +
+        `${counts.sent} sent, ${counts.failed} failed, ${counts.skipped} skipped of ${counts.targeted} targeted` +
+        (carriedOver.length > 0 ? ` (${carriedOver.length} already sent in a previous attempt, not re-sent)` : "") +
+        (overflow > 0 ? ` (${overflow} over the ${CAMPAIGN_AUDIENCE_CAP} cap, not sent)` : ""),
+      resourceType: "Campaign",
+      resourceId: campaign._id.toString(),
+      metadata: { ...counts, overflow, resumed: carriedOver.length, channel: campaign.channel, templateType: campaign.templateType },
+    });
 
     return NextResponse.json({
       success: true,
       id: campaign._id.toString(),
       status: "sent",
-      stats: counts,
+      stats,
       overflow,
+      resumed: carriedOver.length,
       audienceCap: CAMPAIGN_AUDIENCE_CAP,
     });
   } catch (err) {
     logger.error("campaign send failed", toLogError(err));
-    campaign.status = "failed";
-    campaign.error = (err instanceof Error ? err.message : "Campaign send failed").slice(0, 500);
-    await campaign.save().catch(() => undefined);
+    // Save the progress made so far — the per-recipient outcomes are
+    // evidence, and the campaign must be re-sendable from them, not
+    // left as an empty "sending" or a "failed" with nothing recorded.
+    const counts = summarizeRecipients(recipients);
+    await CampaignModel.updateOne(
+      { _id: campaign._id },
+      {
+        $set: {
+          recipients,
+          stats: { ...counts, overflow },
+          status: "failed",
+          error: (err instanceof Error ? err.message : "Campaign send failed").slice(0, 500),
+        },
+      }
+    ).catch(() => undefined);
     return fail("Campaign send failed partway — check the campaign for per-recipient results", 500, "CAMPAIGN_SEND_FAILED");
   }
 }
