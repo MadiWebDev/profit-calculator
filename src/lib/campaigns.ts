@@ -28,6 +28,104 @@ export const CAMPAIGN_AUDIENCE_LIMIT_DEFAULT = 25;
 export const CAMPAIGN_AUDIENCE_LIMIT_MAX = 500;
 
 /**
+ * Escape a free-text search term for use inside a Mongo $regex, so a
+ * user typing `[` or `*` in the campaign search gets a literal match
+ * instead of a regex error (or a ReDoS-shaped pattern).
+ */
+export function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export interface CampaignListQuery {
+  q?: string;
+  status?: string;
+  channel?: string;
+  templateType?: string;
+  from?: string;
+  to?: string;
+  sort?: string;
+  order?: string;
+  archived?: string;
+}
+
+const LIST_STATUSES = ["draft", "sending", "sent", "failed"];
+const LIST_CHANNELS = ["email", "whatsapp"];
+const LIST_TEMPLATE_TYPES = [
+  "announcement",
+  "product_update",
+  "trial_ending",
+  "billing_notice",
+  "feature_launch",
+];
+
+/**
+ * Build the Mongo filter + sort for the campaign list (Phase 3). Pure,
+ * so the DB suite can prove the filter against real documents. Returns
+ * `{ error }` on invalid input (the route answers 400 with it).
+ *
+ * - q: free-text search over name + body (regex-escaped).
+ * - from/to: activity date (sentAt when sent, createdAt while a draft)
+ *   — the same anchor as the stats route, so the list and the KPIs
+ *   agree. "to" is an inclusive day.
+ * - archived: "true" | "false" (default — hidden) | "all".
+ */
+export function buildCampaignListFilter(query: CampaignListQuery): {
+  filter: Record<string, unknown>;
+  sort: Record<string, 1 | -1>;
+  error?: string;
+} {
+  const { q, status, channel, templateType, from, to } = query;
+  const sortKey = query.sort ?? "createdAt";
+  const sortOrder = query.order ?? "desc";
+  const archived = query.archived ?? "false";
+  if (status && !LIST_STATUSES.includes(status)) return { filter: {}, sort: {}, error: "Invalid status" };
+  if (channel && !LIST_CHANNELS.includes(channel)) return { filter: {}, sort: {}, error: "Invalid channel" };
+  if (templateType && !LIST_TEMPLATE_TYPES.includes(templateType)) {
+    return { filter: {}, sort: {}, error: "Invalid templateType" };
+  }
+  if (!["createdAt", "sentAt", "name"].includes(sortKey) || !["asc", "desc"].includes(sortOrder)) {
+    return { filter: {}, sort: {}, error: "Invalid sort" };
+  }
+  if (!["true", "false", "all"].includes(archived)) {
+    return { filter: {}, sort: {}, error: "Invalid archived" };
+  }
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+  if (
+    (from && (!fromDate || Number.isNaN(fromDate.getTime()))) ||
+    (to && (!toDate || Number.isNaN(toDate.getTime()))) ||
+    (fromDate && toDate && fromDate > toDate)
+  ) {
+    return { filter: {}, sort: {}, error: "Invalid from/to" };
+  }
+
+  const filter: Record<string, unknown> = {};
+  if (archived === "true") filter.archived = true;
+  else if (archived === "false") filter.archived = { $ne: true };
+  if (q) {
+    const escaped = escapeRegex(q);
+    filter.$or = [
+      { name: { $regex: escaped, $options: "i" } },
+      { body: { $regex: escaped, $options: "i" } },
+    ];
+  }
+  if (status) filter.status = status;
+  if (channel) filter.channel = channel;
+  if (templateType) filter.templateType = templateType;
+  const exprs: Record<string, unknown>[] = [];
+  if (fromDate) {
+    exprs.push({ $gte: [{ $ifNull: ["$sentAt", "$createdAt"] }, fromDate] });
+  }
+  if (toDate) {
+    const toEnd = new Date(toDate.getTime() + 24 * 60 * 60 * 1000);
+    exprs.push({ $lt: [{ $ifNull: ["$sentAt", "$createdAt"] }, toEnd] });
+  }
+  if (exprs.length > 0) filter.$expr = { $and: exprs };
+
+  return { filter, sort: { [sortKey]: sortOrder === "asc" ? 1 : -1 } };
+}
+
+/**
  * Campaign statuses a send may start from: a fresh draft, or a failed
  * campaign being re-sent. A re-send resumes — recipients already
  * recorded as "sent" are carried over and never re-sent (see the send

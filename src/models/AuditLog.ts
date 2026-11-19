@@ -35,6 +35,11 @@ export type AuditAction =
   | "campaign.sent"
   | "campaign.resent"
   | "campaign.cancelled"
+  | "campaign.duplicated"
+  | "campaign.edited"
+  | "campaign.deleted"
+  | "campaign.bulk_archived"
+  | "suppression.removed"
   | "support.replied"
   | "support.status_changed";
 

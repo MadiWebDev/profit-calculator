@@ -120,6 +120,15 @@ export interface ICampaign extends Document {
    */
   audienceLimit?: number;
   status: CampaignStatus;
+  /**
+   * Phase 3: soft-archive. An archived campaign is hidden from the
+   * default list (and can never be sent — the send claim only accepts
+   * draft/failed), but its records, recipients, and delivery history
+   * are preserved. Unarchive restores it to the list. This is a flag,
+   * not a status value, so the lifecycle enum stays untouched.
+   */
+  archived?: boolean;
+  archivedAt?: Date;
   createdBy: mongoose.Types.ObjectId;
   /** Totals from the last send attempt (0 while a draft). */
   stats: {
@@ -225,11 +234,14 @@ const CampaignSchema = new Schema<ICampaign>(
     error: { type: String, maxlength: 500 },
     recipients: { type: [CampaignRecipientSchema], default: [] },
     sentAt: Date,
+    archived: { type: Boolean, default: false },
+    archivedAt: Date,
   },
   { timestamps: true }
 );
 
 CampaignSchema.index({ createdAt: -1 });
 CampaignSchema.index({ createdBy: 1, createdAt: -1 });
+CampaignSchema.index({ archived: 1, createdAt: -1 });
 
 export default models.Campaign || model<ICampaign>("Campaign", CampaignSchema);
