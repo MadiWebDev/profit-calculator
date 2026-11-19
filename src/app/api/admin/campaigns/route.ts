@@ -10,10 +10,10 @@ import { connectDB } from "@/lib/db";
 import CampaignModel from "@/models/Campaign";
 import TeamModel from "@/models/Team";
 import UserModel from "@/models/User";
-import { requireSuperAdmin, resolveAdminTeamId } from "@/lib/admin-auth";
+import { requireSuperAdmin } from "@/lib/admin-auth";
 import { withRateLimit } from "@/lib/rate-limit";
 import { parseBody, fail, objectIdString } from "@/lib/validation";
-import { logAudit } from "@/lib/audit";
+import { logAdminAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
 import {
   buildAudienceFilter,
@@ -55,6 +55,11 @@ const CreateSchema = z
 export async function GET(req: Request) {
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(req, "standard", `campaigns-list:${adminId}`);
+  if (rl) return rl;
 
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
@@ -112,11 +117,13 @@ export async function GET(req: Request) {
 // Creates a DRAFT only. Response includes the audience estimate so the
 // admin sees who will (and will not) receive it before hitting Send.
 export async function POST(req: Request) {
-  const rl = await withRateLimit(req, "strict", "campaign-create");
-  if (rl) return rl;
-
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(req, "strict", `campaign-create:${adminId}`);
+  if (rl) return rl;
 
   const parsed = await parseBody(req, CreateSchema);
   if ("response" in parsed) return parsed.response;
@@ -173,8 +180,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const adminId = (session.user as any)?.id as string;
     const campaign = await CampaignModel.create({
       name: data.name,
       channel: data.channel,
@@ -234,18 +239,15 @@ export async function POST(req: Request) {
     }
     const audience = computeAudienceEstimate(matched, withContact);
 
-    const teamId = await resolveAdminTeamId(session);
-    if (teamId) {
-      await logAudit({
-        teamId,
-        userId: adminId,
-        action: "campaign.created",
-        description: `Created campaign draft "${data.name}" (${data.channel}, ${data.audienceType})`,
-        resourceType: "Campaign",
-        resourceId: campaign._id.toString(),
-        metadata: { channel: data.channel, audienceType: data.audienceType, matched, withContact },
-      });
-    }
+    await logAdminAudit({
+      req,
+      session,
+      action: "campaign.created",
+      description: `Created campaign draft "${data.name}" (${data.channel}, ${data.audienceType})`,
+      resourceType: "Campaign",
+      resourceId: campaign._id.toString(),
+      metadata: { channel: data.channel, audienceType: data.audienceType, matched, withContact },
+    });
 
     return NextResponse.json(
       {

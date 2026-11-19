@@ -24,6 +24,7 @@ import {
 } from "@/lib/campaigns";
 import {
   extractMetaErrorText,
+  extractMetaMessageId,
   sendCampaignEmail,
   sendWhatsAppTemplateMessage,
 } from "@/lib/campaign-send";
@@ -372,6 +373,18 @@ describe("sendCampaignEmail (injected sender — no real send)", () => {
       sendCampaignEmail("user@example.com", "Hello", "<p>Hi</p>", impl)
     ).rejects.toThrow("Resend boom");
   });
+
+  it("returns the Resend message id so the route can store it for webhook correlation", async () => {
+    const impl = vi.fn().mockResolvedValue({ id: "re_abc123" });
+    const id = await sendCampaignEmail("user@example.com", "Hello", "<p>Hi</p>", impl);
+    expect(id).toBe("re_abc123");
+  });
+
+  it("returns undefined when the sender reports no id", async () => {
+    const impl = vi.fn().mockResolvedValue(undefined);
+    const id = await sendCampaignEmail("user@example.com", "Hello", "<p>Hi</p>", impl);
+    expect(id).toBeUndefined();
+  });
 });
 
 describe("extractMetaErrorText", () => {
@@ -455,5 +468,35 @@ describe("sendWhatsAppTemplateMessage (mocked fetch — no real send)", () => {
     expect(result.ok).toBe(false);
     expect(result.skipped).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns Meta's message id (wamid) so the route can store it for webhook correlation", async () => {
+    setupEnv();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ messages: [{ id: "wamid.abc123" }] }),
+    });
+    const result = await sendWhatsAppTemplateMessage(
+      "+923001234567",
+      "november_launch",
+      "Ayesha Khan",
+      fetchMock as unknown as typeof fetch
+    );
+    expect(result).toEqual({ ok: true, messageId: "wamid.abc123" });
+  });
+});
+
+describe("extractMetaMessageId", () => {
+  it("pulls the wamid out of a Graph API send response", () => {
+    expect(
+      extractMetaMessageId(JSON.stringify({ messages: [{ id: "wamid.abc" }] }))
+    ).toBe("wamid.abc");
+  });
+
+  it("returns undefined when the body carries no id, instead of throwing", () => {
+    expect(extractMetaMessageId("")).toBeUndefined();
+    expect(extractMetaMessageId("{}")).toBeUndefined();
+    expect(extractMetaMessageId("not json")).toBeUndefined();
+    expect(extractMetaMessageId(JSON.stringify({ messages: [] }))).toBeUndefined();
   });
 });

@@ -15,6 +15,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import CampaignModel from "@/models/Campaign";
 import { requireSuperAdmin } from "@/lib/admin-auth";
+import { withRateLimit } from "@/lib/rate-limit";
 import { buildLastMessageMap, type LastMessageRow } from "@/lib/campaigns";
 
 const MAX_USER_IDS = 100;
@@ -22,6 +23,11 @@ const MAX_USER_IDS = 100;
 export async function GET(req: Request) {
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(req, "standard", `campaign-last-message:${adminId}`);
+  if (rl) return rl;
 
   const raw = new URL(req.url).searchParams.get("userIds") ?? "";
   const ids = raw

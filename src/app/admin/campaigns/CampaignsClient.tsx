@@ -431,7 +431,7 @@ export function CampaignsClient() {
       }
       flash(
         "ok",
-        `Sent: ${s.sent} delivered, ${s.failed} failed, ${s.skipped} skipped of ${s.targeted} targeted` +
+        `Sent: ${s.sent} sent, ${s.failed} failed, ${s.skipped} skipped of ${s.targeted} targeted` +
         `${j.overflow ? ` (${j.overflow} over the cap were not sent)` : ""}.` +
         reason +
         (s.failed > 0 || s.skipped > 0 ? " Full per-recipient reasons are in Results below." : "")

@@ -6,20 +6,29 @@ import mongoose, { Schema, Document, model, models } from "mongoose";
  *
  * Lifecycle: draft → sending → sent (or failed when the send could not
  * start at all, e.g. provider credentials missing). A campaign is sent
- * at most once: only drafts can be sent, and the send route flips the
- * status to "sending" before any message goes out, so a double-click or
- * a retried request cannot re-blast the audience.
+ * at most once per attempt: only drafts and failed campaigns can be
+ * sent, and the send route claims the campaign atomically (see
+ * buildSendClaimFilter in src/lib/campaigns.ts), so two concurrent
+ * send requests cannot both blast the audience. A failed campaign can
+ * be re-sent: recipients already recorded as "sent" are carried over
+ * and never re-sent, the rest are retried — the resume, not a re-blast.
+ * A campaign stranded in "sending" (request died mid-send) is
+ * recovered via POST /api/admin/campaigns/[id]/cancel, which flips it
+ * to "failed" so it can be re-sent from its saved partial progress.
  *
  * Per-recipient outcomes are stored on the campaign itself so the admin
  * can see exactly who got the message, who failed (with the provider's
  * error text), and who was skipped (no phone number on file for
- * WhatsApp, or an invalid one). Recipient identifiers are stored
- * unmasked — this collection is superAdmin-only.
+ * WhatsApp, or an invalid one). providerMessageId is the id the
+ * provider assigned at send time (Resend id, Meta wamid) — the key
+ * webhook events correlate back to this recipient (Phase 2).
+ * Recipient identifiers are stored unmasked — this collection is
+ * superAdmin-only.
  *
  * Audience cap: at most CAMPAIGN_AUDIENCE_CAP recipients per send
- * (see src/lib/campaigns.ts). Anything above the cap is never sent.
- * No scheduling in v1 — a send happens immediately when the admin
- * confirms it.
+ * (see src/lib/campaigns.ts). Anything above the cap is never sent;
+ * the over-cap count is persisted in stats.overflow. No scheduling
+ * in v1 — a send happens immediately when the admin confirms it.
  */
 export type CampaignChannel = "email" | "whatsapp";
 
@@ -44,6 +53,8 @@ export interface ICampaignRecipient {
   /** Provider error text for "failed", or the skip reason for "skipped". */
   error?: string;
   sentAt?: Date;
+  /** Provider-assigned message id (Resend id / Meta wamid), when sent. */
+  providerMessageId?: string;
 }
 
 export interface ICampaign extends Document {
@@ -85,6 +96,8 @@ export interface ICampaign extends Document {
     sent: number;
     failed: number;
     skipped: number;
+    /** Recipients over the 500 cap that were never sent. */
+    overflow: number;
   };
   /** Top-level send failure (e.g. provider not configured at send time). */
   error?: string;
@@ -105,6 +118,8 @@ const CampaignRecipientSchema = new Schema<ICampaignRecipient>(
     },
     error: { type: String, maxlength: 500 },
     sentAt: Date,
+    /** Provider-assigned message id (Resend id / Meta wamid), when sent. */
+    providerMessageId: { type: String, maxlength: 128 },
   },
   { _id: false }
 );
@@ -138,6 +153,7 @@ const CampaignSchema = new Schema<ICampaign>(
       sent: { type: Number, default: 0 },
       failed: { type: Number, default: 0 },
       skipped: { type: Number, default: 0 },
+      overflow: { type: Number, default: 0 },
     },
     error: { type: String, maxlength: 500 },
     recipients: { type: [CampaignRecipientSchema], default: [] },

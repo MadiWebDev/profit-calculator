@@ -11,7 +11,8 @@ import mongoose from "mongoose";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import SupportMessageModel from "@/models/SupportMessage";
-import { logAudit } from "@/lib/audit";
+import { logAdminAudit } from "@/lib/audit";
+import { withRateLimit } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 import { sendSupportReplyEmail } from "@/lib/email";
 import { SUPPORT_TOPIC_LABELS, type SupportTopic } from "@/lib/support";
@@ -31,21 +32,15 @@ async function requireSuperAdmin() {
   return session;
 }
 
-function auditIds(session: Awaited<ReturnType<typeof requireSuperAdmin>>) {
-  if (!session?.user) return null;
-  const user = session.user as { id?: string; teamId?: string };
-  if (!user.id || !user.teamId) return null;
-  if (!mongoose.isValidObjectId(user.id) || !mongoose.isValidObjectId(user.teamId)) return null;
-  return {
-    teamId: new mongoose.Types.ObjectId(user.teamId),
-    userId: new mongoose.Types.ObjectId(user.id),
-  };
-}
-
 // ── GET /api/admin/messages/[id] ──────────────────────────────────────────────
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(_req, "standard", `message-detail:${adminId}`);
+  if (rl) return rl;
 
   const { id } = await params;
   if (!mongoose.isValidObjectId(id)) {
@@ -64,6 +59,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSuperAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminId = (session.user as any)?.id as string;
+  const rl = await withRateLimit(req, "standard", `message-reply:${adminId}`);
+  if (rl) return rl;
 
   const { id } = await params;
   if (!mongoose.isValidObjectId(id)) {
@@ -111,17 +111,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   doc.status = "replied";
   await doc.save();
 
-  const ids = auditIds(session);
-  if (ids) {
-    await logAudit({
-      ...ids,
-      action: "support.replied",
-      description: `Replied to support message from ${doc.email} (${SUPPORT_TOPIC_LABELS[doc.topic as SupportTopic]})`,
-      resourceType: "SupportMessage",
-      resourceId: id,
-      metadata: { topic: doc.topic },
-    });
-  }
+  await logAdminAudit({
+    req,
+    session,
+    action: "support.replied",
+    description: `Replied to support message from ${doc.email} (${SUPPORT_TOPIC_LABELS[doc.topic as SupportTopic]})`,
+    resourceType: "SupportMessage",
+    resourceId: id,
+    metadata: { topic: doc.topic },
+  });
 
   return NextResponse.json({ success: true, message: serializeMessage(doc.toObject()) });
 }

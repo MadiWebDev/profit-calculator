@@ -21,8 +21,9 @@ export async function requireSuperAdmin() {
 /**
  * Resolve the admin's teamId for audit-log entries (AuditLog.teamId is
  * required). Prefers the teamId on the session, falls back to the User
- * document. Returns null when the admin has no team — callers skip the
- * audit entry in that case rather than failing the request.
+ * document. Returns null when the admin has no team — logAdminAudit()
+ * in src/lib/audit.ts scopes the entry to the admin's own user id in
+ * that case, so the entry is never silently skipped.
  */
 export async function resolveAdminTeamId(
   session: Awaited<ReturnType<typeof requireSuperAdmin>>

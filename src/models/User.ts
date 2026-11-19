@@ -29,6 +29,17 @@ export interface IUser extends Document {
    */
   phone?: string;
   /**
+   * Marketing opt-out timestamps (campaign system, Phase 1). Absence
+   * means no opt-out is recorded — it is NOT consent, and Phase 1 only
+   * records these fields; send-time enforcement lands with the
+   * suppression system (Phase 5), so no recipient is silently excluded
+   * before the enforcement + UI exist to explain it. Set when the user
+   * unsubscribes (one-click link, reply, or admin action); cleared
+   * only by an explicit re-subscribe.
+   */
+  emailUnsubscribedAt?: Date;
+  whatsappUnsubscribedAt?: Date;
+  /**
    * Personal display currency (ISO 4217, e.g. "PKR") the user picks in
    * Dashboard → Settings → Profile. This is the user-level preference:
    * when set it wins over the team workspace currency, the browser's
@@ -92,6 +103,8 @@ const UserSchema = new Schema<IUser>(
     trialEndsAt: Date,
     onboardingCompleted: { type: Boolean, default: false },
     phone: { type: String, trim: true, maxlength: 20 },
+    emailUnsubscribedAt: Date,
+    whatsappUnsubscribedAt: Date,
     displayCurrency: { type: String, trim: true, uppercase: true, match: /^[A-Z]{3}$/ },
     timezone: { type: String, trim: true, match: /^(UTC|[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+)+)$/ },
     failedLoginAttempts: { type: Number, default: 0 },
