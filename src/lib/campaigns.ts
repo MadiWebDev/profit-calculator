@@ -471,3 +471,43 @@ export function buildLastMessageMap(rows: LastMessageRow[]): Record<string, Last
   }
   return map;
 }
+
+export interface DirectLastMessageRow {
+  userId: string;
+  directId: string;
+  channel: CampaignChannel;
+  status: "sent" | "failed";
+  /** ISO date the direct message went out (sentAt, falling back to createdAt). */
+  sentAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * Merge direct messages into the per-user latest-message map. A direct
+ * message counts as the user's last message too: the newer of the
+ * campaign row and the direct row wins per user, so a user messaged
+ * only directly shows "Direct message" instead of "No messages sent
+ * yet". Mutates and returns the map.
+ */
+export function applyDirectMessagesToLastMessageMap(
+  map: Record<string, LastMessageRow>,
+  directRows: DirectLastMessageRow[]
+): Record<string, LastMessageRow> {
+  for (const d of directRows) {
+    if (!d.userId) continue;
+    const directAt = new Date(d.sentAt ?? d.createdAt).getTime();
+    const existing = map[d.userId];
+    const existingAt = existing?.sentAt ? new Date(existing.sentAt).getTime() : -Infinity;
+    if (!existing || directAt > existingAt) {
+      map[d.userId] = {
+        userId: d.userId,
+        campaignId: d.directId,
+        campaignName: "Direct message",
+        channel: d.channel,
+        status: d.status,
+        sentAt: d.sentAt ?? d.createdAt,
+      };
+    }
+  }
+  return map;
+}
