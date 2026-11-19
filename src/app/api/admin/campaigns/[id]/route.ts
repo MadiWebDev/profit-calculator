@@ -58,6 +58,11 @@ export async function GET(
       error: r.error ?? null,
       sentAt: r.sentAt?.toISOString() ?? null,
       providerMessageId: r.providerMessageId ?? null,
+      deliveredAt: r.deliveredAt?.toISOString() ?? null,
+      openedAt: r.openedAt?.toISOString() ?? null,
+      clickedAt: r.clickedAt?.toISOString() ?? null,
+      readAt: r.readAt?.toISOString() ?? null,
+      failedAt: r.failedAt?.toISOString() ?? null,
     })),
     createdBy: campaign.createdBy
       ? {
