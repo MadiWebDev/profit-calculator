@@ -40,6 +40,8 @@ export type AuditAction =
   | "campaign.deleted"
   | "campaign.bulk_archived"
   | "suppression.removed"
+  | "direct_message.sent"
+  | "direct_message.failed"
   | "support.replied"
   | "support.status_changed";
 

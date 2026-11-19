@@ -14,9 +14,10 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import CampaignModel from "@/models/Campaign";
+import DirectMessageModel from "@/models/DirectMessage";
 import { requireSuperAdmin } from "@/lib/admin-auth";
 import { withRateLimit } from "@/lib/rate-limit";
-import { buildLastMessageMap, type LastMessageRow } from "@/lib/campaigns";
+import { buildLastMessageMap, applyDirectMessagesToLastMessageMap, type LastMessageRow } from "@/lib/campaigns";
 
 const MAX_USER_IDS = 100;
 
@@ -78,5 +79,42 @@ export async function GET(req: Request) {
     })
   );
 
-  return NextResponse.json({ lastMessages: buildLastMessageMap(normalized) });
+  // Direct messages count as the user's last message too: a user
+  // messaged only directly must not show "No messages sent yet". The
+  // newer of the campaign row and the direct row wins per user.
+  const directRows = await DirectMessageModel.aggregate([
+    { $match: { userId: { $in: objectIds } } },
+    { $sort: { sentAt: -1, createdAt: -1 } },
+    {
+      $group: {
+        _id: "$userId",
+        directId: { $first: "$_id" },
+        channel: { $first: "$channel" },
+        status: { $first: "$status" },
+        sentAt: { $first: "$sentAt" },
+        createdAt: { $first: "$createdAt" },
+      },
+    },
+  ]);
+  const map = buildLastMessageMap(normalized);
+  applyDirectMessagesToLastMessageMap(
+    map,
+    (directRows as {
+      _id: mongoose.Types.ObjectId;
+      directId: mongoose.Types.ObjectId;
+      channel: "email" | "whatsapp";
+      status: "sent" | "failed";
+      sentAt?: Date;
+      createdAt: Date;
+    }[]).map((d) => ({
+      userId: d._id.toString(),
+      directId: d.directId.toString(),
+      channel: d.channel,
+      status: d.status,
+      sentAt: d.sentAt?.toISOString() ?? null,
+      createdAt: d.createdAt.toISOString(),
+    }))
+  );
+
+  return NextResponse.json({ lastMessages: map });
 }

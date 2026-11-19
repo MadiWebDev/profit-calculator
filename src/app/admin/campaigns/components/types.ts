@@ -124,5 +124,22 @@ export interface LastMessage {
   sentAt: string | null;
 }
 
+/** One row of GET /api/admin/direct-messages — a sent (or failed) direct message. */
+export interface DirectMessageRow {
+  id: string;
+  userId: string;
+  identifier: string;
+  userName: string;
+  channel: Channel;
+  subject: string;
+  body: string;
+  whatsappTemplateName: string | null;
+  status: "sent" | "failed";
+  providerMessageId: string | null;
+  error: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
 export const inputCls =
   "h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm";

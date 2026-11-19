@@ -25,13 +25,14 @@ import {
   TEMPLATE_TYPE_LABELS, STATUS_STYLES, inputCls,
   type CampaignRow, type Channel, type TemplateType, type AudienceType,
   type RecipientRow, type RecipientStatus, type TeamRow,
-  type DirectoryUser, type LastMessage,
+  type DirectoryUser, type LastMessage, type DirectMessageRow,
 } from "./components/types";
 import { RecipientTable, TrackingNote } from "./components/RecipientReport";
 import { OverviewTab, RangePicker, type StatsState } from "./components/OverviewTab";
 import { AnalyticsTab } from "./components/AnalyticsTab";
 import { CampaignsTable, type TableFilters } from "./components/CampaignsTable";
 import { SuppressionTab } from "./components/SuppressionTab";
+import { DirectMessageDialog } from "./components/DirectMessageDialog";
 
 type CenterTab =
   | "overview" | "campaigns" | "create" | "messages" | "users" | "analytics" | "suppression";
@@ -129,6 +130,16 @@ export function CampaignsClient() {
   const [logExpandedId, setLogExpandedId] = useState<string | null>(null);
   const [logDetails, setLogDetails] = useState<Record<string, RecipientRow[]>>({});
   const [logLoading, setLogLoading] = useState<Record<string, boolean>>({});
+
+  // ── Direct messages state ──
+  // The dialog target (null = closed) and the Messages tab's direct list.
+  const [directMessageUser, setDirectMessageUser] = useState<DirectoryUser | null>(null);
+  const [directMessages, setDirectMessages] = useState<DirectMessageRow[]>([]);
+  const [directTotal, setDirectTotal] = useState(0);
+  const [directPage, setDirectPage] = useState(1);
+  const [directPages, setDirectPages] = useState(1);
+  const [directLoading, setDirectLoading] = useState(true);
+  const [directLoadedOnce, setDirectLoadedOnce] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -231,6 +242,33 @@ export function CampaignsClient() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadLogCampaigns(); }, [loadLogCampaigns]);
+
+  // The direct-messages list for the Messages tab. Shares the tab's
+  // channel filter with the campaign log.
+  const loadDirectMessages = useCallback(async () => {
+    setDirectLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(directPage),
+        limit: "20",
+      });
+      if (logChannel !== "all") params.set("channel", logChannel);
+      const res = await fetch(`/api/admin/direct-messages?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load direct messages");
+      const j = await res.json();
+      setDirectMessages(j.directMessages ?? []);
+      setDirectTotal(j.total ?? 0);
+      setDirectPages(j.pages ?? 1);
+    } catch {
+      setDirectMessages([]);
+    } finally {
+      setDirectLoading(false);
+      setDirectLoadedOnce(true);
+    }
+  }, [directPage, logChannel]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { loadDirectMessages(); }, [loadDirectMessages]);
 
   // Efficient polling (Phase 3): every 30s while the Overview or
   // Campaigns tab is visible — skipped when the tab is hidden, and
@@ -450,14 +488,12 @@ export function CampaignsClient() {
     return "All users";
   };
 
-  // ── User directory: Message button pre-fills the composer for one user ──
+  // ── User directory: Message button opens the direct-message dialog
+  // for one user — no campaign is created. The composer pre-fill this
+  // used to do (jump to Create with the user as a "users" audience) is
+  // gone; campaigns still use the Create tab as before.
   const messageUser = (u: DirectoryUser) => {
-    setSelectedUsers([u]);
-    setAudienceType("users");
-    setActiveTab("create");
-    setPickerSearch("");
-    setPickerPlan("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setDirectMessageUser(u);
   };
 
   const addSelectedUser = (u: DirectoryUser) => {
@@ -1064,6 +1100,82 @@ export function CampaignsClient() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Direct messages ── */}
+      <Card className="mt-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Mail className="h-4 w-4" /> Direct messages
+            <span className="text-xs font-normal text-[var(--color-muted-foreground)]">
+              one message to one user, sent from the user directory — never part of a campaign
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {directLoading && !directLoadedOnce ? (
+            <div className="p-4"><ListSkeleton rows={3} /></div>
+          ) : directMessages.length === 0 ? (
+            <div className="p-6 text-sm text-[var(--color-muted-foreground)]">
+              No direct messages sent yet. Use the Message button on a user to send one.
+            </div>
+          ) : (
+            <>
+              <div className="divide-y divide-[var(--color-border)]">
+                {directMessages.map((m) => (
+                  <div key={m.id} className="p-4 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-muted)] flex-shrink-0">
+                        {m.channel === "email" ? <Mail className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm truncate">{m.userName}</p>
+                        <p className="text-xs text-[var(--color-muted-foreground)] truncate">{m.identifier}</p>
+                      </div>
+                      <Badge className={cn("text-xs capitalize", m.status === "sent" ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300")}>
+                        {m.status}
+                      </Badge>
+                      <span className="text-xs text-[var(--color-muted-foreground)]">
+                        {(m.sentAt ?? m.createdAt) ? new Date(m.sentAt ?? m.createdAt).toLocaleString() : ""}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--color-muted-foreground)]">
+                      {m.channel === "email"
+                        ? <>{m.subject ? <>Subject: {m.subject} · </> : null}{m.body}</>
+                        : <>Template: {m.whatsappTemplateName}</>}
+                    </p>
+                    {m.status === "failed" && m.error && (
+                      <p className="text-xs text-red-600 dark:text-red-400">{m.error}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] p-3">
+                <span className="text-xs text-[var(--color-muted-foreground)]">
+                  Page {directPage} of {directPages} · {directTotal} message{directTotal === 1 ? "" : "s"}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={directPage <= 1 || directLoading}
+                    onClick={() => setDirectPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={directPage >= directPages || directLoading}
+                    onClick={() => setDirectPage((p) => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
         </TabsContent>
 
         <TabsContent value="analytics" className="pt-4">
@@ -1074,6 +1186,16 @@ export function CampaignsClient() {
           <SuppressionTab />
         </TabsContent>
       </Tabs>
+
+      {/* ── Direct-message dialog ── */}
+      <DirectMessageDialog
+        user={directMessageUser}
+        onClose={() => setDirectMessageUser(null)}
+        onSent={() => {
+          void loadDirectMessages();
+          void loadDirectory();
+        }}
+      />
 
       {/* ── Campaign detail drawer ── */}
       <Sheet

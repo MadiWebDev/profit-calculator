@@ -24,6 +24,7 @@ import "../src/models/Campaign";
 import "../src/models/MessageEvent";
 import "../src/models/MessageSuppression";
 import "../src/models/ProviderWebhookEvent";
+import "../src/models/DirectMessage";
 import "../src/models/Courier";
 import "../src/models/DailyRollup";
 import "../src/models/RiskSignalWeight";
