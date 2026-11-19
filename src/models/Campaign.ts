@@ -43,18 +43,49 @@ export type CampaignAudienceType = "all" | "plan" | "team" | "users" | "limited"
 
 export type CampaignStatus = "draft" | "sending" | "sent" | "failed";
 
-export type CampaignRecipientStatus = "sent" | "failed" | "skipped";
+export type CampaignRecipientStatus =
+  | "sent"
+  | "failed"
+  | "skipped"
+  | "delivered"
+  | "opened"
+  | "clicked"
+  | "bounced"
+  | "complained"
+  | "read"
+  | "suppressed";
 
 export interface ICampaignRecipient {
   userId?: mongoose.Types.ObjectId;
   /** Email address (email channel) or phone number (WhatsApp channel). */
   identifier: string;
+  /**
+   * Derived current status. "sent" means only "the provider API
+   * returned 200" — delivery is reported by webhooks (Phase 2) and
+   * moves this forward through the transition table in
+   * src/lib/message-events.ts; the append-only MessageEvent log keeps
+   * every provider event even when a transition is not valid.
+   */
   status: CampaignRecipientStatus;
   /** Provider error text for "failed", or the skip reason for "skipped". */
   error?: string;
   sentAt?: Date;
   /** Provider-assigned message id (Resend id / Meta wamid), when sent. */
   providerMessageId?: string;
+  /**
+   * Webhook-reported milestones (Phase 2). Each is set when the
+   * recipient's derived status first reaches that state; "failedAt"
+   * also covers bounced (a bounce is a delivery failure). Absence of
+   * a timestamp proves nothing about the provider — e.g. "opened" is
+   * estimated (Apple Mail Privacy Protection pre-loads the pixel) and
+   * WhatsApp "read" never fires when the recipient has read receipts
+   * off.
+   */
+  deliveredAt?: Date;
+  openedAt?: Date;
+  clickedAt?: Date;
+  readAt?: Date;
+  failedAt?: Date;
 }
 
 export interface ICampaign extends Document {
@@ -89,6 +120,15 @@ export interface ICampaign extends Document {
    */
   audienceLimit?: number;
   status: CampaignStatus;
+  /**
+   * Phase 3: soft-archive. An archived campaign is hidden from the
+   * default list (and can never be sent — the send claim only accepts
+   * draft/failed), but its records, recipients, and delivery history
+   * are preserved. Unarchive restores it to the list. This is a flag,
+   * not a status value, so the lifecycle enum stays untouched.
+   */
+  archived?: boolean;
+  archivedAt?: Date;
   createdBy: mongoose.Types.ObjectId;
   /** Totals from the last send attempt (0 while a draft). */
   stats: {
@@ -98,6 +138,19 @@ export interface ICampaign extends Document {
     skipped: number;
     /** Recipients over the 500 cap that were never sent. */
     overflow: number;
+    /**
+     * Webhook-derived totals (Phase 2), recomputed from the recipients
+     * array — the same single source of truth as the four send-time
+     * counters. "sent" still means "provider accepted"; delivery is
+     * "delivered" and beyond. All 0 until the first webhook lands.
+     */
+    delivered: number;
+    opened: number;
+    clicked: number;
+    bounced: number;
+    complained: number;
+    read: number;
+    suppressed: number;
   };
   /** Top-level send failure (e.g. provider not configured at send time). */
   error?: string;
@@ -113,13 +166,29 @@ const CampaignRecipientSchema = new Schema<ICampaignRecipient>(
     identifier: { type: String, required: true, maxlength: 254 },
     status: {
       type: String,
-      enum: ["sent", "failed", "skipped"],
+      enum: [
+        "sent",
+        "failed",
+        "skipped",
+        "delivered",
+        "opened",
+        "clicked",
+        "bounced",
+        "complained",
+        "read",
+        "suppressed",
+      ],
       required: true,
     },
     error: { type: String, maxlength: 500 },
     sentAt: Date,
     /** Provider-assigned message id (Resend id / Meta wamid), when sent. */
     providerMessageId: { type: String, maxlength: 128 },
+    deliveredAt: Date,
+    openedAt: Date,
+    clickedAt: Date,
+    readAt: Date,
+    failedAt: Date,
   },
   { _id: false }
 );
@@ -154,15 +223,25 @@ const CampaignSchema = new Schema<ICampaign>(
       failed: { type: Number, default: 0 },
       skipped: { type: Number, default: 0 },
       overflow: { type: Number, default: 0 },
+      delivered: { type: Number, default: 0 },
+      opened: { type: Number, default: 0 },
+      clicked: { type: Number, default: 0 },
+      bounced: { type: Number, default: 0 },
+      complained: { type: Number, default: 0 },
+      read: { type: Number, default: 0 },
+      suppressed: { type: Number, default: 0 },
     },
     error: { type: String, maxlength: 500 },
     recipients: { type: [CampaignRecipientSchema], default: [] },
     sentAt: Date,
+    archived: { type: Boolean, default: false },
+    archivedAt: Date,
   },
   { timestamps: true }
 );
 
 CampaignSchema.index({ createdAt: -1 });
 CampaignSchema.index({ createdBy: 1, createdAt: -1 });
+CampaignSchema.index({ archived: 1, createdAt: -1 });
 
 export default models.Campaign || model<ICampaign>("Campaign", CampaignSchema);

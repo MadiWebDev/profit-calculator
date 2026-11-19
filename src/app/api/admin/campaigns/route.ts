@@ -17,6 +17,7 @@ import { logAdminAudit } from "@/lib/audit";
 import { logger, toLogError } from "@/lib/logger";
 import {
   buildAudienceFilter,
+  buildCampaignListFilter,
   CAMPAIGN_AUDIENCE_CAP,
   computeAudienceEstimate,
   dedupeObjectIdStrings,
@@ -65,15 +66,30 @@ export async function GET(req: Request) {
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10)));
 
+  // Phase 3 filters — built by the pure helper (unit/DB-tested in
+  // src/lib/__tests__/campaign-phase3-db.test.ts).
+  const { filter, sort, error } = buildCampaignListFilter({
+    q: searchParams.get("q")?.trim() ?? "",
+    status: searchParams.get("status") ?? "",
+    channel: searchParams.get("channel") ?? "",
+    templateType: searchParams.get("templateType") ?? "",
+    from: searchParams.get("from") ?? "",
+    to: searchParams.get("to") ?? "",
+    sort: searchParams.get("sort") ?? "createdAt",
+    order: searchParams.get("order") ?? "desc",
+    archived: searchParams.get("archived") ?? "false",
+  });
+  if (error) return NextResponse.json({ error }, { status: 400 });
+
   await connectDB();
   const [campaigns, total] = await Promise.all([
-    CampaignModel.find({})
-      .sort({ createdAt: -1 })
+    CampaignModel.find(filter)
+      .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
       .populate("createdBy", "name email")
       .lean(),
-    CampaignModel.countDocuments({}),
+    CampaignModel.countDocuments(filter),
   ]);
 
   return NextResponse.json({
@@ -94,6 +110,8 @@ export async function GET(req: Request) {
       status: c.status,
       stats: c.stats,
       error: c.error ?? null,
+      archived: (c as { archived?: boolean }).archived ?? false,
+      archivedAt: (c as { archivedAt?: Date }).archivedAt?.toISOString() ?? null,
       createdBy: c.createdBy
         ? {
             name: (c.createdBy as unknown as { name?: string }).name ?? "",
