@@ -599,33 +599,28 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // FX rates for display conversion — re-fetched every 60 seconds while
-  // the dashboard is open, matching /api/fx/rates' browser cache (60s),
-  // so display conversion tracks live rates without a page reload.
+  // the page is open, matching /api/fx/rates' browser cache (60s), so
+  // display conversion tracks live rates without a page reload.
   // Missing rates = no conversion. The provider's fetchedAt timestamp
   // is kept alongside the rates for the "Rates as of" stamp.
   //
   // Auth-aware (this provider lives in the root layout, so it does NOT
-  // remount on the client-side login navigation): a mount-only fetch
-  // runs while the user is still signed out, /api/fx/rates requires
-  // auth so it 401s, rates stay null — and the effect never re-runs
-  // after sign-in, so the converter shows "Rates unavailable" on first
-  // load until the 60s tick happens to fire. The fetch is therefore
-  // keyed on `status`: it runs the moment the session becomes
-  // authenticated, never while signed out, and a failed first load
-  // retries a few times at 5s instead of waiting a full minute.
+  // remount on the client-side login navigation): the fetch is keyed on
+  // `status` so it runs the moment the session resolves — authenticated
+  // OR unauthenticated — and re-runs after sign-in, when the endpoint
+  // starts returning the team's overridden rates instead of the public
+  // ones. /api/fx/rates serves anonymous requests (shared rates, no
+  // team overrides), so signed-out visitors get live conversion too;
+  // the old early return for "unauthenticated" left the footer
+  // converter stuck on "Rates unavailable" for every logged-out
+  // visitor. While the session is still resolving ("loading") the
+  // fetch waits — the first load retries a few times at 5s instead of
+  // waiting a full minute.
   const [fxRates, setFxRates] = useState<Record<string, number> | null>(null);
   const [ratesLoading, setRatesLoading] = useState(true);
   const fxRetryRef = useRef(0);
   useEffect(() => {
-    if (status === "unauthenticated") {
-      // Definitely signed out: /api/fx/rates would 401. Stop claiming
-      // "loading" so the converter shows the honest "unavailable" state.
-      /* eslint-disable react-hooks/set-state-in-effect -- auth-state reset: rates are not loading when there is no session to fetch them with. */
-      setRatesLoading(false);
-      /* eslint-enable react-hooks/set-state-in-effect */
-      return;
-    }
-    if (status !== "authenticated") return; // still loading — keep waiting
+    if (status === "loading") return; // session unresolved — keep waiting
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     fxRetryRef.current = 0;
