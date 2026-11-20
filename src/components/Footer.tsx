@@ -74,6 +74,7 @@ const companyLinks = [
   { href: "/privacy-policy",    label: "Privacy Policy" },
   { href: "/terms-of-service",  label: "Terms of Service" },
   { href: "/refund-policy",     label: "Refund Policy" },
+  { href: "/data-deletion",     label: "Data Deletion" },
 ];
 
 function FooterLinkList({ title, links }: { title: string; links: { href: string; label: string }[] }) {

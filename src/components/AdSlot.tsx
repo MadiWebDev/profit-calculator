@@ -22,7 +22,14 @@ const sizeMap: Record<AdPosition, string> = {
 /**
  * AdSlot — reserved ad placement with fixed min-height to prevent CLS.
  * Publisher ID: ca-pub-4860681021797211
- * Replace adSlotId with the real slot ID from your AdSense dashboard.
+ *
+ * No adSlotId, no box: until a real slot ID exists in the AdSense
+ * dashboard, the placement renders nothing. The previous behaviour
+ * rendered a permanent dashed box containing only the word "Ad" on
+ * every page that used it (homepage, calculators hub, every calculator
+ * page) — an empty placeholder Googlebot and every visitor could see.
+ * Pass a real adSlotId to enable a placement; the call sites already
+ * mark where the ads go.
  */
 export function AdSlot({ position, className, adSlotId }: AdSlotProps) {
   const ref = React.useRef<HTMLModElement>(null);
@@ -37,6 +44,8 @@ export function AdSlot({ position, className, adSlotId }: AdSlotProps) {
     }
   }, [adSlotId]);
 
+  if (!adSlotId) return null;
+
   return (
     <div
       aria-label="Advertisement"
@@ -47,21 +56,15 @@ export function AdSlot({ position, className, adSlotId }: AdSlotProps) {
         className
       )}
     >
-      {adSlotId ? (
-        <ins
-          ref={ref}
-          className="adsbygoogle"
-          style={{ display: "block", width: "100%", height: "100%" }}
-          data-ad-client="ca-pub-4860681021797211"
-          data-ad-slot={adSlotId}
-          data-ad-format="auto"
-          data-full-width-responsive="true"
-        />
-      ) : (
-        <span className="text-xs text-[var(--color-muted-foreground)] select-none pointer-events-none">
-          Ad
-        </span>
-      )}
+      <ins
+        ref={ref}
+        className="adsbygoogle"
+        style={{ display: "block", width: "100%", height: "100%" }}
+        data-ad-client="ca-pub-4860681021797211"
+        data-ad-slot={adSlotId}
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      />
     </div>
   );
 }

@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Business Profit Margin Calculator",
   shortTitle: "Profit Margin",
   description: "Calculate gross profit margin, net profit margin, and markup % for any business.",
-  metaDescription: "Free business profit margin calculator. Enter revenue, cost of goods sold, and operating expenses to calculate gross margin, net margin, and markup percentage instantly.",
+  metaDescription: "Free business profit margin calculator. Enter revenue, cost of goods sold, and operating expenses to calculate gross margin and net margin instantly.",
   keywords: ["profit margin calculator", "gross margin calculator", "net profit margin calculator", "markup calculator", "business profit calculator"],
   icon: "📊",
   category: "general",

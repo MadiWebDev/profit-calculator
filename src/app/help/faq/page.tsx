@@ -4,7 +4,7 @@ import { FaqExplorer } from "./FaqExplorer";
 export const metadata = buildMetadata({
   title: "Frequently Asked Questions",
   description:
-    "Answers about GetProfitCalc pricing ($3/$18/$29, 7-day trial), connecting Shopify, Meta and TikTok ad accounts, how net profit is calculated, and account security.",
+    "Answers about GetProfitCalc pricing ($3/$18/$29, 7-day trial), connecting Shopify and ad accounts, how net profit is calculated, and account security.",
   path: "/help/faq",
 });
 

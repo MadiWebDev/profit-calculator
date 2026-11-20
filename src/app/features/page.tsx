@@ -9,9 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "Features — AI Profit Tracking for Ecommerce & Ads",
+  title: "Features — AI Profit Tracking",
   description:
-    "GetProfitCalc features: AI profit insights, product and customer intelligence, guardrails and alerts, multi-currency FX, Shopify support, what-if simulator, ad creative ROI, goal tracking, tax estimates, and more.",
+    "GetProfitCalc features: AI profit insights, product and customer intelligence, guardrails and alerts, multi-currency FX, and Shopify support.",
   path: "/features",
 });
 

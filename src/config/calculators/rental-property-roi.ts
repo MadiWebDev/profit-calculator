@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Rental Property ROI Calculator",
   shortTitle: "Rental Property ROI",
   description: "Calculate cash-on-cash return, cap rate, and monthly cash flow for a rental property investment.",
-  metaDescription: "Free rental property ROI calculator. Enter purchase price, down payment, rent, and expenses to calculate cash flow, cash-on-cash return, cap rate, and break-even occupancy.",
+  metaDescription: "Free rental property ROI calculator. Enter purchase price, down payment, rent, and expenses to calculate cash flow, cash-on-cash return, and cap rate.",
   keywords: ["rental property roi calculator", "cash on cash return calculator", "cap rate calculator", "rental property cash flow calculator", "real estate investment calculator"],
   icon: "🏠",
   category: "real-estate",

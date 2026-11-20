@@ -7,7 +7,7 @@ import { BookOpen, Store, Megaphone, TrendingUp, MessageCircleQuestion, Mail, Ar
 export const metadata = buildMetadata({
   title: "Help Center",
   description:
-    "GetProfitCalc Help Center — getting-started guides for connecting Shopify and ad accounts, reading your profit, an expanded FAQ, a profit glossary, and support contact.",
+    "GetProfitCalc Help Center — guides for connecting Shopify and ad accounts, reading your profit, an expanded FAQ, a profit glossary, and support contact.",
   path: "/help",
 });
 

@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "LTV:CAC Ratio Calculator",
   shortTitle: "LTV:CAC",
   description: "Calculate customer lifetime value, customer acquisition cost, and the LTV:CAC ratio that tells you if your growth is sustainable.",
-  metaDescription: "Free LTV:CAC calculator. Enter ARPU, gross margin, churn rate, sales & marketing spend, and new customers to calculate LTV, CAC, LTV:CAC ratio, and payback period.",
+  metaDescription: "Free LTV:CAC calculator. Enter ARPU, gross margin, churn rate, sales & marketing spend, and new customers to calculate LTV, CAC, and LTV:CAC ratio.",
   keywords: ["ltv cac calculator", "customer lifetime value calculator", "cac calculator", "ltv to cac ratio", "saas unit economics calculator"],
   icon: "⚖️",
   category: "saas",

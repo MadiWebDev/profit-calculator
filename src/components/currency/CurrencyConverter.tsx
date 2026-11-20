@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeftRight } from "lucide-react";
-import { CURRENCIES, useCurrency } from "@/components/dashboard/CurrencyContext";
+import { CURRENCIES, getCurrencyDef, useCurrency } from "@/components/dashboard/CurrencyContext";
 import { formatCurrency, cn } from "@/lib/utils";
 import { formatRatesAsOf} from "@/lib/display-currency";
 
@@ -34,6 +34,17 @@ export function CurrencyConverter({
   const [from, setFrom] = useState("USD");
   const [toOverride, setToOverride] = useState<string | null>(null);
   const to = toOverride ?? displayCurrency;
+
+  // The two currency <select>s would otherwise render all 148 registry
+  // currencies twice (296 <option>s) into the SSR HTML of every public
+  // page — pure bloat Googlebot has to parse. The full lists render
+  // only after mount; the server HTML carries just the selected option
+  // in each select, so the first client render still matches SSR
+  // (mounted starts false) and hydration stays clean.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const parsed = Number(amount);
   const hasAmount = amount.trim() !== "" && Number.isFinite(parsed) && parsed >= 0;
@@ -87,11 +98,17 @@ export function CurrencyConverter({
             onChange={(e) => setToOverride(e.target.value)}
             className="w-full h-9 px-1 rounded-md text-sm bg-[var(--color-muted)] text-[var(--color-foreground)] border border-transparent focus:border-[var(--color-primary)] focus:outline-none"
           >
-            {CURRENCIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} — {c.name}
+            {mounted ? (
+              CURRENCIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
+                </option>
+              ))
+            ) : (
+              <option value={to}>
+                {to} — {getCurrencyDef(to).name}
               </option>
-            ))}
+            )}
           </select>
         </div>
       </div>
@@ -109,11 +126,17 @@ export function CurrencyConverter({
           onChange={(e) => setFrom(e.target.value)}
           className="w-full h-9 px-1 rounded-md text-sm bg-[var(--color-muted)] text-[var(--color-foreground)] border border-transparent focus:border-[var(--color-primary)] focus:outline-none"
         >
-          {CURRENCIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.code} — {c.name}
+          {mounted ? (
+            CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} — {c.name}
+              </option>
+            ))
+          ) : (
+            <option value={from}>
+              {from} — {getCurrencyDef(from).name}
             </option>
-          ))}
+          )}
         </select>
       </div>
 

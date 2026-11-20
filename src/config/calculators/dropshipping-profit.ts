@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Dropshipping Profit Calculator",
   shortTitle: "Dropshipping Profit",
   description: "Calculate dropshipping profit per order and monthly profit projections with a volume slider.",
-  metaDescription: "Free dropshipping profit calculator. Enter supplier cost, selling price, shipping, ads, and platform fees to see profit per order, monthly profit projection, and ROI %.",
+  metaDescription: "Free dropshipping profit calculator. Enter supplier cost, selling price, shipping, ads, and platform fees to see profit per order and monthly profit projection.",
   keywords: ["dropshipping profit calculator", "dropshipping margin calculator", "dropshipping roi calculator", "aliexpress profit calculator", "dropshipping calculator"],
   icon: "📦",
   category: "ecommerce",

@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Subscription Box Profit Calculator",
   shortTitle: "Subscription Box Profit",
   description: "Calculate your subscription box profit per box, per subscriber lifetime, and monthly total profit.",
-  metaDescription: "Free subscription box profit calculator. Enter box price, product cost, shipping, packaging, and churn to calculate profit per box, subscriber LTV, and monthly profit.",
+  metaDescription: "Free subscription box profit calculator. Enter box price, product cost, shipping, packaging, and churn to calculate profit per box and subscriber LTV.",
   keywords: ["subscription box profit calculator", "subscription box cost calculator", "subscription box margin calculator", "subscription box roi"],
   icon: "🎁",
   category: "saas",

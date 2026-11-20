@@ -90,9 +90,9 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   compare: {
     slug: "compare",
-    title: "Compare Profit Trackers — GetProfitCalc vs the Alternatives",
+    title: "Compare Profit Trackers",
     description:
-      "Compare GetProfitCalc with ProfitCalc, TrueProfit, BeProfit, Sellerboard, and Profitario on the criteria that matter: order-level profit, ad attribution, and cost coverage.",
+      "Compare GetProfitCalc with ProfitCalc, TrueProfit, BeProfit, Sellerboard, and Profitario on order-level profit, ad attribution, and cost coverage.",
     eyebrow: "Comparison hub",
     h1: "Compare profit trackers before you commit to one",
     intro:
@@ -164,7 +164,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
         { feature: "Free calculators hub", us: "Yes", them: "Check current plans" },
       ],
     },
-    related: ["compare", "beprofit-alternative", "shopify-profit-analytics", "shopify-profit-calculator"],
+    related: ["compare", "beprofit-alternative", "shopify-profit-analytics", "shopify-profit-calculator", "sellerboard-alternative"],
   },
   "beprofit-alternative": {
     slug: "beprofit-alternative",
@@ -203,11 +203,11 @@ export const SEO_PAGES: Record<string, SeoPage> = {
         { feature: "Free calculators hub", us: "Yes", them: "Check current plans" },
       ],
     },
-    related: ["compare", "trueprofit-alternative", "shopify-profit-analytics", "shopify-profit-calculator"],
+    related: ["compare", "trueprofit-alternative", "shopify-profit-analytics", "shopify-profit-calculator", "profitario-alternative"],
   },
   "sellerboard-alternative": {
     slug: "sellerboard-alternative",
-    title: "Sellerboard Alternative for Shopify — GetProfitCalc",
+    title: "Sellerboard Alternative for Shopify",
     description:
       "Sellerboard is built mainly for Amazon sellers. If you sell on Shopify, see why GetProfitCalc — Shopify-native profit tracking — is the closer fit.",
     eyebrow: "Sellerboard alternative",
@@ -285,9 +285,9 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "best-shopify-profit-tracker": {
     slug: "best-shopify-profit-tracker",
-    title: "Best Shopify Profit Tracker — Why Stores Choose GetProfitCalc",
+    title: "Best Shopify Profit Tracker",
     description:
-      "What makes the best Shopify profit tracker? Order-level profit, full cost coverage, ad attribution, and reports you can trust. See how GetProfitCalc measures up.",
+      "What makes the best Shopify profit tracker? Order-level profit, full cost coverage, and ad attribution. See how GetProfitCalc measures up.",
     eyebrow: "Best Shopify profit tracker",
     h1: "The best Shopify profit tracker is the one you can reconcile",
     intro:
@@ -311,7 +311,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "shopify-profit-calculator": {
     slug: "shopify-profit-calculator",
-    title: "Shopify Profit Calculator — True Net Profit Per Order",
+    title: "Shopify Profit Calculator & Tracker",
     description:
       "Calculate your true Shopify profit: revenue minus COGS, fees, shipping, discounts, refunds, and ad spend — per order and per product, automatically.",
     eyebrow: "Shopify profit calculator",
@@ -337,7 +337,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "shopify-profit-analytics": {
     slug: "shopify-profit-analytics",
-    title: "Shopify Profit Analytics — Product, Channel & Customer Profit",
+    title: "Shopify Profit Analytics",
     description:
       "Shopify profit analytics that go beyond revenue: profit by product, country, channel, and customer segment, with trends and alerts built in.",
     eyebrow: "Shopify profit analytics",
@@ -363,7 +363,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "shopify-cogs-tracker": {
     slug: "shopify-cogs-tracker",
-    title: "Shopify COGS Tracker — Product Costs That Stay Accurate",
+    title: "Shopify COGS Tracker & Costs",
     description:
       "Track Shopify COGS per product and variant, including shipping and other costs, so every profit figure in GetProfitCalc rests on costs you can trust.",
     eyebrow: "Shopify COGS tracker",
@@ -393,7 +393,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "shopify-profit-and-loss-report": {
     slug: "shopify-profit-and-loss-report",
-    title: "Shopify Profit and Loss Report — P&L Without the Spreadsheet",
+    title: "Shopify Profit and Loss Report",
     description:
       "Generate a Shopify profit and loss report with revenue, COGS, fees, shipping, ad spend, and net profit — ready to share, export, and schedule.",
     eyebrow: "Shopify P&L report",
@@ -419,7 +419,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "shopify-ad-spend-profit-tracker": {
     slug: "shopify-ad-spend-profit-tracker",
-    title: "Shopify Ad Spend Profit Tracker — Profit After Ads",
+    title: "Shopify Ad Spend Profit Tracker",
     description:
       "Track Shopify profit after ad spend across Meta, Google, and TikTok, by campaign and creative, so budget follows profit instead of clicks.",
     eyebrow: "Shopify ad spend profit tracker",
@@ -445,7 +445,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "shopify-net-profit-tracker": {
     slug: "shopify-net-profit-tracker",
-    title: "Shopify Net Profit Tracker — What You Actually Kept",
+    title: "Shopify Net Profit Tracker",
     description:
       "Track Shopify net profit after COGS, fees, shipping, discounts, refunds, and ad spend — per order, per product, and per period.",
     eyebrow: "Shopify net profit tracker",
@@ -471,7 +471,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "shopify-profit-tracker-vs-spreadsheet": {
     slug: "shopify-profit-tracker-vs-spreadsheet",
-    title: "Profit Tracker vs Spreadsheet — Why Automation Wins",
+    title: "Profit Tracker vs Spreadsheet",
     description:
       "Spreadsheet vs profit tracker for Shopify: compare accuracy, time, ad attribution, and reporting, and see when it is time to switch.",
     eyebrow: "Tracker vs spreadsheet",
@@ -510,7 +510,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "dropshipping-profit-tracker": {
     slug: "dropshipping-profit-tracker",
-    title: "Dropshipping Profit Tracker — Margins You Can Trust",
+    title: "Dropshipping Profit Tracker",
     description:
       "Track dropshipping profit per order and per product on Shopify: supplier COGS, shipping, fees, refunds, and ad spend deducted automatically.",
     eyebrow: "Dropshipping profit tracker",
@@ -532,11 +532,11 @@ export const SEO_PAGES: Record<string, SeoPage> = {
       { q: "Is this useful for a single-product store?", a: "Yes, especially then: with one product, ad profit per campaign and the break-even price are the two numbers that decide whether scaling is safe." },
       FAQ_TRIAL,
     ],
-    related: ["shopify-profit-calculator", "shopify-ad-spend-profit-tracker", "printful-profit-tracker", "shopify-cogs-tracker"],
+    related: ["shopify-profit-calculator", "shopify-ad-spend-profit-tracker", "printful-profit-tracker", "shopify-cogs-tracker", "printify-profit-tracker"],
   },
   "printful-profit-tracker": {
     slug: "printful-profit-tracker",
-    title: "Printful Profit Tracker for Shopify — POD Profit Per Order",
+    title: "Printful Profit Tracker for Shopify",
     description:
       "Track profit on Printful products sold through Shopify: base costs as COGS, Shopify fees, shipping, discounts, and ad spend, per order.",
     eyebrow: "Printful profit tracker",
@@ -566,7 +566,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "printify-profit-tracker": {
     slug: "printify-profit-tracker",
-    title: "Printify Profit Tracker for Shopify — POD Profit Per Order",
+    title: "Printify Profit Tracker for Shopify",
     description:
       "Track profit on Printify products sold through Shopify: base costs as COGS, Shopify fees, shipping, discounts, and ad spend, per order.",
     eyebrow: "Printify profit tracker",
@@ -596,7 +596,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "multi-store-profit-tracking": {
     slug: "multi-store-profit-tracking",
-    title: "Multi-Store Profit Tracking — All Your Shopify Stores, One View",
+    title: "Multi-Store Profit Tracking",
     description:
       "Track profit across multiple Shopify stores in one dashboard: per-store profit, combined totals, and product performance across brands.",
     eyebrow: "Multi-store profit tracking",
@@ -626,7 +626,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "multi-currency-profit-tracking": {
     slug: "multi-currency-profit-tracking",
-    title: "Multi-Currency Profit Tracking — Profit in One Currency",
+    title: "Multi-Currency Profit Tracking",
     description:
       "Sell in many currencies, read profit in one: GetProfitCalc converts multi-currency Shopify sales into a single reporting currency for true profit.",
     eyebrow: "Multi-currency profit tracking",
@@ -656,7 +656,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "vat-shopify-profit-tracking": {
     slug: "vat-shopify-profit-tracking",
-    title: "VAT & Shopify Profit Tracking — Profit After Tax",
+    title: "VAT & Shopify Profit Tracking",
     description:
       "Track Shopify profit with VAT and tax handled properly: tax settings, tax set-aside estimates, and P&L that does not mistake tax collected for profit.",
     eyebrow: "VAT profit tracking",
@@ -686,7 +686,7 @@ export const SEO_PAGES: Record<string, SeoPage> = {
   },
   "cod-profit-tracking-shopify": {
     slug: "cod-profit-tracking-shopify",
-    title: "COD Profit Tracking for Shopify — Cash on Delivery, Counted Right",
+    title: "COD Profit Tracking for Shopify",
     description:
       "Track cash-on-delivery profit on Shopify: COD cash flow, collection status, fees, refunds, and returns, so COD sales count only when the cash lands.",
     eyebrow: "COD profit tracking",

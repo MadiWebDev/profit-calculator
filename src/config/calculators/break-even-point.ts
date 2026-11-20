@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Break-Even Point Calculator",
   shortTitle: "Break-Even Point",
   description: "Calculate how many units or how much revenue you need to cover your fixed and variable costs.",
-  metaDescription: "Free break-even point calculator. Enter fixed costs, price per unit, and variable cost per unit to calculate break-even units, break-even revenue, and margin of safety.",
+  metaDescription: "Free break-even point calculator. Enter fixed costs, price per unit, and variable cost per unit to calculate break-even units and break-even revenue.",
   keywords: ["break even point calculator", "break even analysis calculator", "break even revenue calculator", "contribution margin calculator"],
   icon: "⚖️",
   category: "general",

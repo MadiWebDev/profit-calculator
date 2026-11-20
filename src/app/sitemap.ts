@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 import { calculators } from "@/config/calculators";
-import { BASE_URL } from "@/lib/seo";
+import { BASE_URL, buildLocaleLanguages } from "@/lib/seo";
 import { SEO_PAGES } from "@/lib/seo-pages";
 import { LOCALES, CORE_LOCALE_SLUGS } from "@/lib/seo-locales";
+import { BLOG_POST_LINKS } from "@/lib/blog-posts";
 
 /**
  * Honest lastmod — the last content change per group, from git history
@@ -32,8 +33,16 @@ const LASTMOD = {
 } as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  // The homepage and the 5 core topics exist in all 19 locales, so
+  // their sitemap entries carry the same hreflang cluster the pages
+  // declare (Phase 2B). No other URL has translations.
+  const homeLanguages = buildLocaleLanguages("");
+  const coreLanguages = Object.fromEntries(
+    CORE_LOCALE_SLUGS.map((slug) => [slug, buildLocaleLanguages(`/${slug}`)]),
+  );
+
   const staticPages: MetadataRoute.Sitemap = [
-    { url: BASE_URL,                                    lastModified: LASTMOD.home,       changeFrequency: "weekly",  priority: 1.0 },
+    { url: BASE_URL,                                    lastModified: LASTMOD.home,       changeFrequency: "weekly",  priority: 1.0, alternates: { languages: homeLanguages } },
     { url: `${BASE_URL}/pricing`,                       lastModified: LASTMOD.pricing,    changeFrequency: "weekly",  priority: 0.95 },
     { url: `${BASE_URL}/features`,                      lastModified: LASTMOD.features,   changeFrequency: "monthly", priority: 0.9 },
     { url: `${BASE_URL}/compare/profitcalc-io`,         lastModified: LASTMOD.compare,    changeFrequency: "monthly", priority: 0.9 },
@@ -60,18 +69,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.85,
   }));
 
-  const blogPosts = [
-    "how-to-price-products-for-30-percent-margin",
-    "shopify-profit-margin-guide",
-    "facebook-ads-roas-guide",
-    "amazon-fba-profit-margins-explained",
-    "dropshipping-profit-calculator-guide",
-    "freelance-pricing-guide",
-    "google-ads-roi-vs-roas",
-    "ecommerce-break-even-analysis",
-  ];
-
-  const blogPages: MetadataRoute.Sitemap = blogPosts.map((slug) => ({
+  // Blog posts: the shared list (also linked from the homepage and
+  // the calculators hub), so a post can never be in the sitemap but
+  // unlinked from every page.
+  const blogPages: MetadataRoute.Sitemap = BLOG_POST_LINKS.map(({ slug }) => ({
     url: `${BASE_URL}/blog/${slug}`,
     lastModified: LASTMOD.blog,
     changeFrequency: "monthly",
@@ -79,21 +80,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }));
 
   // SEO landing pages: 21 English pages mirroring the competitor sitemap.
+  // The 5 core topics exist in all 19 locales, so their entries carry
+  // the hreflang cluster; the other 16 have no translations.
   const seoPages: MetadataRoute.Sitemap = Object.keys(SEO_PAGES).map((slug) => ({
     url: `${BASE_URL}/${slug}`,
     lastModified: LASTMOD.seo,
     changeFrequency: "monthly",
     priority: 0.85,
+    ...(coreLanguages[slug] ? { alternates: { languages: coreLanguages[slug] } } : {}),
   }));
 
   // Localised landing pages: 19 locales x (home + 5 core topics) = 114 URLs.
   const localePages: MetadataRoute.Sitemap = LOCALES.flatMap((locale) => [
-    { url: `${BASE_URL}/${locale.code}`, lastModified: LASTMOD.locale, changeFrequency: "monthly" as const, priority: 0.7 },
+    { url: `${BASE_URL}/${locale.code}`, lastModified: LASTMOD.locale, changeFrequency: "monthly" as const, priority: 0.7, alternates: { languages: homeLanguages } },
     ...CORE_LOCALE_SLUGS.map((slug) => ({
       url: `${BASE_URL}/${locale.code}/${slug}`,
       lastModified: LASTMOD.locale,
       changeFrequency: "monthly" as const,
       priority: 0.7,
+      alternates: { languages: coreLanguages[slug] },
     })),
   ]);
 

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "GetProfitCalc vs TrueProfit — Honest Comparison",
+  title: "GetProfitCalc vs TrueProfit",
   description:
     "How does GetProfitCalc compare to TrueProfit, BeProfit, and other profit tracking tools? Side-by-side comparison of features, pricing, and platform support.",
   path: "/compare/profitcalc-io",
@@ -21,9 +21,9 @@ interface CompRow {
 
 const ROWS: CompRow[] = [
   // Pricing
-  { category: "Pricing", feature: "Starting price",                   us: "$3/month",         them: "$39–$49/month" },
+  { category: "Pricing", feature: "Starting price",                   us: "$3/month",         them: "$35–$49/month" },
   { category: "Pricing", feature: "Free trial (no credit card)",       us: true,               them: false,             note: "Most require Shopify billing approval" },
-  { category: "Pricing", feature: "Unlimited-order plan price",        us: "$29/month",        them: "$99–$249/month" },
+  { category: "Pricing", feature: "Unlimited-order plan price",        us: "$29/month",        them: "$249/month",       note: "BeProfit Plus; TrueProfit's top plan is $200/mo for 3,500 orders, not unlimited" },
   { category: "Pricing", feature: "Annual discount",                   us: "20%",              them: "Varies" },
 
   // Integrations
@@ -55,17 +55,21 @@ const ROWS: CompRow[] = [
 const categories = [...new Set(ROWS.map((r) => r.category))];
 
 function Cell({ value }: { value: string | boolean }) {
+  // Icon-only cells are invisible to screen readers and to any text
+  // extraction, so each carries sr-only text with its meaning.
   if (value === true) return (
     <div className="flex justify-center">
       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 dark:bg-green-950">
-        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+        <Check className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden />
+        <span className="sr-only">Included</span>
       </span>
     </div>
   );
   if (value === false) return (
     <div className="flex justify-center">
       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-muted)]">
-        <X className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+        <X className="h-4 w-4 text-[var(--color-muted-foreground)]" aria-hidden />
+        <span className="sr-only">Not included</span>
       </span>
     </div>
   );
@@ -78,7 +82,7 @@ export default function ComparePage() {
       {/* Hero */}
       <section className="py-16 sm:py-20 text-center bg-gradient-to-b from-[var(--color-accent)] to-[var(--color-background)]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <Badge variant="outline" className="mb-4 text-xs">Honest comparison · Updated September 2026</Badge>
+          <Badge variant="outline" className="mb-4 text-xs">Honest comparison · Updated November 2026</Badge>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-[var(--color-foreground)] mb-4">
             GetProfitCalc vs. Other Profit Trackers
           </h1>
@@ -127,7 +131,7 @@ export default function ComparePage() {
           ))}
 
           <p className="text-xs text-center text-[var(--color-muted-foreground)] mt-2">
-            Competitor data sourced from public pricing pages and feature lists as of September 2026.
+            Competitor data sourced from public pricing pages and feature lists as of November 2026.
             Features and pricing may have changed — verify with each provider.
           </p>
         </div>

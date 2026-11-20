@@ -200,7 +200,16 @@ export const CURRENCIES: CurrencyDef[] = [
   { code: "GIP", symbol: "£",    name: "Gibraltar Pound",        locale: "en-GI", label: "Gibraltar Pound (£)" },
   { code: "XPF", symbol: "₣",    name: "CFP Franc",              locale: "fr-NC", label: "CFP Franc (₣)" },
 ];
-const FALLBACK = CURRENCIES[0]; // USD
+/**
+ * The fixed server default. The registry is ordered by region (Africa
+ * first), so CURRENCIES[0] is DZD — NOT a sensible default. The server
+ * renders this before any client-side resolution runs, so it must be
+ * USD: Googlebot and every first paint see USD, and geo detection only
+ * ever runs client-side after mount (see the geo effect below). The
+ * documented precedence (user > team > stored > geo > store > USD)
+ * ends in USD, so the initial state matches the last resort.
+ */
+const FALLBACK = CURRENCIES.find((c) => c.code === "USD") ?? CURRENCIES[0];
 const LS_KEY   = "profit_selected_currency";
 // Auto-detected currency (location / IP), cached separately from the
 // explicit choice so a detected default never overwrites a saved one.

@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Food Cost Percentage Calculator",
   shortTitle: "Food Cost %", 
   description: "Calculate the food cost percentage and ideal menu price for any dish based on your ingredient costs.",
-  metaDescription: "Free food cost percentage calculator. Enter ingredient cost and menu price to calculate food cost %, gross profit per dish, and the ideal menu price for your target margin.",
+  metaDescription: "Free food cost percentage calculator. Enter ingredient cost and menu price to calculate food cost % and gross profit per dish.",
   keywords: ["food cost percentage calculator", "food cost calculator", "menu item cost calculator", "recipe cost calculator", "ideal food cost calculator"],
   icon: "🥘",
   category: "restaurant",

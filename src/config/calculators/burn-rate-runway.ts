@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Startup Burn Rate & Runway Calculator",
   shortTitle: "Burn Rate & Runway",
   description: "Calculate your monthly burn rate and exactly how many months of runway your cash balance provides.",
-  metaDescription: "Free burn rate and runway calculator. Enter cash balance, monthly revenue, and monthly expenses to calculate net burn rate, runway in months, and zero-cash date.",
+  metaDescription: "Free burn rate and runway calculator. Enter cash balance, monthly revenue, and monthly expenses to calculate net burn rate and runway in months.",
   keywords: ["burn rate calculator", "runway calculator", "startup runway calculator", "cash runway calculator", "net burn calculator"],
   icon: "🔥",
   category: "saas",

@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Facebook / Meta Ads ROAS & Profit Calculator",
   shortTitle: "Meta Ads ROAS",
   description: "Calculate your Facebook and Instagram ad ROAS, net profit, CPA, and break-even ROAS instantly.",
-  metaDescription: "Free Facebook Ads ROAS calculator. Enter your ad spend, revenue, COGS, and platform fees to calculate ROAS, net profit after ad spend, cost per acquisition, and break-even ROAS.",
+  metaDescription: "Free Facebook Ads ROAS calculator. Enter your ad spend, revenue, COGS, and platform fees to calculate ROAS, net profit after ad spend, and cost per acquisition.",
   keywords: ["facebook ads roas calculator", "meta ads profit calculator", "facebook ads roi calculator", "roas calculator", "break even roas calculator"],
   icon: "📘",
   category: "advertising",

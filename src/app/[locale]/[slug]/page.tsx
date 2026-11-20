@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import LocaleLandingPage from "@/components/seo/LocaleLandingPage";
 import { LOCALES, CORE_LOCALE_SLUGS, getLocale, getLocalePage } from "@/lib/seo-locales";
+import { buildLocaleLanguages } from "@/lib/seo";
 
 const BASE = "https://getprofitcalc.com";
 
@@ -14,8 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const loc = getLocale(locale);
   const page = getLocalePage(locale, slug);
   if (!loc || !page) return {};
-  const languages: Record<string, string> = { "x-default": `${BASE}/${slug}` };
-  for (const l of LOCALES) languages[l.code] = `${BASE}/${l.code}/${slug}`;
+  const languages = buildLocaleLanguages(`/${slug}`);
   return {
     title: `${page.title} | GetProfitCalc`,
     description: page.description,

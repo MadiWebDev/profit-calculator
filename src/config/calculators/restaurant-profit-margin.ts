@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Restaurant Profit Margin Calculator",
   shortTitle: "Restaurant Profit Margin",
   description: "Calculate your restaurant's net profit margin after food cost, labor cost, and overhead.",
-  metaDescription: "Free restaurant profit margin calculator. Enter monthly revenue, food cost, labor cost, and overhead to calculate prime cost, net margin, and break-even revenue.",
+  metaDescription: "Free restaurant profit margin calculator. Enter monthly revenue, food cost, labor cost, and overhead to calculate prime cost and net margin.",
   keywords: ["restaurant profit margin calculator", "restaurant profitability calculator", "prime cost calculator", "restaurant profit calculator"],
   icon: "🍽️",
   category: "restaurant",

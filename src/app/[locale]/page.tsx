@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import LocaleLandingPage from "@/components/seo/LocaleLandingPage";
 import { LOCALES, getLocale } from "@/lib/seo-locales";
+import { buildLocaleLanguages } from "@/lib/seo";
 
 const BASE = "https://getprofitcalc.com";
 
@@ -13,8 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const loc = getLocale(locale);
   if (!loc) return {};
-  const languages: Record<string, string> = { "x-default": BASE };
-  for (const l of LOCALES) languages[l.code] = `${BASE}/${l.code}`;
+  const languages = buildLocaleLanguages("");
   return {
     title: `${loc.dict.home.title} | GetProfitCalc`,
     description: loc.dict.home.description,
