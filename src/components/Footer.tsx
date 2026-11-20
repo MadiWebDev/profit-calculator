@@ -19,8 +19,10 @@ const productLinks = [
   { href: "/features",            label: "Features" },
   { href: "/pricing",             label: "Pricing" },
   { href: "/compare/profitcalc-io", label: "Compare" },
-  { href: "/dashboard",           label: "Dashboard" },
-  { href: "/onboarding",          label: "Connect Store" },
+  // SEO Phase 1: /dashboard and /onboarding are private app pages
+  // (302 to /auth/login for logged-out visitors, including Googlebot).
+  // They must not be linked sitewide. /docs/api stays: it is public
+  // developer documentation and is in the sitemap.
   { href: "/docs/api",            label: "API Docs" },
 ];
 

@@ -6,7 +6,13 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
+        // Allow the root plus the OG image endpoint. Every page's
+        // og:image is /api/og?title=... and Googlebot discovers those
+        // URLs from the meta tags — with only Disallow: /api/ they were
+        // all blocked (GSC: Blocked by robots.txt, 5). Google applies
+        // the longest matching rule, so /api/og wins over /api/ here
+        // while every other /api/* route stays blocked.
+        allow: ["/", "/api/og"],
         disallow: ["/api/"],
       },
     ],

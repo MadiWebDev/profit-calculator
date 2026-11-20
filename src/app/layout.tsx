@@ -15,9 +15,19 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
-  title: { default: `${SITE_NAME} — Free Profit & ROI Calculators`, template: `%s | ${SITE_NAME}` },
+  // SEO Phase 1 (pulled forward from Phase 2): the title template
+  // "%s | GetProfitCalc" double-applied the brand — buildMetadata
+  // already appends "| GetProfitCalc", and the locale pages and
+  // pricing/welcome metadata do too, so every page rendered
+  // "... | GetProfitCalc | GetProfitCalc" (~120/191 titles over 60
+  // chars, homepage 81). The template is removed; each page's own
+  // metadata now carries the brand exactly once. The default title
+  // (used by pages with no metadata of their own) is unchanged.
+  // (A plain string: the object form requires a template.)
+  title: `${SITE_NAME} — Free Profit & ROI Calculators`,
   description: SITE_DESCRIPTION,
-  keywords: ["profit calculator", "roi calculator", "ecommerce calculator", "shopify profit", "dropshipping profit", "amazon fba calculator"],
+  // <meta name="keywords"> removed: ignored by Google, it only
+  // exposes strategy.
   authors: [{ name: "GetProfitCalc" }],
   creator: "GetProfitCalc",
   openGraph: {

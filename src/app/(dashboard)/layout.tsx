@@ -11,6 +11,13 @@ import type { UserRole, UserPlan, TeamRole } from "@/components/dashboard/RoleCo
 import { ArchivedWall } from "@/components/billing/ArchivedWall";
 import { TrialBanner } from "@/components/billing/TrialBanner";
 import { OnboardingModal } from "@/components/dashboard/OnboardingModal";
+import type { Metadata } from "next";
+
+// Private app area — never indexed (SEO Phase 1: the dashboard was
+// linked sitewide and 302s to /auth/login for logged-out visitors).
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();

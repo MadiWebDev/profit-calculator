@@ -4,18 +4,21 @@ import BlogListClient from "./BlogListClient";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
-  title: "Blog | ProfitCalc - E-commerce Insights & Tips",
+  // SEO Phase 1: the title named the competitor ("ProfitCalc") instead
+  // of this site, and the page had no canonical. Fixed both.
+  title: "Blog | GetProfitCalc - E-commerce Insights & Tips",
   description:
     "Discover expert insights, tips, and strategies for e-commerce success. Learn about profit optimization, ad spend management, and business growth.",
+  alternates: { canonical: "/blog" },
   openGraph: {
-    title: "Blog | ProfitCalc",
+    title: "Blog | GetProfitCalc",
     description:
       "Expert insights and strategies for e-commerce success",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Blog | ProfitCalc",
+    title: "Blog | GetProfitCalc",
     description:
       "Expert insights and strategies for e-commerce success",
   },

@@ -1,0 +1,21 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/1.1 200 OK
+Age: 0
+Cache-Control: public, max-age=0, must-revalidate
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.paddle.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.shopify.com https://*.cloudinary.com https://lh3.googleusercontent.com https://*.paddle.com; font-src 'self' data:; connect-src 'self' https://api.openai.com https://api.resend.com https://api.paddle.com https://sandbox-api.paddle.com; frame-src https://*.paddle.com; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests; base-uri 'self'; form-action 'self'
+Content-Type: image/png
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Date: Fri, 20 Nov 2026 07:56:08 GMT
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self)
+Referrer-Policy: strict-origin-when-cross-origin
+Server: Vercel
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-Matched-Path: /api/og
+X-Vercel-Cache: MISS
+X-Vercel-Id: pdx1::sfo1::l8qsv-1795161366712-871ff50b9898
+X-Xss-Protection: 1; mode=block
+

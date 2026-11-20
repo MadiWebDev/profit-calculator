@@ -8,7 +8,7 @@ export const metadata = buildMetadata({
   title: "GetProfitCalc vs TrueProfit — Honest Comparison",
   description:
     "How does GetProfitCalc compare to TrueProfit, BeProfit, and other profit tracking tools? Side-by-side comparison of features, pricing, and platform support.",
-  path: "/compare/getprofitcalc",
+  path: "/compare/profitcalc-io",
 });
 
 interface CompRow {

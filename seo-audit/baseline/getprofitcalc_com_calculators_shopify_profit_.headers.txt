@@ -1,0 +1,12 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/1.1 308 Permanent Redirect
+Cache-Control: public, max-age=0, must-revalidate
+Content-Type: text/plain
+Date: Fri, 20 Nov 2026 07:56:04 GMT
+Location: /calculators/shopify-profit
+Refresh: 0;url=/calculators/shopify-profit
+Server: Vercel
+Strict-Transport-Security: max-age=63072000
+X-Vercel-Id: iad1::xss5c-1795161364268-4228e8c6577a
+

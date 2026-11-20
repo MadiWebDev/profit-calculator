@@ -3,6 +3,12 @@ import { auth } from "@/lib/auth";
 import Link from "next/link";
 import { Calculator, Users, LogOut, LayoutDashboard, FileText, Megaphone, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Metadata } from "next";
+
+// Private admin area — never indexed (SEO Phase 1).
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();

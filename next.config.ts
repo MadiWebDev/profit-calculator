@@ -111,6 +111,10 @@ const nextConfig: NextConfig = {
   // Nothing here points at main — the live site is untouched.
   async redirects() {
     return [
+      // SEO Phase 1: the comparison page was renamed from
+      // /compare/getprofitcalc — its stale canonical pointed at this
+      // dead URL (GSC: Alternate page with proper canonical tag + 404).
+      { source: "/compare/getprofitcalc", destination: "/compare/profitcalc-io", permanent: true },
       { source: "/dashboard/true-profit", destination: "/dashboard/profit", permanent: false },
       { source: "/dashboard/order-profitability", destination: "/dashboard/orders", permanent: false },
       { source: "/dashboard/product-profitability", destination: "/dashboard/product-intel", permanent: false },
