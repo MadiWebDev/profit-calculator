@@ -13,9 +13,16 @@ const cspDirectives = [
   "default-src 'self'",
   // Scripts: allow self + Next.js inline bootstrap in dev only.
   // https://cdn.paddle.com — Paddle.js is loaded from this CDN by @paddle/paddle-js.
+  // https://pagead2.googlesyndication.com — the AdSense script loaded
+  // in the root layout (ca-pub-4860681021797211). Without it the
+  // browser blocks adsbygoogle.js on every page. When the first real
+  // ad slot goes live, frame-src and img-src will also need the
+  // googleads.g.doubleclick.net / tpc.googlesyndication.com domains
+  // (ad iframes and creatives); with no slots today, script-src is
+  // the only directive an ad load touches.
   isDev
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.paddle.com"
-    : "script-src 'self' 'unsafe-inline' https://cdn.paddle.com",
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.paddle.com https://pagead2.googlesyndication.com"
+    : "script-src 'self' 'unsafe-inline' https://cdn.paddle.com https://pagead2.googlesyndication.com",
   // Styles: Recharts and Tailwind both inject inline styles
   "style-src 'self' 'unsafe-inline'",
   // Images: self + data URIs + remote CDNs used by the app.
@@ -111,6 +118,10 @@ const nextConfig: NextConfig = {
   // Nothing here points at main — the live site is untouched.
   async redirects() {
     return [
+      // SEO Phase 1: the comparison page was renamed from
+      // /compare/getprofitcalc — its stale canonical pointed at this
+      // dead URL (GSC: Alternate page with proper canonical tag + 404).
+      { source: "/compare/getprofitcalc", destination: "/compare/profitcalc-io", permanent: true },
       { source: "/dashboard/true-profit", destination: "/dashboard/profit", permanent: false },
       { source: "/dashboard/order-profitability", destination: "/dashboard/orders", permanent: false },
       { source: "/dashboard/product-profitability", destination: "/dashboard/product-intel", permanent: false },

@@ -1,0 +1,21 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/1.1 302 Found
+Cache-Control: public, max-age=0, must-revalidate
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.paddle.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.shopify.com https://*.cloudinary.com https://lh3.googleusercontent.com https://*.paddle.com; font-src 'self' data:; connect-src 'self' https://api.openai.com https://api.resend.com https://api.paddle.com https://sandbox-api.paddle.com; frame-src https://*.paddle.com; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests; base-uri 'self'; form-action 'self'
+Content-Type: text/plain
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Date: Fri, 20 Nov 2026 07:56:10 GMT
+Location: /auth/login?callbackUrl=%2Fonboarding
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self)
+Referrer-Policy: strict-origin-when-cross-origin
+Server: Vercel
+Set-Cookie: __Host-authjs.csrf-token=6d37555ae9f96c950cf35a5a1847c2ccf168ca33f1823a05f5c9be4414f7b6df%7C8b8ce7d59c9d7718bd65d8ba62006ee18414acae4a03abffa410ce711426698e; Path=/; HttpOnly; Secure; SameSite=Lax
+Set-Cookie: __Secure-authjs.callback-url=https%3A%2F%2Fgetprofitcalc.com; Path=/; HttpOnly; Secure; SameSite=Lax
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-Vercel-Id: cle1::xwk99-1795161370333-36221b507503
+X-Xss-Protection: 1; mode=block
+

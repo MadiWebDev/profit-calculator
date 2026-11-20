@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Shopify Profit Calculator",
   shortTitle: "Shopify Profit",
   description: "Calculate your real net profit from Shopify sales after fees, shipping, and ad spend.",
-  metaDescription: "Free Shopify profit calculator. Enter your product cost, selling price, Shopify fees, shipping, and ad spend to instantly see net profit, margin %, ROI, and break-even units.",
+  metaDescription: "Free Shopify profit calculator. Enter your product cost, selling price, Shopify fees, shipping, and ad spend to instantly see net profit, margin %, and ROI.",
   keywords: ["shopify profit calculator", "shopify margin calculator", "ecommerce profit calculator", "shopify fee calculator", "shopify roi calculator"],
   icon: "🛍️",
   category: "ecommerce",

@@ -2,6 +2,8 @@
 
 import { calculators } from "@/config/calculators";
 import { AdSlot } from "@/components/AdSlot";
+import { BLOG_POST_LINKS } from "@/lib/blog-posts";
+import Link from "next/link";
 import type { CalculatorConfig } from "@/types/calculator";
 import { CalculatorsDirectory } from "@/components/CalculatorsDirectory";
 
@@ -207,6 +209,36 @@ export default function CalculatorsPage() {
               rules.
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ── GUIDES ──────────────────────────────────────────────────────
+          Server-rendered links to every blog post (the posts were
+          linked only from the client-rendered /blog hub before this,
+          so the crawl found 1 inlink per post). */}
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <h2 className="text-2xl font-bold text-[var(--color-foreground)] mb-2">
+          Guides &amp; Tutorials
+        </h2>
+        <p className="text-[var(--color-muted-foreground)] mb-6 max-w-2xl">
+          How to price products, read your margins, and judge whether an
+          ad campaign actually made money.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {BLOG_POST_LINKS.map((post) => (
+            <Link
+              key={post.slug}
+              href={`/blog/${post.slug}`}
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 hover:border-[var(--color-primary)]/40 transition-colors"
+            >
+              <span className="block font-semibold text-[var(--color-foreground)] leading-snug">
+                {post.title}
+              </span>
+              <span className="mt-2 block text-sm text-[var(--color-primary)]">
+                Read the guide →
+              </span>
+            </Link>
+          ))}
         </div>
       </section>
     </main>

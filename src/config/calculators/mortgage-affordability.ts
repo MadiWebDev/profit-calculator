@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Mortgage Payment & Affordability Calculator",
   shortTitle: "Mortgage Payment",
   description: "Calculate your monthly mortgage payment, total interest, and how much home you can afford.",
-  metaDescription: "Free mortgage calculator. Enter home price, down payment, interest rate, and loan term to calculate your monthly payment, total interest, and affordability based on income.",
+  metaDescription: "Free mortgage calculator. Enter home price, down payment, interest rate, and loan term to calculate your monthly payment and total interest.",
   keywords: ["mortgage calculator", "mortgage payment calculator", "home affordability calculator", "monthly mortgage calculator", "how much house can i afford"],
   icon: "🏦",
   category: "real-estate",

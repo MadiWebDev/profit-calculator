@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Property Management Fee Calculator",
   shortTitle: "Property Mgmt Fee",
   description: "Calculate the true cost of hiring a property manager and its impact on your rental cash flow.",
-  metaDescription: "Free property management fee calculator. Enter monthly rent, management fee %, leasing fee, and maintenance markup to see total annual management cost and impact on cash flow.",
+  metaDescription: "Free property management fee calculator. Enter monthly rent, management fee %, leasing fee, and maintenance markup to see total annual management cost.",
   keywords: ["property management fee calculator", "property manager cost calculator", "rental management fee calculator", "landlord fee calculator"],
   icon: "🔑",
   category: "real-estate",

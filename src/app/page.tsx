@@ -9,13 +9,15 @@ import { CalculatorCard } from "@/components/CalculatorCard";
 import { AdSlot } from "@/components/AdSlot";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { buildMetadata } from "@/lib/seo";
+import { buildMetadata, buildLocaleLanguages } from "@/lib/seo";
+import { BLOG_POST_LINKS } from "@/lib/blog-posts";
 
 export const metadata = buildMetadata({
-  title: "Free Profit Calculators + Real-Time Profit Tracking for Ecommerce",
+  title: "Free Profit Calculators for Ecommerce",
   description:
     "Free profit calculators for Shopify, Amazon FBA, dropshipping, and ads — plus a full SaaS profit tracking platform starting at $3/month. Know your real numbers.",
   path: "/",
+  languages: buildLocaleLanguages(""),
 });
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -32,7 +34,7 @@ const comparisonRows: {
   us: string | boolean;
   them: string | boolean;
 }[] = [
-  { feature: "Starting price",              us: "$3/month",   them: "$39/month" },
+  { feature: "Starting price",              us: "$3/month",   them: "$35–$49/month" },
   { feature: "Free trial (no credit card)", us: true,         them: false },
   { feature: "Shopify integration",         us: true,         them: true },
   { feature: "Shopify-only integration",     us: true,         them: false },
@@ -79,8 +81,20 @@ const faqs = [
 // ── Components ────────────────────────────────────────────────────────────────
 
 function ComparisonCell({ value }: { value: string | boolean }) {
-  if (value === true) return <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 mx-auto" />;
-  if (value === false) return <X className="h-4 w-4 sm:h-5 sm:w-5 text-red-400 mx-auto" />;
+  // Icon-only cells are invisible to screen readers and to any text
+  // extraction, so each carries sr-only text with its meaning.
+  if (value === true) return (
+    <span className="inline-flex items-center justify-center">
+      <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 mx-auto" aria-hidden />
+      <span className="sr-only">Included</span>
+    </span>
+  );
+  if (value === false) return (
+    <span className="inline-flex items-center justify-center">
+      <X className="h-4 w-4 sm:h-5 sm:w-5 text-red-400 mx-auto" aria-hidden />
+      <span className="sr-only">Not included</span>
+    </span>
+  );
   return <span className="text-xs sm:text-sm text-[var(--color-muted-foreground)] whitespace-nowrap">{value}</span>;
 }
 
@@ -175,7 +189,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-6 sm:mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-[var(--color-foreground)] mb-2">GetProfitCalc vs. Other Profit Trackers</h2>
-            <p className="text-[var(--color-muted-foreground)] text-sm">A fair, factual comparison. Last updated September 2026.</p>
+            <p className="text-[var(--color-muted-foreground)] text-sm">A fair, factual comparison. Last updated November 2026.</p>
           </div>
           {/*
             Phones (<sm): a stacked card per row — feature name on top, then
@@ -228,7 +242,7 @@ export default function HomePage() {
             </div>
           </div>
           <p className="text-xs text-center text-[var(--color-muted-foreground)] mt-3">
-            &ldquo;Others&rdquo; represents typical pricing/features of leading profit tracking tools as of September 2026.
+            &ldquo;Others&rdquo; represents typical pricing/features of leading profit tracking tools as of November 2026.
           </p>
         </div>
       </section>
@@ -395,6 +409,45 @@ export default function HomePage() {
                 <p className="text-sm text-[var(--color-muted-foreground)] leading-relaxed">{a}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── LATEST FROM THE BLOG ────────────────────────────────────────
+          Server-rendered links to every post: before this, the posts
+          were linked only from the client-rendered /blog hub, so the
+          crawl found 1 inlink per post. */}
+      <section className="py-12 sm:py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8 sm:mb-10">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[var(--color-foreground)] mb-3">
+              Latest from the Blog
+            </h2>
+            <p className="text-sm sm:text-base text-[var(--color-muted-foreground)] max-w-xl mx-auto">
+              Practical guides on pricing, margins, ad profit and
+              break-even analysis for ecommerce sellers.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {BLOG_POST_LINKS.map((post) => (
+              <Link
+                key={post.slug}
+                href={`/blog/${post.slug}`}
+                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 hover:border-[var(--color-primary)]/40 transition-colors"
+              >
+                <h3 className="font-semibold text-[var(--color-foreground)] leading-snug">
+                  {post.title}
+                </h3>
+                <p className="mt-2 text-sm text-[var(--color-primary)]">
+                  Read the guide →
+                </p>
+              </Link>
+            ))}
+          </div>
+          <div className="text-center mt-8">
+            <Button asChild variant="outline">
+              <Link href="/blog">View All Articles</Link>
+            </Button>
           </div>
         </div>
       </section>

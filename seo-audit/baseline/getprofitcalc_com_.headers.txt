@@ -1,0 +1,8 @@
+HTTP/1.0 308 Permanent Redirect
+Content-Type: text/plain
+Location: https://getprofitcalc.com/
+Refresh: 0;url=https://getprofitcalc.com/
+server: Vercel
+connection: close
+date: Fri, 20 Nov 2026 07:56:00 GMT
+

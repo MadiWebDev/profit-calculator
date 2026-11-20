@@ -1,0 +1,31 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Access-Control-Allow-Origin: *
+Age: 51024
+Cache-Control: public, max-age=0, must-revalidate
+Content-Disposition: inline
+X-Xss-Protection: 1; mode=block
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.paddle.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.shopify.com https://*.cloudinary.com https://lh3.googleusercontent.com https://*.paddle.com; font-src 'self' data:; connect-src 'self' https://api.openai.com https://api.resend.com https://api.paddle.com https://sandbox-api.paddle.com; frame-src https://*.paddle.com; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests; base-uri 'self'; form-action 'self'
+Content-Type: text/html; charset=utf-8
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Date: Fri, 20 Nov 2026 07:56:02 GMT
+Etag: "94d4fe63a34dab99f615eb9f2b15573b"
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self)
+Referrer-Policy: strict-origin-when-cross-origin
+Server: Vercel
+Set-Cookie: __Host-authjs.csrf-token=8dcd063b1f5bce42ef5d9fcdc3c3bbf92b4ece9894a85738004332685c456daf%7Cf88c3139f3e26c845ca77cb294cb9cf2ae61523a530d086f2496a6291a15a6e4; Path=/; HttpOnly; Secure; SameSite=Lax
+Set-Cookie: __Secure-authjs.callback-url=https%3A%2F%2Fgetprofitcalc.com; Path=/; HttpOnly; Secure; SameSite=Lax
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-Matched-Path: /calculators
+X-Nextjs-Prerender: 1
+X-Nextjs-Stale-Time: 300
+X-Vercel-Cache: HIT
+X-Vercel-Id: iad1::2kbch-1795161362790-bf89e7299244
+Content-Length: 153539
+

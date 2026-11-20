@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Rent vs Buy Calculator",
   shortTitle: "Rent vs Buy",
   description: "Compare the true 5-year cost of renting vs buying a home, including opportunity cost of your down payment.",
-  metaDescription: "Free rent vs buy calculator. Compare monthly rent to total homeownership costs including mortgage, taxes, maintenance, and opportunity cost to see which is cheaper over time.",
+  metaDescription: "Free rent vs buy calculator. Compare monthly rent to total homeownership costs including mortgage, taxes, maintenance, and opportunity cost.",
   keywords: ["rent vs buy calculator", "should i rent or buy calculator", "renting vs owning calculator", "home buying cost calculator", "rent or buy a house"],
   icon: "⚖️",
   category: "real-estate",

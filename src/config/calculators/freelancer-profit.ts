@@ -2,10 +2,10 @@ import type { CalculatorConfig } from "@/types/calculator";
 
 const config: CalculatorConfig = {
   slug: "freelancer-profit",
-  title: "Freelancer & Service Business Profit Calculator",
+  title: "Freelancer Profit Calculator",
   shortTitle: "Freelancer Profit",
   description: "Calculate your real take-home profit as a freelancer after taxes, tools, and overhead.",
-  metaDescription: "Free freelancer profit calculator. Enter hourly rate, hours worked, software costs, tax rate, and overhead to calculate take-home profit and effective hourly rate.",
+  metaDescription: "Free freelancer profit calculator. Enter hourly rate, hours worked, software costs, and tax rate to calculate take-home profit.",
   keywords: ["freelancer profit calculator", "freelancer income calculator", "self employed profit calculator", "freelance hourly rate calculator", "take home pay calculator freelancer"],
   icon: "💼",
   category: "freelance",

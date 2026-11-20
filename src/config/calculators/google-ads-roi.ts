@@ -5,7 +5,7 @@ const config: CalculatorConfig = {
   title: "Google Ads ROI Calculator",
   shortTitle: "Google Ads ROI",
   description: "Calculate Google Ads ROI, CPA, profit per conversion, and break-even metrics in real time.",
-  metaDescription: "Free Google Ads ROI calculator. Enter ad spend, conversions, average order value, conversion rate, and COGS to calculate CPA, ROI %, profit per conversion, and break-even metrics.",
+  metaDescription: "Free Google Ads ROI calculator. Enter ad spend, conversions, average order value, and COGS to calculate CPA, ROI %, and profit per conversion.",
   keywords: ["google ads roi calculator", "google ads profit calculator", "google ads cpa calculator", "ppc roi calculator", "google ads return on investment"],
   icon: "🎯",
   category: "advertising",

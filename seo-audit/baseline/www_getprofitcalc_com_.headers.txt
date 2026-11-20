@@ -1,0 +1,11 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/1.1 307 Temporary Redirect
+Cache-Control: public, max-age=0, must-revalidate
+Content-Type: text/plain
+Date: Fri, 20 Nov 2026 07:56:02 GMT
+Location: https://getprofitcalc.com/
+Server: Vercel
+Strict-Transport-Security: max-age=63072000
+X-Vercel-Id: sfo1::lq2bl-1795161362258-83f0e85a783c
+

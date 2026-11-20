@@ -2,6 +2,13 @@ import { connectDB } from "@/lib/db";
 import { resolvePortalClient, safeBrandColor } from "@/lib/portal";
 import StoreModel from "@/models/Store";
 import OrderModel from "@/models/Order";
+import type { Metadata } from "next";
+
+// Agency client portal — token-gated private page, never indexed
+// (SEO Phase 1).
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 /**
  * Agency client portal — public, token-gated, read-only. Rendered from
